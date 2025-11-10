@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.datacopilotx.ai.mapper.QuestionLogMapper">
+    <select id="selectQueryLog" resultType="com.datacopilotx.ai.domian.dto.QuestionLogDTO">
+        SELECT
+            session_id,
+            MIN(ctime) AS ctime,
+            SUBSTRING_INDEX(GROUP_CONCAT(question ORDER BY ctime), ',', 1) AS question
+        FROM QUESTION_LOG
+        WHERE
+            ctime >= DATE_SUB(NOW(), INTERVAL 1 MONTH) AND is_del = 0
+        <if test="searchKey != null and searchKey != ''">
+            AND question LIKE CONCAT('%', #{searchKey}, '%')
+        </if>
+        GROUP BY session_id ORDER BY ctime DESC
+    </select>
+</mapper>

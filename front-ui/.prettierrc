@@ -1,0 +1,23 @@
+{
+  "jsxSingleQuote": false,
+  "singleQuote": true,
+  "endOfLine": "lf",
+  "semi": true,
+  "trailingComma": "none",
+  "insertPragma": false,
+  "requirePragma": false,
+  "overrides": [
+    {
+      "files": "*.json",
+      "options": {
+        "singleQuote": false
+      }
+    },
+    {
+      "files": ".prettierrc",
+      "options": {
+        "parser": "json"
+      }
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+server:
+  port: 34567
+spring:
+  application:
+    name: DataCopilotX
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:123456}
+    url: jdbc:mysql://${MYSQL_URL:127.0.0.1}:3306/datacopilotx?characterEncoding=UTF-8&autoReconnect=true&serverTimezone=Asia/Shanghai&zeroDateTimeBehavior=convertToNull
+#以下为连接池的相关参数配置
+    hikari:
+      minimum-idle: 3
+      maximum-pool-size: 10
+      max-lifetime: 30000
+      connection-test-query: SELECT 1
+
+logging:
+  pattern:
+    console: ${CONSOLE_LOG_PATTERN:%clr(%d{${LOG_DATEFORMAT_PATTERN:yyyy-MM-dd HH:mm:ss.SSS}}){faint} %clr(${LOG_LEVEL_PATTERN:%5p}) %clr(${PID:- }){magenta} [${spring.application.name}] %clr([%10.10t]){faint}[%36.36X{trace_id}] %clr(%-40.40logger{39}){cyan} %clr(:){faint} %m%n${LOG_EXCEPTION_CONVERSION_WORD:%wEx}}
+  file:
+    name: log/${spring.application.name}.log
+    max-size: 500MB
+  level:
+    com.datacopilotx: INFO
+
+elasticsearch:
+  host: 127.0.0.1
+  port: 9200
+
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+
+
+mybatis-plus:
+  global-config:
+    db-config:
+      logic-delete-field: is_del  # 逻辑删除字段名
+      logic-delete-value: 1        # 逻辑已删除值
+      logic-not-delete-value: 0    # 逻辑未删除值
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl

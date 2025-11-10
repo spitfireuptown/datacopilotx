@@ -1,0 +1,30 @@
+{
+  "extends": [
+    "stylelint-config-standard-scss",
+    "stylelint-config-standard-vue/scss",
+    "stylelint-config-html/vue",
+    "stylelint-config-recess-order"
+  ],
+  "overrides": [
+    {
+      "files": ["*.html", "**/*.html"],
+      "customSyntax": "postcss-html"
+    }
+  ],
+  "ignoreFiles": [
+    "/.husky/*",
+    "/.vscode/*",
+    "dist/**/*",
+    "/node_modules/**/*",
+    "**/*.js",
+    "**/*.jsx",
+    "**/*.tsx",
+    "**/*.ts",
+    "**/*.json",
+    "**/*.md",
+    "**/*.yaml"
+  ],
+  "reportDescriptionlessDisables": true,
+  "reportInvalidScopeDisables": true,
+  "reportNeedlessDisables": true
+}
