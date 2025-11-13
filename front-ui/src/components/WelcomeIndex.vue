@@ -52,11 +52,13 @@ const promptStyle = {
 .welcome-wrap {
   width: 100%;
   box-sizing: border-box;
+  margin-left: 0 !important;
+  padding-left: 0 !important;
   .welcome-image {
     height: calc(100vh - 85px - 2rem - 82px - 106px - 1rem);
     background-image: url('@/assets/welcome.svg');
     background-repeat: no-repeat;
-    background-position: left;
+    background-position: center;
     background-size: contain;
     margin-left: 0 !important;
   }
