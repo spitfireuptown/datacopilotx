@@ -40,6 +40,7 @@ rebel.xml
 rebel-remote.xml
 .metals
 *test.sh
+*.mjs
 
 # Created by .ignore support plugin (hsz.mobi)
 .idea/
