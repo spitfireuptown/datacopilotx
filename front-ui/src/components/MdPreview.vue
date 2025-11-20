@@ -647,7 +647,8 @@ const handleTypeChange = (item) => {
   }
 }
 .chart{
-  width: 800px;
+  max-width: 100%;
+  width: 73vw;
   height: 400px;
   margin: 0 auto;
 }
