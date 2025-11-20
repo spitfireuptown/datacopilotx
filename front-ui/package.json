@@ -1,8 +1,8 @@
 {
-  "name": "antdx_chat_vue",
+  "name": "datacopilotx",
   "version": "0.1.0",
   "type": "module",
-  "description": " 使用 antdX Vue 开发的对话 demo",
+  "description": " 使用 antdX Vue 开发的智能问数",
   "scripts": {
     "dev": "vite",
     "lint:eslint": "eslint . --ext .vue,.js,.ts,.tsx,.jsx --fix",
