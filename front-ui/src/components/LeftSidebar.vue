@@ -51,7 +51,8 @@ const updateActiveMenu = () => {
   const path = route.path;
   if (path === '/') {
     activeMenu.value = 'chat';
-  } else if (path === '/dataset-config' || path === '/database-connection-form') {
+  } else if (path === '/dataset-config' || path === '/database-connection-form' || 
+             path === '/data-source-type-select' || path === '/excel-upload-form') {
     activeMenu.value = 'dataset';
   } else if (path === '/knowledge' || path.startsWith('/knowledge/')) {
     activeMenu.value = 'knowledge';

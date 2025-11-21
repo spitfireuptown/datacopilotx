@@ -127,7 +127,7 @@ onMounted(() => {
 
 // 显示新建表单
 const showForm = () => {
-  router.push('/database-connection-form');
+  router.push('/data-source-type-select');
 };
 
 // 编辑数据集

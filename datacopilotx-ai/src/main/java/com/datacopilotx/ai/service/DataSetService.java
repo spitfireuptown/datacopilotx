@@ -13,6 +13,7 @@ import com.datacopilotx.common.exception.DataCopilotXException;
 import com.datacopilotx.ai.domian.bean.DataSetBean;
 import com.datacopilotx.ai.domian.bean.QuestionLogBean;
 import com.datacopilotx.ai.mapper.DataSetMapper;
+import com.zaxxer.hikari.HikariDataSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,6 +29,8 @@ public class DataSetService {
     DataSetMapper dataSetMapper;
     @Autowired
     QuestionLogMapper questionLogMapper;
+    @Autowired
+    private HikariDataSource hikariDataSource;
 
 
     public List<DataSetVO.ListVO> list() {
@@ -138,5 +141,9 @@ public class DataSetService {
         detailVO.setPrompt(dataSetBean.getInjectPrompt());
         detailVO.setFields(JSONUtil.toList(dataSetBean.getFields(), DataSetDTO.SchemaInfo.class));
         return detailVO;
+    }
+
+    public Boolean fileUpload(DataSetForm.FileUploadForm fileUploadForm) {
+        return true;
     }
 }

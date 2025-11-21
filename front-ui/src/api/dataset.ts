@@ -111,31 +111,14 @@ export const testDatabaseConnection = (data: {
 };
 
 /**
- * 获取数据库表结构
- * @param data 连接信息和表名
- * @returns Promise<{
- *   fields: Array<{
- *     fieldName: string;
- *     fieldType: string;
- *     description?: string;
- *   }>;
- * }>
+ * 上传文件
+ * @param formData 包含文件的FormData对象
+ * @returns Promise<DatasetField[]> 返回字段列表
  */
-export const getTableStructure = (data: {
-  type: string;
-  host: string;
-  port: number;
-  username: string;
-  password?: string;
-  database: string;
-  table: string;
-  name?: string;
-}): Promise<{
-  fields: Array<{
-    fieldName: string;
-    fieldType: string;
-    description?: string;
-  }>;
-}> => {
-  return post('/dataset/get-table-structure', data);
+export const uploadFile = (formData: {
+  file: File;
+  name: string;
+  description: string;
+}): Promise<DatasetField[]> => {
+  return post<DatasetField[]>('/dataset/file/upload', formData);
 };

@@ -4,6 +4,7 @@ import com.datacopilotx.ai.domian.dto.DataSetDTO;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -30,5 +31,14 @@ public class DataSetForm {
         private String description;
         private String prompt;
         private List<DataSetDTO.SchemaInfo> fields;
+    }
+
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static final class FileUploadForm {
+        private MultipartFile file;
+        private String name;
+        private String description;
     }
 }

@@ -7,6 +7,7 @@ import com.datacopilotx.ai.service.DataSetService;
 import com.datacopilotx.common.result.WebResult;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -45,5 +46,10 @@ public class DataSetController {
     @RequestMapping("/table/info")
     public WebResult<List<DataSetDTO.SchemaInfo>> tableSchemaInfo(@RequestBody DataSetForm.Create createForm) {
         return WebResult.success(dataSetService.tableSchemaInfo(createForm));
+    }
+
+    @RequestMapping("/file/upload")
+    public WebResult<Boolean> fileUpload(@RequestParam("file") MultipartFile file, String name, String description) {
+        return WebResult.success();
     }
 }

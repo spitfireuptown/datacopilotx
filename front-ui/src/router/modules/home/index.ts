@@ -20,6 +20,24 @@ const homeRoutes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/data-source-type-select',
+    name: 'DataSourceTypeSelect',
+    component: () => import('@/views/DataSourceTypeSelect.vue'),
+    meta: {
+      title: '选择数据源类型',
+      keepAlive: true
+    }
+  },
+  {
+    path: '/excel-upload-form',
+    name: 'ExcelUploadForm',
+    component: () => import('@/views/ExcelUploadForm.vue'),
+    meta: {
+      title: 'Excel文件上传',
+      keepAlive: true
+    }
+  },
+  {
     path: '/model-config',
     name: 'ModelConfig',
     component: () => import('@/views/ModelConfig.vue'),
