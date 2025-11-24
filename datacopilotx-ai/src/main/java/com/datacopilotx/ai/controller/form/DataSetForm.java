@@ -36,9 +36,10 @@ public class DataSetForm {
     @Data
     @AllArgsConstructor
     @NoArgsConstructor
-    public static final class FileUploadForm {
-        private MultipartFile file;
+    public static final class FileCreate {
+        private Long id;
         private String name;
         private String description;
+        private List<DataSetDTO.SchemaInfo> fields;
     }
 }

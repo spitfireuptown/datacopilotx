@@ -64,12 +64,19 @@ const request = async <T = any>(
   
   // 处理请求体
   if (config.body) {
-    if (headers['Content-Type'] === 'application/json') {
+    // 如果body是FormData，删除Content-Type让浏览器自动设置multipart/form-data和边界
+    if (config.body instanceof FormData) {
+      delete headers['Content-Type'];
+      fetchOptions.body = config.body;
+    } else if (headers['Content-Type'] === 'application/json') {
       fetchOptions.body = JSON.stringify(config.body);
     } else {
       fetchOptions.body = config.body;
     }
   }
+  
+  // 更新fetch选项的headers（如果被修改）
+  fetchOptions.headers = headers;
   
   // 设置超时
   const timeout = config.timeout || 60000; // 默认60秒
@@ -253,6 +260,25 @@ export const del = (
 ): Promise<void> => {
   return request<void>(url, {
     method: 'DELETE',
+    ...config
+  });
+};
+
+/**
+ * 文件上传请求
+ * @param url 请求地址
+ * @param formData 包含文件的FormData对象
+ * @param config 其他配置
+ * @returns Promise<T>
+ */
+export const uploadFile = <T = any>(
+  url: string,
+  formData: FormData,
+  config?: Omit<FetchRequestConfig, 'method' | 'body' | 'headers'>
+): Promise<T> => {
+  return request<T>(url, {
+    method: 'POST',
+    body: formData,
     ...config
   });
 };
