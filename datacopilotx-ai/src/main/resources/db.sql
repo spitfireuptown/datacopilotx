@@ -14,7 +14,7 @@ CREATE TABLE `DATA_SET` (
   `database` char(255) DEFAULT NULL COMMENT '数据库',
   `table` char(255) DEFAULT NULL COMMENT '数据表名',
   `type` char(255) DEFAULT NULL COMMENT '数据集类型',
-  `inject_prompt` longtext CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL COMMENT '数据集注入prompt',
+  `inject_prompt` longtext CHARACTER SET utf8 COLLATE utf8_general_ci COMMENT '数据集注入prompt',
   `fields` longtext CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL COMMENT '数据集元数据',
   `ctime` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `utime` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

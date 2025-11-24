@@ -48,8 +48,11 @@ public class DataSetController {
         return WebResult.success(dataSetService.tableSchemaInfo(createForm));
     }
 
-    @RequestMapping("/file/upload")
-    public WebResult<Boolean> fileUpload(@RequestParam("file") MultipartFile file, String name, String description) {
-        return WebResult.success();
+    @PostMapping("/file/upload")
+    public WebResult<List<DataSetDTO.SchemaInfo>> fileUpload(@RequestParam("file") MultipartFile file,
+                                         @RequestParam(value = "name", required = false) String name,
+                                         @RequestParam(value = "description", required = false) String description) {
+
+        return WebResult.success(dataSetService.fileUpload(file, name, description));
     }
 }

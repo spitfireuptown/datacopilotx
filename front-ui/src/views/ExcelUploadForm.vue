@@ -8,11 +8,11 @@
       <div class="excel-upload-header">
         <div class="header-content">
           <h2>本地 Excel/CSV</h2>
-          <a-button type="primary" :disabled="uploading">
+          <a-button type="primary" :disabled="saving" @click="saveDataset">
             <template #icon>
-              <LoadingOutlined v-if="uploading" />
+              <LoadingOutlined v-if="saving" />
             </template>
-            {{ uploading ? '保存中...' : '保存' }}
+            {{ saving ? '保存中...' : '保存' }}
           </a-button>
         </div>
       </div>
@@ -36,6 +36,19 @@
                       <div class="file-size">{{ formatFileSize(selectedFile.size) }}</div>
                     </div>
                     <a-button type="text" class="file-remove-btn" @click="handleRemoveFile">
+                      <DeleteOutlined />
+                    </a-button>
+                  </div>
+                  
+                  <div v-else-if="editMode && editModeFileName" class="file-preview-card">
+                    <div class="file-icon">
+                      <img src="/images/excel.png" alt="Excel文件" class="file-type-icon" />
+                    </div>
+                    <div class="file-info">
+                      <div class="file-name">{{ editModeFileName }}</div>
+                      <div class="file-size">-</div>
+                    </div>
+                    <a-button type="text" class="file-remove-btn" @click="editModeFileName = ''">
                       <DeleteOutlined />
                     </a-button>
                   </div>
@@ -83,6 +96,17 @@
                     :rows="3"
                   />
                 </a-form-item>
+                
+                <!-- 内置Prompt字段（不必填） -->
+                <a-form-item label="内置Prompt">
+                  <a-textarea
+                    v-model:value="innerPrompt"
+                    placeholder="请输入内置Prompt"
+                    :maxlength="500"
+                    show-count
+                    :rows="4"
+                  />
+                </a-form-item>
               </a-form>
             </div>
             
@@ -92,7 +116,7 @@
                 <template #icon>
                   <LoadingOutlined v-if="uploading" />
                 </template>
-                {{ uploading ? '上传中...' : '上传' }}
+                {{ uploading ? '解析中...' : '解析文件' }}
               </a-button>
             </div>
           </div>
@@ -106,50 +130,37 @@
                 {{ selectedFile ? selectedFile.name : '表结构' }}
               </div>
               
-              <a-tabs default-active-key="1" class="preview-tabs">
-                <a-tab-pane key="1" tab="表结构">
-                  <div :class="['table-container', { 'table-error': showTableError }]">
-                    <a-table 
-                      :columns="columns" 
-                      :data-source="tableData" 
-                      :pagination="false"
-                      :row-key="row => row.fieldName"
-                      size="small"
-                    >
-                      <template #bodyCell="{ column, record }">
-                        <template v-if="column.key === 'enabled'">
-                          <a-switch v-model:checked="record.enabled" checked />
-                        </template>
-                        <template v-else-if="column.key === 'comment'">
-                          <a-input 
-                            v-model:value="record.comment" 
-                            size="small" 
-                            placeholder="字段备注"
-                            :maxlength="100"
-                          />
-                        </template>
-                      </template>
-                    </a-table>
-                  </div>
-                  
-                  <!-- 分页 -->
-                  <div class="table-pagination">
-                    <span class="total-count">共 {{ tableData.length }} 条</span>
-                    <a-pagination 
-                      size="small" 
-                      :total="tableData.length" 
-                      :page-size="10"
-                      :show-quick-jumper="true"
-                      :show-size-changer="false"
-                    />
-                  </div>
-                </a-tab-pane>
-                <a-tab-pane key="2" tab="数据预览">
-                  <div class="empty-preview">
-                    <p>请上传文件后查看数据预览</p>
-                  </div>
-                </a-tab-pane>
-              </a-tabs>
+              <div :class="['table-container', { 'table-error': showTableError }]">
+                <a-table 
+                  :columns="columns" 
+                  :data-source="tableData" 
+                  :pagination="false"
+                  :row-key="row => row.fieldName"
+                  size="small"
+                >
+                  <template #bodyCell="{ column, record }">
+                    <template v-if="column.key === 'fieldType'">
+                      <a-select
+                        v-model:value="record.fieldType"
+                        size="small"
+                        style="width: 100%"
+                        :options="fieldTypeOptions"
+                      />
+                    </template>
+                    <template v-else-if="column.key === 'comment'">
+                      <a-input 
+                        v-model:value="record.description" 
+                        size="small" 
+                        placeholder="字段备注"
+                        :maxlength="100"
+                      />
+                    </template>
+                    <template v-else-if="column.key === 'fieldName'">
+                      {{ record.fieldName }}
+                    </template>
+                  </template>
+                </a-table>
+              </div>
             </div>
           </div>
         </div>
@@ -159,18 +170,20 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { ref, onMounted } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
 import { message } from 'ant-design-vue';
 import { LoadingOutlined, DeleteOutlined } from '@ant-design/icons-vue';
 import LeftSidebar from '../components/LeftSidebar.vue';
 import type { UploadProps, ColumnsType } from 'ant-design-vue';
 // 导入上传文件接口
-import { uploadFile } from '../api/dataset';
+import { uploadFile, createDataset, updateDataset, getDatasetDetail } from '../api/dataset';
 
 const router = useRouter();
+const route = useRoute();
 const selectedFile = ref<File | null>(null);
 const uploading = ref(false);
+const saving = ref(false);
 const token = localStorage.getItem('token') || '';
 
 // 新增表单字段
@@ -184,12 +197,77 @@ const showTableError = ref(false);
 // 表结构数据 - 模拟数据
 const tableData = ref([]);
 
+// 字段类型选项
+const fieldTypeOptions = [
+  { label: 'String', value: 'String' },
+  { label: 'Integer', value: 'Integer' },
+  { label: 'Long', value: 'Long' },
+  { label: 'Double', value: 'Double' },
+  { label: 'Float', value: 'Float' },
+  { label: 'Boolean', value: 'Boolean' },
+  { label: 'Date', value: 'Date' },
+  { label: 'DateTime', value: 'DateTime' },
+  { label: 'Text', value: 'Text' }
+];
+
 // 表格列定义
 const columns: ColumnsType<typeof tableData.value[0]> = [
   { title: '字段名称', dataIndex: 'fieldName', key: 'fieldName', width: 150 },
   { title: '字段类型', dataIndex: 'fieldType', key: 'fieldType', width: 120 },
   { title: '字段备注', dataIndex: 'description', key: 'comment', width: 200 },
 ];
+
+// 是否处于编辑模式
+const editMode = ref(false);
+
+// 编辑模式下的文件名（用于显示）
+const editModeFileName = ref('');
+
+// 加载编辑数据
+const loadEditData = async () => {
+  const id = route.query.id as string;
+  if (id) {
+    try {
+      editMode.value = true;
+      message.loading('正在加载数据...');
+      
+      // 使用API获取数据集详情
+      const datasetDetail = await getDatasetDetail(id);
+      
+      // 回显表单数据
+      name.value = datasetDetail.name;
+      description.value = datasetDetail.description || '';
+      innerPrompt.value = datasetDetail.prompt || '';
+      
+      // 回显文件名到文件上传框（如果存在table字段）
+      if (datasetDetail.table) {
+        // 存储文件名用于显示
+        editModeFileName.value = datasetDetail.table;
+      }
+      
+      // 回显表结构数据
+      if (datasetDetail.fields) {
+        tableData.value = datasetDetail.fields.map(field => ({
+          fieldName: field.fieldName,
+          fieldType: field.fieldType,
+          description: field.description || ''
+        }));
+      }
+      
+      message.destroy();
+      message.success('数据加载成功');
+    } catch (error) {
+      console.error('加载数据失败:', error);
+      message.destroy();
+      message.error('加载数据失败，请重试');
+    }
+  }
+};
+
+// 组件挂载时加载数据
+onMounted(() => {
+  loadEditData();
+});
 
 // 格式化文件大小
 const formatFileSize = (bytes: number): string => {
@@ -249,11 +327,44 @@ const handleChange: UploadProps['onChange'] = (info) => {
 // 移除文件
 const handleRemoveFile = () => {
   selectedFile.value = null;
+  editModeFileName.value = '';
   tableData.value = [];
 };
 
 // 提交表单
 const submitForm = async () => {
+  if (!selectedFile.value) {
+    message.error('请选择要上传的文件');
+    // 设置表格错误状态
+    showTableError.value = true;
+    return;
+  }
+  
+  uploading.value = true;
+  try {
+    const result = await uploadFile(selectedFile.value, name.value.trim(), description.value.trim());
+    
+    // 将返回的数据渲染到右侧表结构中
+    tableData.value = result.map(item => ({
+      fieldName: item.fieldName,
+      fieldType: item.fieldType,
+      description: item.description || ''
+    }));
+    
+    message.success('Excel文件上传成功');
+  } catch (error) {
+    console.error('上传失败:', error);
+    message.error('上传失败，请重试');
+  } finally {
+    uploading.value = false;
+  }
+};
+
+// 内置Prompt变量
+const innerPrompt = ref('');
+
+// 保存数据集
+const saveDataset = async () => {
   // 验证名称
   if (!validateName()) {
     return;
@@ -266,20 +377,47 @@ const submitForm = async () => {
     return;
   }
   
-  uploading.value = true;
+  if (tableData.value.length === 0) {
+    message.error('请先上传文件以获取表结构');
+    return;
+  }
+  
+  saving.value = true;
+
   try {
-    await uploadFile({
-        'file': selectedFile.value,
-        'name': name.value.trim(),
-        'description': description.value.trim()
-    });
+    // 构造数据集对象
+    const dataset = {
+      name: name.value.trim(),
+      description: description.value.trim(),
+      type: 'excel',
+      table: selectedFile.value ? selectedFile.value.name : '', // 去除文件扩展名
+      prompt: innerPrompt.value.trim(),
+      fields: tableData.value.map(item => ({
+        fieldName: item.fieldName,
+        fieldType: item.fieldType,
+        description: item.description || ''
+      }))
+    };
+
+    if (editMode.value) {
+      // 编辑模式下更新数据集
+      const id = route.query.id as string;
+      // 将ID添加到dataset对象中
+      const datasetWithId = { ...dataset, id };
+      await updateDataset(datasetWithId);
+      message.success('数据集更新成功');
+    } else {
+      // 新建模式下调用创建数据集接口
+      await createDataset(dataset);
+      message.success('数据集保存成功');
+    }
     
-    message.success('Excel文件上传成功');
+    router.push('/dataset-config');
   } catch (error) {
-    console.error('上传失败:', error);
-    message.error('上传失败，请重试');
+    console.error('保存失败:', error);
+    message.error('保存失败，请重试');
   } finally {
-    uploading.value = false;
+    saving.value = false;
   }
 };
 
@@ -468,41 +606,6 @@ const goBack = () => {
   font-size: 16px;
   font-weight: 600;
   margin-bottom: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.edit-btn {
-  margin-left: 8px;
-}
-
-.preview-tabs {
-  flex: 1;
-}
-
-.empty-preview {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 200px;
-  color: #999;
-  background-color: #fafafa;
-  border-radius: 6px;
-}
-
-.table-pagination {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid #f0f0f0;
-}
-
-.total-count {
-  font-size: 14px;
-  color: #666;
 }
 
 // 新增表格容器样式

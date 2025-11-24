@@ -204,7 +204,7 @@ import { message } from 'ant-design-vue';
 import LeftSidebar from '../components/LeftSidebar.vue';
 
 // 导入数据集API
-import { createDataset, updateDataset, getDatasetDetail, testDatabaseConnection, getTableStructure } from '../api/dataset.js';
+import { createDataset, updateDataset, getDatasetDetail, testDatabaseConnection } from '../api/dataset.js';
 
 // 创建路由实例
 const router = useRouter();
@@ -501,12 +501,12 @@ const onTableChange = async (tableName: string) => {
     };
     
     // 调用API获取表结构
-    const result = await getTableStructure(structureData);
+    const result = await testDatabaseConnection(structureData);
     
     message.destroy();
     
     // 更新表结构字段
-    tableFields.value = result.fields.map(field => ({
+    tableFields.value = result.map(field => ({
       fieldName: field.fieldName,
       fieldType: field.fieldType,
       description: field.description || ''

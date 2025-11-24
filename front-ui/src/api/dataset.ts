@@ -1,4 +1,4 @@
-import { get, post, del } from '../utils/request';
+import { get, post, del, uploadFile as uploadFileRequest } from '../utils/request';
 
 // 定义数据集类型接口
 interface Dataset {
@@ -30,6 +30,7 @@ interface DatasetFormData {
   username: string;
   password: string;
   tableInput?: string;
+  prompt?: string;
   fields?: Array<{
     fieldName: string;
     fieldType: string;
@@ -112,13 +113,23 @@ export const testDatabaseConnection = (data: {
 
 /**
  * 上传文件
- * @param formData 包含文件的FormData对象
+ * @param file 要上传的文件
+ * @param name 文件名称（可选）
+ * @param description 文件描述（可选）
  * @returns Promise<DatasetField[]> 返回字段列表
  */
-export const uploadFile = (formData: {
-  file: File;
-  name: string;
-  description: string;
-}): Promise<DatasetField[]> => {
-  return post<DatasetField[]>('/dataset/file/upload', formData);
+export const uploadFile = (
+  file: File,
+  name?: string,
+  description?: string
+): Promise<DatasetField[]> => {
+  const formData = new FormData();
+  formData.append('file', file);
+  if (name) {
+    formData.append('name', name);
+  }
+  if (description) {
+    formData.append('description', description);
+  }
+  return uploadFileRequest<DatasetField[]>('/dataset/file/upload', formData);
 };

@@ -34,6 +34,7 @@ public class DriverFactory {
                 // 根据类型创建对应的数据库驱动
                 switch (driverInfo.getType()) {
                     case "mysql":
+                    case "excel":
                         return new MySQLDriver(driverInfo);
                     case "clickhouse":
                         return new ClickhouseDriver(driverInfo);

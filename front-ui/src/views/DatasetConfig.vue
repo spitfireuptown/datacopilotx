@@ -132,11 +132,20 @@ const showForm = () => {
 
 // 编辑数据集
 const handleEdit = (record: Dataset) => {
-  // 跳转到编辑页面，传递记录ID
-  router.push({
-    path: '/database-connection-form',
-    query: { id: record.id }
-  });
+  // 根据数据集类型跳转到不同的编辑页面
+  if (record.type === 'excel') {
+    // 跳转到Excel上传表单，传递记录ID
+    router.push({
+      path: '/excel-upload-form',
+      query: { id: record.id }
+    });
+  } else {
+    // 跳转到数据库连接表单，传递记录ID
+    router.push({
+      path: '/database-connection-form',
+      query: { id: record.id }
+    });
+  }
 };
 
 // 删除数据集
