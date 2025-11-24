@@ -59,6 +59,11 @@ public class WorkflowServiceHelper {
     }
 
     // 输出问题和答案（内部方法）
+    public void streamPrint(Sinks.Many<ServerSentEvent<WebResult<String>>> sink, String node, String content) {
+        sink.tryEmitNext(buildSseEvent(node, WebResult.success(content)));
+    }
+
+    // 输出问题和答案（内部方法）
     public void streamPrint(Sinks.Many<ServerSentEvent<WebResult<String>>> sink, String node, String content, QuestionForm questionForm) {
         questionForm.setAnswer(ObjectUtils.isEmpty(questionForm.getAnswer()) ? content : questionForm.getAnswer() + content);
         sink.tryEmitNext(buildSseEvent(node, WebResult.success(content)));

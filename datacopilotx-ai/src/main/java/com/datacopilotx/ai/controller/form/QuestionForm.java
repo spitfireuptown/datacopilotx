@@ -24,7 +24,6 @@ public class QuestionForm {
     private String platform;
     private String answer;
     private String sql;
-    private List<HistoryItem> history;
 
     // 模型配置
     private ModelConfigBean modelConfigBean;
@@ -42,14 +41,5 @@ public class QuestionForm {
                 .apiKey(this.modelConfigBean.getApiKey())
                 .baseUrl(this.modelConfigBean.getBaseUrl())
                 .build();
-    }
-
-
-    @Data
-    @AllArgsConstructor
-    @NoArgsConstructor
-    public static final class HistoryItem {
-        private String role;
-        private String content;
     }
 }
