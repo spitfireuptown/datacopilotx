@@ -30,6 +30,7 @@ CREATE TABLE `MODEL_CONFIG` (
    `api_key` char(255) DEFAULT NULL COMMENT '模型api_key',
    `base_url` char(255) DEFAULT NULL COMMENT '模型交互地址',
    `type` varchar(100) DEFAULT NULL COMMENT '模型类型',
+   `function_type` varchar(100) DEFAULT NULL COMMENT '模型功能类型embedding、chat',
    `dimension` int NOT NULL DEFAULT '0' COMMENT '维度',
    `platform` varchar(100) DEFAULT NULL COMMENT '模型平台',
    `is_del` int NOT NULL DEFAULT '0',
