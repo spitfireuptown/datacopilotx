@@ -44,6 +44,7 @@ public class IntentRecognitionGraphNode implements NodeAction<WorkflowState> {
 
     @Override
     public Map<String, Object> apply(WorkflowState workflowState) throws Exception {
+        log.info("IntentRecognitionGraphNode apply");
 
         Sinks.Many<ServerSentEvent<WebResult<String>>> sink = workflowState.sink().orElseThrow(() -> new DataCopilotXException("sink is empty"));
         DataSetBean dataSetBean = workflowState.dataSetBean().orElseThrow(() -> new DataCopilotXException("dataSetBean is empty"));

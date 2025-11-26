@@ -37,6 +37,7 @@ public class EasyChatGraphNode implements NodeAction<WorkflowState> {
 
     @Override
     public Map<String, Object> apply(WorkflowState workflowState) throws Exception {
+        log.info("EasyChatGraphNode apply");
         String beautifulQuestion = workflowState.beautifulQuestion().orElse("");
         Sinks.Many<ServerSentEvent<WebResult<String>>> sink = workflowState.sink().orElseThrow(() -> new DataCopilotXException("sink is empty"));
         

@@ -64,7 +64,7 @@ public class WorkflowState extends AgentState {
         return this.value("intent_analysis");
     }
 
-    public Optional<String> intentScore() {
+    public Optional<Integer> intentScore() {
         return this.value("intent_score");
     }
 
@@ -137,8 +137,8 @@ public class WorkflowState extends AgentState {
     public static Map<String, Object> createInitialState(
             String sessionId,
             String questionId,
-            String datasetId,
-            Integer modelId,
+            Long datasetId,
+            Long modelId,
             Sinks.Many<ServerSentEvent<WebResult<String>>> sink) {
         
         return Map.of(
