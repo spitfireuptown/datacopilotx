@@ -6,13 +6,20 @@
     <!-- 主内容区域 -->
     <div class="excel-upload-container">
       <div class="excel-upload-header">
-        <div class="header-content">
-          <h2>本地 Excel/CSV</h2>
-          <a-button type="primary" :disabled="saving" @click="saveDataset">
+        <div class="header-left">
+          <a-button type="text" class="back-button" @click="goBack">
+            <template #icon>
+              <ArrowLeftOutlined />
+            </template>
+          </a-button>
+          <h2>{{ editMode ? '编辑数据库连接' : '新建数据库连接' }}</h2>
+        </div>
+        <div class="header-right">
+          <a-button type="primary" :disabled="saving" :loading="isLoading" @click="saveDataset">
             <template #icon>
               <LoadingOutlined v-if="saving" />
             </template>
-            {{ saving ? '保存中...' : '保存' }}
+            {{ saving ? '保存中...' : (editMode ? '保存修改' : '创建连接') }}
           </a-button>
         </div>
       </div>
@@ -173,7 +180,7 @@
 import { ref, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { message } from 'ant-design-vue';
-import { LoadingOutlined, DeleteOutlined } from '@ant-design/icons-vue';
+import { LoadingOutlined, DeleteOutlined, ArrowLeftOutlined } from '@ant-design/icons-vue';
 import LeftSidebar from '../components/LeftSidebar.vue';
 import type { UploadProps, ColumnsType } from 'ant-design-vue';
 // 导入上传文件接口
@@ -223,11 +230,15 @@ const editMode = ref(false);
 // 编辑模式下的文件名（用于显示）
 const editModeFileName = ref('');
 
+// 添加全局loading状态
+const isLoading = ref(false);
+
 // 加载编辑数据
 const loadEditData = async () => {
   const id = route.query.id as string;
   if (id) {
     try {
+      isLoading.value = true;
       editMode.value = true;
       message.loading('正在加载数据...');
       
@@ -260,6 +271,8 @@ const loadEditData = async () => {
       console.error('加载数据失败:', error);
       message.destroy();
       message.error('加载数据失败，请重试');
+    } finally {
+      isLoading.value = false;
     }
   }
 };
@@ -341,6 +354,7 @@ const submitForm = async () => {
   }
   
   uploading.value = true;
+  isLoading.value = true;
   try {
     const result = await uploadFile(selectedFile.value, name.value.trim(), description.value.trim());
     
@@ -357,6 +371,7 @@ const submitForm = async () => {
     message.error('上传失败，请重试');
   } finally {
     uploading.value = false;
+    isLoading.value = false;
   }
 };
 
@@ -383,6 +398,7 @@ const saveDataset = async () => {
   }
   
   saving.value = true;
+  isLoading.value = true;
 
   try {
     // 构造数据集对象
@@ -418,6 +434,7 @@ const saveDataset = async () => {
     message.error('保存失败，请重试');
   } finally {
     saving.value = false;
+    isLoading.value = false;
   }
 };
 
@@ -445,20 +462,31 @@ const goBack = () => {
 }
 
 .excel-upload-header {
-  margin-bottom: 32px;
-  width: 100%;
+  margin-bottom: 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
-.header-content {
+.header-left {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  width: 100%;
+  gap: 12px;
 }
 
-.header-content h2 {
+.header-right {
+  display: flex;
+  align-items: center;
+}
+
+.back-button {
+  color: #1890ff;
+  margin-right: 8px;
+}
+
+.excel-upload-header h2 {
   margin: 0;
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 600;
 }
 

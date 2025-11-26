@@ -7,6 +7,7 @@ import com.datacopilotx.aigateway.domain.dto.ChatRequest;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.springframework.util.ObjectUtils;
 
 import java.util.List;
 
@@ -37,7 +38,7 @@ public class QuestionForm {
                 .model(this.modelConfigBean.getModel())
                 .platform(this.modelConfigBean.getPlatform())
                 .type(this.modelConfigBean.getType())
-                .question(this.getBeautifulQuestion())
+                .question(ObjectUtils.isEmpty(this.getBeautifulQuestion()) ? this.getQuestion() : this.getBeautifulQuestion())
                 .apiKey(this.modelConfigBean.getApiKey())
                 .baseUrl(this.modelConfigBean.getBaseUrl())
                 .build();

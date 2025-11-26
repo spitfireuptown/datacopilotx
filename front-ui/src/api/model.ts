@@ -1,4 +1,4 @@
-import { get, post, put, del, postVoid } from '../utils/request';
+import { get, post, del, postVoid } from '../utils/request';
 
 // 定义模型类型接口
 // 将type改为platform，移除version
@@ -48,7 +48,7 @@ export const createModel = (data: ModelFormData): Promise<Model> => {
  * @returns Promise<Model>
  */
 export const updateModel = (data: ModelFormData): Promise<Model> => {
-  return put<Model>(`/model/modify`, data);
+  return post(`/model/modify`, data);
 };
 
 /**

@@ -32,7 +32,7 @@ public class ModelController {
         modelConfigService.testConnection(id);
     }
 
-    @GetMapping("/modify")
+    @PostMapping("/modify")
     public WebResult modify(@RequestBody ModelForm.Create modifyForm) {
         return WebResult.success(modelConfigService.modify(modifyForm));
     }

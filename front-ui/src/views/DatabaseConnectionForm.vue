@@ -13,7 +13,7 @@
           <h2>{{ editMode ? '编辑数据库连接' : '新建数据库连接' }}</h2>
         </div>
         <div class="header-right">
-          <a-button type="primary" :loading="saving" @click="handleSubmit">
+          <a-button type="primary" :loading="saving || isLoading" @click="handleSubmit">
             {{ editMode ? '保存修改' : '创建连接' }}
           </a-button>
         </div>
@@ -114,7 +114,7 @@
 
               <a-form-item>
                 <a-space>
-                  <a-button type="primary" :loading="testing" @click="handleTestConnection">
+                  <a-button type="primary" :loading="testing || isLoading" @click="handleTestConnection">
                     获取schema信息
                   </a-button>
                   <a-button @click="handleReset">
@@ -278,6 +278,9 @@ const saving = ref(false);
 // 测试连接状态
 const testing = ref(false);
 
+// 添加全局loading状态
+const isLoading = ref(false);
+
 // 表格列配置
 const columns = [
   {
@@ -309,6 +312,7 @@ const loadEditData = async () => {
     editConnectionId.value = id;
     
     try {
+      isLoading.value = true;
       message.loading('正在加载数据...');
       
       // 使用API获取数据集详情
@@ -353,6 +357,8 @@ const loadEditData = async () => {
       message.destroy();
       console.error('加载数据失败:', error);
       message.error('加载数据失败，请重试');
+    } finally {
+      isLoading.value = false;
     }
   }
 };
@@ -379,6 +385,7 @@ const handleSubmit = async () => {
     }
     
     saving.value = true;
+    isLoading.value = true;
     
     // 准备提交数据
     const submitData = {
@@ -422,6 +429,8 @@ const handleSubmit = async () => {
       message.destroy();
       console.error('表单提交失败:', error);
       message.error('表单提交失败，请重试');
+    } finally {
+      isLoading.value = false;
     }
   };
 
@@ -439,6 +448,7 @@ const handleTestConnection = async () => {
     await formRef.value?.validateFields(['host', 'port', 'database', 'username']);
     
     testing.value = true;
+    isLoading.value = true;
     message.loading('正在测试连接...');
     
     // 准备连接测试数据
@@ -475,6 +485,8 @@ const handleTestConnection = async () => {
     message.destroy();
     console.error('测试连接失败:', error);
     message.error('数据库连接失败，请检查配置');
+  } finally {
+    isLoading.value = false;
   }
 };
 
@@ -488,6 +500,7 @@ const onTableChange = async (tableName: string) => {
   message.loading('正在加载表结构...');
   
   try {
+    isLoading.value = true;
     // 准备获取表结构的数据
     const structureData = {
       type: formData.type,
@@ -517,6 +530,8 @@ const onTableChange = async (tableName: string) => {
     message.destroy();
     console.error('加载表结构失败:', error);
     message.error('加载表结构失败，请重试');
+  } finally {
+    isLoading.value = false;
   }
 };
 
