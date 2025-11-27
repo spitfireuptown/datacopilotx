@@ -63,7 +63,8 @@ public class IntentRecognitionStep extends AbstractChatProcessStep {
                         (data) -> {},
                         (error) -> workflowServiceHelper.errorHandling(PromptConstant.INTENT_RECOGNITION_NODE, sink, "相关性分析问题异常" + error.getMessage()),
                         () -> {
-                            String relationAnalysisResult = WorkflowUtil.cleanJsonStr(relationAnalysisResultBuilder.toString());
+                            String relationAnalysisResultStr = workflowServiceHelper.extractContentAfterMarker(relationAnalysisResultBuilder.toString());
+                            String relationAnalysisResult = WorkflowUtil.cleanJsonStr(relationAnalysisResultStr);
                             try {
                                 Map<String, Object> relationAnalysisResultMap = JSONUtil.toBean(relationAnalysisResult, Map.class);
                                 Integer score = (Integer) relationAnalysisResultMap.get("score");

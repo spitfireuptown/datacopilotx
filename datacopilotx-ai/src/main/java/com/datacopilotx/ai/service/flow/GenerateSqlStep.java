@@ -62,7 +62,9 @@ public class GenerateSqlStep extends AbstractChatProcessStep {
                         (data) -> workflowServiceHelper.streamPrint(sink, PromptConstant.SQL_GENERATION_NODE, data, questionForm),
                         (error) -> workflowServiceHelper.errorHandling(PromptConstant.SQL_GENERATION_NODE, sink, "SQL生成异常" + error.getMessage()),
                         () -> {
-                            String generateSqlResult = WorkflowUtil.cleanJsonStr(generateSqlResultBuilder.toString());
+                            // 提取SQL生成结果
+                            String generateSqlResultStr = workflowServiceHelper.extractContentAfterMarker(generateSqlResultBuilder.toString());
+                            String generateSqlResult = WorkflowUtil.cleanJsonStr(generateSqlResultStr);
                             try {
                                 Map<String, Object> generateSqlResultMap = JSONUtil.toBean(generateSqlResult, Map.class);
                                 String sql = (String) generateSqlResultMap.get("sql");

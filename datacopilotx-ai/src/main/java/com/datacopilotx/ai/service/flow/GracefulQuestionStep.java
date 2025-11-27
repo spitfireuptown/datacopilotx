@@ -53,7 +53,7 @@ public class GracefulQuestionStep extends AbstractChatProcessStep {
                 (data) -> workflowServiceHelper.streamPrint(sink, PromptConstant.BEAUTIFUL_NODE, data, questionForm),
                 (error) -> workflowServiceHelper.errorHandling(PromptConstant.BEAUTIFUL_NODE, sink, "美化问题异常" + error.getMessage()),
                 () -> {
-                    questionForm.setBeautifulQuestion(result.toString());
+                    questionForm.setBeautifulQuestion(workflowServiceHelper.extractContentAfterMarker(result.toString()));
                     questionForm.setToken(chatRequest.getTokenUsage());
                     questionForm.setTimeCost(chatRequest.getTimeCost());
                     try {

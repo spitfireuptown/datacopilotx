@@ -83,4 +83,21 @@ public class WorkflowServiceHelper {
                 .data(data)
                 .build();
     }
+
+    public String extractContentAfterMarker(String input) {
+        if (input == null || input.isEmpty()) {
+            return "";
+        }
+
+        final String MARKER = "</think>";
+        int markerIndex = input.indexOf(MARKER);
+
+        if (markerIndex != -1) {
+            // 找到标记，返回标记之后的内容（包括换行）
+            return input.substring(markerIndex + MARKER.length()).trim();
+        } else {
+            // 没有找到标记，返回空字符串
+            return input;
+        }
+    }
 }
