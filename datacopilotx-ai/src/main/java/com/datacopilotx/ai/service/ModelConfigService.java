@@ -137,6 +137,7 @@ public class ModelConfigService {
                                 .model(modelForm.getModel())
                                 .question("你好")
                                 .apiKey(modelForm.getApiKey())
+                                .dimensions(modelForm.getDimension())
                                 .platform(modelForm.getPlatform())
                                 .type(modelForm.getType() )
                                 .baseUrl(modelForm.getApiBase())

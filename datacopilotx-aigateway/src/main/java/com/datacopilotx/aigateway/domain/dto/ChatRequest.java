@@ -16,4 +16,5 @@ public class ChatRequest {
     private String userPrompt;
     private Integer tokenUsage;
     private Long timeCost;
+    private Integer dimensions;
 }
