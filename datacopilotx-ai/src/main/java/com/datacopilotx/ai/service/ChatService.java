@@ -90,51 +90,51 @@ public class ChatService {
         questionForm.setQuestionLogBean(questionLogBean);
 
         // 构建调用链
-//        gracefulQuestionStep
-//            // 意图识别
-//            .setNextStep(intentRecognitionStep)
-//            // RAG 知识库召回
-//            .setNextStep(recallKnowledgeStep)
-//            // 生成对应数据库引擎SQL
-//            .setNextStep(generateSqlStep)
-//            // 执行SQL
-//            .setNextStep(executeSQLStep);
-        log.info("📊 Building workflow state graph...");
-        try {
-            var researchGraph = workflowGraphBuilder.createResearchGraph();
-
-            // Compile graph
-            log.info("⚙️ Compiling research graph...");
-            CompileConfig compileConfig = CompileConfig.builder()
-                    .checkpointSaver(new MemorySaver())
-                    .build();
-
-            RunnableConfig runnableConfig = RunnableConfig.builder()
-                    .threadId(questionId)
-                    .build();
-
-            // Create initial state
-            Map<String, Object> initialState = workflowGraphBuilder.createInitialState(
-                    sessionId,
-                    questionId,
-                    questionForm.getDatasetId(),
-                    questionForm.getModelId(),
-                    sink
-            );
-
-            CompiledGraph<WorkflowState> compiledGraph = researchGraph.compile(compileConfig);
-            for (var nodeOutput : compiledGraph.stream(initialState, runnableConfig)) {
-                log.info("Node: {}, State: {}", nodeOutput.node(), nodeOutput.state());
-            }
-        } catch (Exception e) {
-            log.error("Error building workflow state graph", e);
-            flowServiceHelper.errorHandling(PromptConstant.START_NODE, sink, "构建工作流状态图时出错");
-            return sink.asFlux();
-        }
+        gracefulQuestionStep
+            // 意图识别
+            .setNextStep(intentRecognitionStep)
+            // RAG 知识库召回
+            .setNextStep(recallKnowledgeStep)
+            // 生成对应数据库引擎SQL
+            .setNextStep(generateSqlStep)
+            // 执行SQL
+            .setNextStep(executeSQLStep);
+//        log.info("📊 Building workflow state graph...");
+//        try {
+//            var researchGraph = workflowGraphBuilder.createResearchGraph();
+//
+//            // Compile graph
+//            log.info("⚙️ Compiling research graph...");
+//            CompileConfig compileConfig = CompileConfig.builder()
+//                    .checkpointSaver(new MemorySaver())
+//                    .build();
+//
+//            RunnableConfig runnableConfig = RunnableConfig.builder()
+//                    .threadId(questionId)
+//                    .build();
+//
+//            // Create initial state
+//            Map<String, Object> initialState = workflowGraphBuilder.createInitialState(
+//                    sessionId,
+//                    questionId,
+//                    questionForm.getDatasetId(),
+//                    questionForm.getModelId(),
+//                    sink
+//            );
+//
+//            CompiledGraph<WorkflowState> compiledGraph = researchGraph.compile(compileConfig);
+//            for (var nodeOutput : compiledGraph.stream(initialState, runnableConfig)) {
+//                log.info("Node: {}, State: {}", nodeOutput.node(), nodeOutput.state());
+//            }
+//        } catch (Exception e) {
+//            log.error("Error building workflow state graph", e);
+//            flowServiceHelper.errorHandling(PromptConstant.START_NODE, sink, "构建工作流状态图时出错");
+//            return sink.asFlux();
+//        }
 
 
         // 启动流程
-//        gracefulQuestionStep.process(sink, Map.of(), questionForm);
+        gracefulQuestionStep.process(sink, Map.of(), questionForm);
         return sink.asFlux();
     }
 }
