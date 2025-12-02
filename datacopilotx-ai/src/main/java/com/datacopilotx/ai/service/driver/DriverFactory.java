@@ -3,7 +3,9 @@ package com.datacopilotx.ai.service.driver;
 import com.datacopilotx.ai.domian.dto.DataSetDTO;
 import com.datacopilotx.ai.service.driver.base.JDBCDriver;
 import com.datacopilotx.ai.service.driver.clickhouse.ClickhouseDriver;
+import com.datacopilotx.ai.service.driver.mysql.DefaultMySQLDriver;
 import com.datacopilotx.ai.service.driver.mysql.MySQLDriver;
+import com.datacopilotx.ai.util.SpringContextHolder;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -34,8 +36,11 @@ public class DriverFactory {
                 // 根据类型创建对应的数据库驱动
                 switch (driverInfo.getType()) {
                     case "mysql":
-                    case "excel":
                         return new MySQLDriver(driverInfo);
+                    case "excel":
+                        // 对于excel类型，从Spring容器获取DefaultMySQLDriver实例
+                        // 这里需要通过Spring上下文获取，或者将DriverFactory也改为Spring组件
+                        return SpringContextHolder.getBean(DefaultMySQLDriver.class);
                     case "clickhouse":
                         return new ClickhouseDriver(driverInfo);
                     default:

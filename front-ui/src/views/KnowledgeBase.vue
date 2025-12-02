@@ -57,10 +57,6 @@
               <div class="card-description">
                 <p>{{ item.description }}</p>
               </div>
-              
-              <div class="card-footer">
-                <a-button type="link" size="small">添加标签</a-button>
-              </div>
             </div>
           </div>
         </div>

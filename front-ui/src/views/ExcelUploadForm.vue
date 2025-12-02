@@ -204,17 +204,20 @@ const showTableError = ref(false);
 // 表结构数据 - 模拟数据
 const tableData = ref([]);
 
-// 字段类型选项
+// 字段类型选项 - 修改为MySQL字段类型
 const fieldTypeOptions = [
-  { label: 'String', value: 'String' },
-  { label: 'Integer', value: 'Integer' },
-  { label: 'Long', value: 'Long' },
-  { label: 'Double', value: 'Double' },
-  { label: 'Float', value: 'Float' },
-  { label: 'Boolean', value: 'Boolean' },
-  { label: 'Date', value: 'Date' },
-  { label: 'DateTime', value: 'DateTime' },
-  { label: 'Text', value: 'Text' }
+  // 整数类型
+  { label: 'INT', value: 'INT' },
+  // 小数类型
+  { label: 'DECIMAL', value: 'DECIMAL' },
+  { label: 'FLOAT', value: 'FLOAT' },
+  // 字符串类型
+  { label: 'VARCHAR', value: 'VARCHAR' },
+  // 日期时间类型
+  { label: 'DATETIME', value: 'DATETIME' },
+  { label: 'TIMESTAMP', value: 'TIMESTAMP' },
+  // 布尔类型
+  { label: 'BOOLEAN', value: 'BOOLEAN' }
 ];
 
 // 表格列定义
@@ -385,7 +388,7 @@ const saveDataset = async () => {
     return;
   }
   
-  if (!selectedFile.value) {
+  if (!selectedFile.value && !editModeFileName.value) {
     message.error('请选择要上传的文件');
     // 设置表格错误状态
     showTableError.value = true;
@@ -406,7 +409,7 @@ const saveDataset = async () => {
       name: name.value.trim(),
       description: description.value.trim(),
       type: 'excel',
-      table: selectedFile.value ? selectedFile.value.name : '', // 去除文件扩展名
+      table: selectedFile.value ? selectedFile.value.name : editModeFileName.value, // 去除文件扩展名
       prompt: innerPrompt.value.trim(),
       fields: tableData.value.map(item => ({
         fieldName: item.fieldName,

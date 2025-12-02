@@ -5,12 +5,16 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * @author: uptown
  * @date: 2025/8/31 15:23
  */
 public class DataSetDTO {
 
+    @Builder
     @Data
     @AllArgsConstructor
     @NoArgsConstructor
@@ -32,5 +36,14 @@ public class DataSetDTO {
         private String username;
         private String password;
         private String type;
+    }
+
+    @Data
+    @Builder
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static final class ExcelDataSetInfo {
+        private ArrayList<ArrayList<String>> context;
+        private List<String> headers;
     }
 }

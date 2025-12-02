@@ -71,7 +71,7 @@ public class WorkflowServiceHelper {
     
     // 异常处理
     public void errorHandling(String node, Sinks.Many<ServerSentEvent<WebResult<String>>> sink, String errorMsg) {
-        ServerSentEvent<WebResult<String>> build = buildSseEvent(node, WebResult.error(500, errorMsg));
+        ServerSentEvent<WebResult<String>> build = buildSseEvent(node, WebResult.success( errorMsg));
         sink.emitNext(build, Sinks.EmitFailureHandler.FAIL_FAST);
         sink.tryEmitComplete();
     }

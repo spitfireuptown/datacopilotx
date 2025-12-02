@@ -2,12 +2,14 @@ package com.datacopilotx.ai.service.driver;
 
 import com.datacopilotx.ai.domian.dto.DataSetDTO;
 import com.datacopilotx.ai.service.driver.base.JDBCDriver;
+import com.datacopilotx.ai.service.driver.mysql.DefaultMySQLDriver;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import lombok.extern.slf4j.Slf4j;
 
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -58,8 +60,12 @@ public class ConnectionPoolManager {
         HikariConfig config = new HikariConfig();
         config.setJdbcUrl(jdbcDriver.jdbcUrl());
         config.setDriverClassName(jdbcDriver.driverClass());
-        config.setUsername(driverInfo.getUsername());
-        config.setPassword(driverInfo.getPassword());
+        
+        // 对于excel类型，使用DefaultMySQLDriver中的用户名和密码
+        if (jdbcDriver instanceof DefaultMySQLDriver defaultDriver) {
+            config.setUsername(defaultDriver.getUsername());
+            config.setPassword(defaultDriver.getPassword());
+        }
         
         // 设置连接池参数
         config.setMinimumIdle(3);
@@ -69,7 +75,7 @@ public class ConnectionPoolManager {
         config.setValidationTimeout(5000); // 5秒
         
         // 根据数据库类型设置合适的测试查询
-        if ("mysql".equals(driverInfo.getType())) {
+        if (Arrays.asList("mysql", "excel").contains(driverInfo.getType())) {
             config.setConnectionTestQuery("SELECT 1");
         } else if ("clickhouse".equals(driverInfo.getType())) {
             config.setConnectionTestQuery("SELECT 1");
