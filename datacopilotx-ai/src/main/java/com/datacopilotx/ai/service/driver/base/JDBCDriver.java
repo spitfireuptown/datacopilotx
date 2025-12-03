@@ -146,7 +146,7 @@ public abstract class JDBCDriver {
      * 关闭JDBC资源
      * @param resources 要关闭的资源对象
      */
-    protected void closeResources(AutoCloseable... resources) {
+    public void closeResources(AutoCloseable... resources) {
         if (resources != null) {
             for (AutoCloseable resource : resources) {
                 if (resource != null) {

@@ -45,12 +45,17 @@ public class WorkflowServiceHelper {
             );
         }
 
+        String tableName = dataSetBean.getTable();
+        if ("excel".equalsIgnoreCase(dataSetBean.getType())) {
+            tableName = dataSetBean.getDsName();
+        }
+
         return String.format("""
                 \n
                 **数据表名:** %s
                 **数据表描述:** %s
                 **数据表字段描述:** \n %s
-                """, dataSetBean.getTable(), dataSetBean.getDescription(), stringBuilder);
+                """, tableName, dataSetBean.getDescription(), stringBuilder);
     }
 
     // 获取当前时间

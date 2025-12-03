@@ -394,7 +394,9 @@ const handlePreviewModel = () => {
 const fetchModels = async () => {
   try {
     modelsLoading.value = true;
-    const data = await getModelList();
+    const data = await getModelList({
+      'type': 'chat'
+    });
     models.value = data;
     // 如果有缓存的模型ID，尝试匹配
     if (selectedModelId.value) {

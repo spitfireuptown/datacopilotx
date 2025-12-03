@@ -38,7 +38,7 @@ public class GenerateSqlStep extends AbstractChatProcessStep {
                     "${time}", workflowServiceHelper.getCurrentTime(),
                     "${query}", questionForm.getBeautifulQuestion(),
                     "${engine}", questionForm.getModelConfigBean().getType(),
-                    "${innerPrompt}", questionForm.getDataSetBean().getInjectPrompt(),
+                    "${innerPrompt}", ObjectUtils.isEmpty(questionForm.getDataSetBean().getInjectPrompt()) ? "" : questionForm.getDataSetBean().getInjectPrompt(),
                     "${recall}", ObjectUtils.isEmpty(preResultMap.get("recall")) ? "" : JSONUtil.toJsonStr(preResultMap.get("recall")),
                     "${meta}", workflowServiceHelper.assembleDataSetInfo(questionForm.getDataSetBean())
                 )

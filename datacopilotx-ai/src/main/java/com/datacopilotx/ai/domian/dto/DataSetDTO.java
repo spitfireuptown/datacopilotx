@@ -43,7 +43,7 @@ public class DataSetDTO {
     @AllArgsConstructor
     @NoArgsConstructor
     public static final class ExcelDataSetInfo {
-        private ArrayList<ArrayList<String>> context;
+        private List<List<String>> context;
         private List<String> headers;
     }
 }

@@ -11,6 +11,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.*;
 import java.util.ArrayList;
+import java.util.List;
 
 @Slf4j
 public class ExcelAnalysisUtil {
@@ -25,7 +26,7 @@ public class ExcelAnalysisUtil {
      */
     public static DataSetDTO.ExcelDataSetInfo analysis(MultipartFile file) {
         DataSetDTO.ExcelDataSetInfo excelDataSetInfo = new DataSetDTO.ExcelDataSetInfo();
-        ArrayList<ArrayList<String>> row = new ArrayList<>();
+        List<List<String>> row = new ArrayList<>();
         //获取文件名称
         String fileName = file.getOriginalFilename();
         System.out.println(fileName);
@@ -45,29 +46,28 @@ public class ExcelAnalysisUtil {
             Sheet sheet = workbook.getSheetAt(0);
             Row headerRow = sheet.getRow(0);
             //获取表头
-            ArrayList<String> headers = new ArrayList<>();
+            List<String> headers = new ArrayList<>();
             for (int j = 0; j < headerRow.getPhysicalNumberOfCells(); j++) {
-                headers.add(headerRow.getCell(j).getStringCellValue());
+                headers.add(getCellValueAsString(headerRow.getCell(j)));
             }
             excelDataSetInfo.setHeaders(headers);
 
             //从第二行开始获取
-//            for (int i = 1; i < sheet.getPhysicalNumberOfRows(); i++) {
-//                //循环获取工作表的每一行
-//                Row sheetRow = sheet.getRow(i);
-//                //循环获取每一列
-//                ArrayList<String> cell = new ArrayList<>();
-//                for (int j = 0; j < sheetRow.getPhysicalNumberOfCells(); j++) {
-//                    //将每一个单元格的值装入列集合
-//                    cell.add(sheetRow.getCell(j).getStringCellValue());
-//                }
-//                //将装有每一列的集合装入大集合
-//                row.add(cell);
-//
-//                //关闭资源
-//                workbook.close();
-//            }
-//            excelDataSetInfo.setContext(row);
+            for (int i = 1; i < sheet.getPhysicalNumberOfRows(); i++) {
+                //循环获取工作表的每一行
+                Row sheetRow = sheet.getRow(i);
+                //循环获取每一列
+                List<String> cell = new ArrayList<>();
+                for (int j = 0; j < sheetRow.getPhysicalNumberOfCells(); j++) {
+                    //将每一个单元格的值装入列集合
+                    cell.add(getCellValueAsString(sheetRow.getCell(j)));
+                }
+                //将装有每一列的集合装入大集合
+                row.add(cell);
+            }
+            //注意：workbook.close() 应该在循环外关闭，避免资源泄漏
+            workbook.close();
+            excelDataSetInfo.setContext(row);
         } catch (FileNotFoundException e) {
             log.error(e.getMessage(), e);
             log.error("===================未找到文件======================");
@@ -91,5 +91,39 @@ public class ExcelAnalysisUtil {
             return true;
         }
 
+    }
+
+    /**
+     * 获取单元格值并转换为字符串，处理不同类型的单元格
+     * @param cell 单元格对象
+     * @return 单元格值的字符串表示
+     */
+    private static String getCellValueAsString(org.apache.poi.ss.usermodel.Cell cell) {
+        if (cell == null) {
+            return "";
+        }
+        
+        switch (cell.getCellType()) {
+            case STRING:
+                return cell.getStringCellValue();
+            case NUMERIC:
+                // 处理数字类型，避免科学计数法
+                double numericValue = cell.getNumericCellValue();
+                // 检查是否为整数
+                if (numericValue == Math.floor(numericValue)) {
+                    return String.valueOf((long) numericValue);
+                } else {
+                    return String.valueOf(numericValue);
+                }
+            case BOOLEAN:
+                return String.valueOf(cell.getBooleanCellValue());
+            case FORMULA:
+                // 对于公式单元格，可以获取计算结果
+                return cell.getCellFormula();
+            case BLANK:
+                return "";
+            default:
+                return "";
+        }
     }
 }
