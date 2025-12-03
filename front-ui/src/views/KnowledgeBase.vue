@@ -233,7 +233,10 @@ const loadModels = async () => {
     const data = await getModelList({
       'type': 'embedding'
     });
-    models.value = data;
+    models.value = data.map(model => {
+      model.id = String(model.id);
+      return model;
+    });
   } catch (error) {
     console.error('获取模型列表失败:', error);
     message.error('获取模型列表失败');
@@ -244,7 +247,10 @@ const loadModels = async () => {
 const loadDatasets = async () => {
   try {
     const data = await getDatasetList();
-    datasets.value = data;
+    datasets.value = data.map(dataset => {
+      dataset.id = String(dataset.id);
+      return dataset;
+    });
   } catch (error) {
     console.error('获取数据集列表失败:', error);
     message.error('获取数据集列表失败');
