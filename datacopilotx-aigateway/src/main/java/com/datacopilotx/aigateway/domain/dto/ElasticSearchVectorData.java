@@ -4,6 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.springframework.util.ObjectUtils;
 
 import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
@@ -31,7 +32,7 @@ public class ElasticSearchVectorData {
     public String getCreateTime() {
 
         SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-        return df.format(new Date(this.ctime.getTime()));
+        return ObjectUtils.isEmpty(this.ctime) ? "" : df.format(new Date(this.ctime.getTime()));
     }
 
     @Data

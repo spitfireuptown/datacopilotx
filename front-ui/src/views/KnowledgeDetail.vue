@@ -520,31 +520,31 @@ const performHitTest = async () => {
     
     // 在API调用失败时，可以提供模拟结果作为备选方案
     // 根据当前的查询和配置生成模拟结果
-    const enabledItems = knowledgeItems.value.filter(item => item.enabled);
+    // const enabledItems = knowledgeItems.value.filter(item => item.enabled);
     
-    // 简单的模拟匹配逻辑
-    const mockResults: HitTestResult[] = enabledItems.map(item => {
-      // 生成随机但有一定相关性的分数
-      const baseScore = Math.random() * 0.4 + 0.5; // 0.5-0.9之间
-      // 如果查询文本与问题有共同词汇，分数会更高
-      const hasCommonWords = testQuery.value.split(' ').some(word => 
-        item.question.toLowerCase().includes(word.toLowerCase())
-      );
-      const score = hasCommonWords ? baseScore + 0.1 : baseScore;
-      
-      return {
-        score: Math.round(score * 100) / 100, // 保留两位小数
-        question: item.question,
-        answer: item.answer,
-        docId: item.docId
-      };
-    })
-    .filter(result => result.score >= scoreThreshold.value) // 应用分数阈值
-    .sort((a, b) => b.score - a.score) // 按分数降序排序
-    .slice(0, parseInt(topK.value)); // 取TopK
-    
-    testResults.value = mockResults;
-    message.info('已显示模拟结果');
+    // // 简单的模拟匹配逻辑
+    // const mockResults: HitTestResult[] = enabledItems.map(item => {
+    //   // 生成随机但有一定相关性的分数
+    //   const baseScore = Math.random() * 0.4 + 0.5; // 0.5-0.9之间
+    //   // 如果查询文本与问题有共同词汇，分数会更高
+    //   const hasCommonWords = testQuery.value.split(' ').some(word =>
+    //     item.question.toLowerCase().includes(word.toLowerCase())
+    //   );
+    //   const score = hasCommonWords ? baseScore + 0.1 : baseScore;
+    //
+    //   return {
+    //     score: Math.round(score * 100) / 100, // 保留两位小数
+    //     question: item.question,
+    //     answer: item.answer,
+    //     docId: item.docId
+    //   };
+    // })
+    // .filter(result => result.score >= scoreThreshold.value) // 应用分数阈值
+    // .sort((a, b) => b.score - a.score) // 按分数降序排序
+    // .slice(0, parseInt(topK.value)); // 取TopK
+    //
+    // testResults.value = mockResults;
+    // message.info('已显示模拟结果');
   } finally {
     testLoading.value = false;
   }

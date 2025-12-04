@@ -19,6 +19,7 @@ import reactor.core.publisher.FluxSink;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import static dev.langchain4j.data.message.SystemMessage.systemMessage;

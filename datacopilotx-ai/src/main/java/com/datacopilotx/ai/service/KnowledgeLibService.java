@@ -150,10 +150,12 @@ public class KnowledgeLibService {
         List<Float> embedding = aiGatewayChatService.embedding(
                 ChatRequest
                         .builder()
+                        .apiKey(modelConfigBean.getApiKey())
                         .baseUrl(modelConfigBean.getBaseUrl())
                         .model(modelConfigBean.getModel())
                         .type(modelConfigBean.getType())
                         .question(storeForm.getQuestion())
+                        .dimensions(modelConfigBean.getDimension())
                         .build()
         );
         if (ObjectUtils.isEmpty(embedding)) {
@@ -192,6 +194,8 @@ public class KnowledgeLibService {
         List<Float> embedding = aiGatewayChatService.embedding(
                 ChatRequest
                         .builder()
+                        .apiKey(modelConfigBean.getApiKey())
+                        .dimensions(modelConfigBean.getDimension())
                         .baseUrl(modelConfigBean.getBaseUrl())
                         .model(modelConfigBean.getModel())
                         .type(modelConfigBean.getType())
