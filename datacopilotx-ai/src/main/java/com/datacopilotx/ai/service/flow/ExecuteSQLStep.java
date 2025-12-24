@@ -49,6 +49,7 @@ public class ExecuteSQLStep extends AbstractChatProcessStep {
         QueryDTO queryDTO = driver.execute(driverInfo, questionForm.getSql());
         QuestionLogBean questionLogBean = questionForm.getQuestionLogBean();
         questionLogBean.setResult(JSONUtil.toJsonStr(queryDTO));
+        workflowServiceHelper.streamPrint(sink, PromptConstant.SQL_RESULT_NODE, "\n", questionForm);
         sink.tryEmitNext(workflowServiceHelper.buildSseEvent(PromptConstant.SQL_RESULT_NODE, WebResult.success(JSONUtil.toJsonStr(queryDTO))));
         questionLogMapper.update(
                 questionLogBean,

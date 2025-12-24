@@ -27,6 +27,10 @@ public class EasyChatStep extends AbstractChatProcessStep {
     
     @Resource
     private WorkflowServiceHelper workflowServiceHelper;
+
+    /**
+     * 进入到闲聊即最后一个节点
+     */
     @Override
     public void process(Sinks.Many<ServerSentEvent<WebResult<String>>> sink, Map<String, Object> preResultMap, QuestionForm questionForm) {
         Pair<String, String> promptPair = workflowServiceHelper.injectPrompt(

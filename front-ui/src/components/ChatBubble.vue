@@ -38,6 +38,7 @@ import { Avatar } from 'ant-design-vue';
 import MdPreview from '@/components/MdPreview.vue';
 import { MessageItem } from '@/dataTypes/chatType';
 import SimpleBar from 'simplebar';
+import { message as Message } from 'ant-design-vue';
 
 const props = defineProps({
   messages: {
@@ -122,6 +123,7 @@ watch(
           processedJsonData = JSON.parse(extractedData);
         } catch (error) {
           console.error('解析响应失败:', error);
+          Message.error(extractedData);
         }
       }
 
