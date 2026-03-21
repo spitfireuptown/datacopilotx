@@ -62,10 +62,8 @@ public class ConnectionPoolManager {
         config.setDriverClassName(jdbcDriver.driverClass());
         
         // 对于excel类型，使用DefaultMySQLDriver中的用户名和密码
-        if (jdbcDriver instanceof DefaultMySQLDriver defaultDriver) {
-            config.setUsername(defaultDriver.getUsername());
-            config.setPassword(defaultDriver.getPassword());
-        }
+        config.setUsername(driverInfo.getUsername());
+        config.setPassword(driverInfo.getPassword());
         
         // 设置连接池参数
         config.setMinimumIdle(3);
