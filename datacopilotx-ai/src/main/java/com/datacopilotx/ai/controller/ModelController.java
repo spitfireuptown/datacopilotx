@@ -37,7 +37,7 @@ public class ModelController {
         return WebResult.success(modelConfigService.modify(modifyForm));
     }
 
-    @DeleteMapping("/delete/{id}")
+    @DeleteMapping("/{id}")
     public void delete(@PathVariable int id) {
         modelConfigService.del(id);
     }
