@@ -119,11 +119,14 @@ watch(
         // 提取'问数结果:'到最后的内容
         const extractedData = message.substring(startIndex + 5);
         console.log('extractedData', extractedData)
-        try {
-          processedJsonData = JSON.parse(extractedData);
-        } catch (error) {
-          console.error('解析响应失败:', error);
-          Message.error(extractedData);
+        // 检查extractedData是否为空，避免解析空字符串
+        if (extractedData && extractedData.trim()) {
+          try {
+            processedJsonData = JSON.parse(extractedData);
+          } catch (error) {
+            console.error('解析响应失败:', error);
+            Message.error('问数结果解析失败，请检查返回数据格式');
+          }
         }
       }
 

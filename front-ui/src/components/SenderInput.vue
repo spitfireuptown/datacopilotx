@@ -218,18 +218,35 @@ const [agent] = useXAgent({
             jsonData = JSON.parse(chunk);
             
             // 检查是否是sql_result_node类型的数据
-            if (jsonData.id === 'sql_result_node' && jsonData.data && Array.isArray(jsonData.data)) {
+            if (jsonData.id === 'sql_result_node' && jsonData.data) {
               // 保存SQL结果数据
               sqlResultData = jsonData.data;
-              // 删除未使用的hasSqlResult赋值
-              // hasSqlResult = true;
               // 使用ECharts渲染数据
               fullContent += sqlResultData;
               onUpdate(fullContent);
             } else if (jsonData.code === 200 && jsonData.data) {
               // code为200时，累积data数据，实现打字机效果
-              fullContent += jsonData.data;
-              onUpdate(fullContent);
+              // 检查是否是SQL结果数据（包含columns和data字段）
+              try {
+                const parsedData = typeof jsonData.data === 'string' ? JSON.parse(jsonData.data) : jsonData.data;
+                if (parsedData.columns && parsedData.data) {
+                  // 这是SQL结果数据，添加问数结果标记
+                  if (!fullContent.includes('问数结果:')) {
+                    fullContent += '#### 问数结果: ';
+                  }
+                  // 将JSON数据附加到消息中
+                  fullContent += JSON.stringify(parsedData);
+                  onUpdate(fullContent);
+                } else {
+                  // 普通文本数据
+                  fullContent += jsonData.data;
+                  onUpdate(fullContent);
+                }
+              } catch {
+                // 解析失败，当作普通文本处理
+                fullContent += jsonData.data;
+                onUpdate(fullContent);
+              }
             } else if (jsonData.code === 500 && jsonData.message) {
               // code为500时，显示错误消息并实现打字机效果
               fullContent += jsonData.message;

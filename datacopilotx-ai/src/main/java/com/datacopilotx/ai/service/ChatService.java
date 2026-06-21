@@ -9,23 +9,24 @@ import com.datacopilotx.ai.mapper.DataSetMapper;
 import com.datacopilotx.ai.mapper.ModelConfigMapper;
 import com.datacopilotx.ai.mapper.QuestionLogMapper;
 import com.datacopilotx.ai.service.flow.*;
-import com.datacopilotx.ai.service.graph.WorkflowGraphBuilder;
-import com.datacopilotx.ai.service.graph.WorkflowState;
+import com.datacopilotx.ai.service.graph.main.SerializableSink;
+import com.datacopilotx.ai.service.graph.main.WorkflowGraph;
+import com.datacopilotx.ai.service.graph.main.WorkflowState;
 import com.datacopilotx.common.constant.PromptConstant;
 import com.datacopilotx.common.result.WebResult;
 import com.datacopilotx.common.util.IdUtils;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
-import org.bsc.langgraph4j.CompileConfig;
 import org.bsc.langgraph4j.CompiledGraph;
 import org.bsc.langgraph4j.RunnableConfig;
-import org.bsc.langgraph4j.checkpoint.MemorySaver;
+import org.bsc.langgraph4j.StateGraph;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
 import org.springframework.util.ObjectUtils;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
 
+import java.util.HashMap;
 import java.util.Map;
 
 @Slf4j
@@ -38,19 +39,9 @@ public class ChatService {
     @Resource
     private ModelConfigMapper modelConfigMapper;
     @Resource
-    private GracefulQuestionStep gracefulQuestionStep;
-    @Resource
-    private IntentRecognitionStep intentRecognitionStep;
-    @Resource
-    private GenerateSqlStep generateSqlStep;
-    @Resource
-    private ExecuteSQLStep executeSQLStep;
-    @Resource
-    private RecallKnowledgeStep recallKnowledgeStep;
+    private WorkflowGraph workflowGraph;
     @Resource
     private WorkflowServiceHelper flowServiceHelper;
-    @Resource
-    WorkflowGraphBuilder workflowGraphBuilder;
 
 
     // 问数入口
@@ -89,18 +80,69 @@ public class ChatService {
         questionLogMapper.insert(questionLogBean);
         questionForm.setQuestionLogBean(questionLogBean);
 
-        // 构建调用链
-        gracefulQuestionStep
-            // 意图识别
-            .setNextStep(intentRecognitionStep)
-            // RAG 知识库召回
-            .setNextStep(recallKnowledgeStep)
-            // 生成对应数据库引擎SQL
-            .setNextStep(generateSqlStep)
-            // 执行SQL
-            .setNextStep(executeSQLStep);
+        Thread.startVirtualThread(() -> {
+            try {
+                log.info("Building workflow state graph...");
+                StateGraph<WorkflowState> workflow = workflowGraph.createResearchGraph();
 
-        gracefulQuestionStep.process(sink, Map.of(), questionForm);
+                log.info("Compiling workflow graph...");
+                CompiledGraph<WorkflowState> compiledGraph = workflow.compile();
+
+                Map<String, Object> initialData = workflowGraph.createInitialState(
+                        sessionId,
+                        questionId,
+                        questionForm.getDatasetId(),
+                        questionForm.getModelId(),
+                        questionForm.getQuestion()
+                );
+
+                // 将 sink、dataSetBean、modelConfigBean 放入 initialData
+                initialData = new HashMap<>(initialData);
+                initialData.put("sink", new SerializableSink(sink));
+                initialData.put("data_set_bean", dataSetBean);
+                initialData.put("model_config_bean", modelConfigBean);
+
+                RunnableConfig runnableConfig = RunnableConfig.builder()
+                        .threadId(sessionId)
+                        .build();
+
+                log.info("Starting workflow execution, initial state keys: {}", initialData.keySet());
+
+                WorkflowState finalState = null;
+                int nodeCount = 0;
+                StringBuilder answerBuilder = new StringBuilder();
+
+                for (var nodeOutput : compiledGraph.stream(initialData, runnableConfig)) {
+                    nodeCount++;
+                    finalState = nodeOutput.state();
+
+                    // 将每一步的回答追加到 answerBuilder
+                    finalState.answer().ifPresent(answerContent -> {
+                        if (answerContent != null && !answerContent.isEmpty()) {
+                            if (answerBuilder.length() > 0) {
+                                answerBuilder.append("\n\n");
+                            }
+                            answerBuilder.append(answerContent);
+                        }
+                    });
+
+                    log.debug("Executed node {}, current state: {}", nodeCount, finalState);
+                }
+
+                if (finalState == null) {
+                    throw new IllegalStateException("Workflow execution did not return any state");
+                }
+                sink.tryEmitComplete();
+            } catch (Exception e) {
+                log.error("Chat completions execution failed", e);
+                sink.tryEmitNext(ServerSentEvent.<WebResult<String>>builder()
+                        .event("error")
+                        .data(WebResult.error(500, "执行异常: " + e.getMessage()))
+                        .build());
+                sink.tryEmitComplete();
+            }
+        });
+
         return sink.asFlux();
     }
 }

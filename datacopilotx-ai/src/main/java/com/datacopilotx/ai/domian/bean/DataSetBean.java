@@ -6,13 +6,15 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
+import java.io.Serializable;
 import java.sql.Timestamp;
 
 @Data
 @TableName("DATA_SET")
 @AllArgsConstructor
 @NoArgsConstructor
-public class DataSetBean {
+public class DataSetBean implements Serializable {
+    private static final long serialVersionUID = 1L;
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
     private String host;

@@ -69,19 +69,24 @@ public class DataSetService {
     public Long create(DataSetForm.Create createForm) {
         DataSetBean dataSetBean = new DataSetBean();
         dataSetBean.setDsName(createForm.getName());
-        dataSetBean.setDatabase(createForm.getDatabase());
-        dataSetBean.setHost(createForm.getHost());
-        dataSetBean.setPort(createForm.getPort());
-        dataSetBean.setTable(createForm.getTable());
-        dataSetBean.setUsername(createForm.getUsername());
-        dataSetBean.setPassword(createForm.getPassword());
         dataSetBean.setFields(JSONUtil.toJsonStr(createForm.getFields()));
         dataSetBean.setType(createForm.getType());
         dataSetBean.setDescription(createForm.getDescription());
         dataSetBean.setInjectPrompt(createForm.getPrompt());
+        dataSetBean.setTable(createForm.getTable());
+        dataSetBean.setDatabase(createForm.getDatabase());
+        dataSetBean.setHost(createForm.getHost());
+        dataSetBean.setPort(createForm.getPort());
+        dataSetBean.setUsername(createForm.getUsername());
+        dataSetBean.setPassword(createForm.getPassword());
 
         if ("excel".equalsIgnoreCase(dataSetBean.getType())) {
             this.syncExcelData(createForm.getName(), createForm.getFields());
+            dataSetBean.setDatabase(defaultMySQLDriver.getDatabase());
+            dataSetBean.setHost(defaultMySQLDriver.getHost());
+            dataSetBean.setPort(defaultMySQLDriver.getPort());
+            dataSetBean.setUsername(defaultMySQLDriver.getUsername());
+            dataSetBean.setPassword(defaultMySQLDriver.getPassword());
         }
 
         dataSetMapper.insert(dataSetBean);
@@ -102,6 +107,14 @@ public class DataSetService {
         dataSetBean.setType(updateForm.getType());
         dataSetBean.setInjectPrompt(updateForm.getPrompt());
         dataSetBean.setDescription(updateForm.getDescription());
+
+        if ("excel".equalsIgnoreCase(dataSetBean.getType())) {
+            dataSetBean.setDatabase(defaultMySQLDriver.getDatabase());
+            dataSetBean.setHost(defaultMySQLDriver.getHost());
+            dataSetBean.setPort(defaultMySQLDriver.getPort());
+            dataSetBean.setUsername(defaultMySQLDriver.getUsername());
+            dataSetBean.setPassword(defaultMySQLDriver.getPassword());
+        }
 
         dataSetMapper.update(dataSetBean, new LambdaQueryWrapper<DataSetBean>().eq(DataSetBean::getId, updateForm.getId()));
         return updateForm.getId();
@@ -188,10 +201,13 @@ public class DataSetService {
         // 插入数据SQL
         String insertDataSQL = this.insertDataSQL(tableName, fields);
         
-        // 创建 DriverInfo 对象
+        // 创建 DriverInfo 对象，使用系统数据库连接
         DataSetDTO.DriverInfo driverInfo = DataSetDTO.DriverInfo.builder()
-                .database("your_database") // 这里应该从配置或参数中获取数据库名
+                .type("excel")
+                .database(defaultMySQLDriver.getDatabase())
                 .table(tableName)
+                .username(defaultMySQLDriver.getUsername())
+                .password(defaultMySQLDriver.getPassword())
                 .build();
         
         try {

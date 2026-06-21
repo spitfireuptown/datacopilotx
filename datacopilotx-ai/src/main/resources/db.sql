@@ -5,7 +5,6 @@ SET NAMES utf8mb4;
 
 CREATE TABLE `DATA_SET` (
     `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
-    `data_id` char(35) CHARACTER SET utf8 DEFAULT NULL,
     `host` char(255) DEFAULT NULL COMMENT 'host',
     `ds_name` char(255) DEFAULT NULL COMMENT '数据集名称',
     `password` char(255) DEFAULT NULL COMMENT '数据集密码',
@@ -20,8 +19,7 @@ CREATE TABLE `DATA_SET` (
     `is_del` int(11) DEFAULT '0',
     `description` varchar(255) DEFAULT NULL COMMENT '数据集描述',
     `inject_prompt` longtext CHARACTER SET utf8 NOT NULL COMMENT '数据集注入prompt',
-    PRIMARY KEY (`id`) USING BTREE,
-    KEY `data_id` (`data_id`) USING BTREE
+    PRIMARY KEY (`id`) USING BTREE
 ) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=utf8mb4 COMMENT='数据集信息';
 
 
