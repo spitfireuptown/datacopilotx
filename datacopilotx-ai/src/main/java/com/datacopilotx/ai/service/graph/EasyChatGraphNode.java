@@ -1,20 +1,18 @@
 package com.datacopilotx.ai.service.graph;
 
 import cn.hutool.core.lang.Pair;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.datacopilotx.ai.domian.bean.QuestionLogBean;
 import com.datacopilotx.ai.mapper.QuestionLogMapper;
-import com.datacopilotx.ai.service.flow.WorkflowServiceHelper;
+import com.datacopilotx.ai.service.graph.main.WorkflowServiceHelper;
+import com.datacopilotx.ai.service.graph.main.SerializableSink;
 import com.datacopilotx.ai.service.graph.main.WorkflowState;
 import com.datacopilotx.aigateway.domain.dto.ChatRequest;
 import com.datacopilotx.aigateway.service.chat.AIGatewayChatService;
 import com.datacopilotx.common.constant.PromptConstant;
-import com.datacopilotx.common.result.WebResult;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.bsc.langgraph4j.action.NodeAction;
-import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Component;
+import reactor.core.publisher.Sinks;
 
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -46,17 +44,18 @@ public class EasyChatGraphNode implements NodeAction<WorkflowState> {
 
         StringBuilder resultBuilder = new StringBuilder();
         CountDownLatch latch = new CountDownLatch(1);
-        var sink = state.getSink();
+        Sinks.Many<org.springframework.http.codec.ServerSentEvent<com.datacopilotx.common.result.WebResult<String>>> sink = state.getSink();
+        SerializableSink serializableSink = state.getSerializableSink();
+
+        workflowServiceHelper.streamPrint(sink, PromptConstant.EASY_CHAT_NODE, "\n", serializableSink, state);
+        workflowServiceHelper.streamPrint(sink, PromptConstant.EASY_CHAT_NODE, "\n", serializableSink, state);
+        workflowServiceHelper.streamPrint(sink, PromptConstant.EASY_CHAT_NODE, "#### 回答: ", serializableSink, state);
+        workflowServiceHelper.streamPrint(sink, PromptConstant.EASY_CHAT_NODE, "\n", serializableSink, state);
 
         aiGatewayChatService.streamChatCompletions(chatRequest)
                 .doOnNext(chunk -> {
                     resultBuilder.append(chunk);
-                    if (sink != null) {
-                        sink.tryEmitNext(ServerSentEvent.<WebResult<String>>builder()
-                                .event("node_progress")
-                                .data(WebResult.success(chunk))
-                                .build());
-                    }
+                    workflowServiceHelper.streamPrint(sink, PromptConstant.EASY_CHAT_NODE, chunk, serializableSink, state);
                 })
                 .doOnComplete(latch::countDown)
                 .doOnError(e -> {
@@ -73,21 +72,9 @@ public class EasyChatGraphNode implements NodeAction<WorkflowState> {
         }
 
         String answer = resultBuilder.toString();
-        if (sink != null) {
-            sink.tryEmitNext(ServerSentEvent.<WebResult<String>>builder()
-                    .event("node_progress")
-                    .data(WebResult.success("闲聊回答完成"))
-                    .build());
-        }
 
-        QuestionLogBean questionLogBean = questionLogMapper.selectOne(new LambdaQueryWrapper<QuestionLogBean>()
-                .eq(QuestionLogBean::getQuestionId, questionId)
-                .eq(QuestionLogBean::getSessionId, sessionId)
-        );
-        if (questionLogBean != null) {
-            questionLogBean.setAnswer(answer);
-            questionLogMapper.updateById(questionLogBean);
-        }
+        // 将收集到的流式数据追加到WorkflowState
+        state.appendCollectedData(answer);
 
         return Map.of(
                 "easy_chat_answer", answer,

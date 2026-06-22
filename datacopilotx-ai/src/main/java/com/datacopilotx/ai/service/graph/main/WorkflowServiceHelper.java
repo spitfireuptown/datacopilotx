@@ -1,4 +1,4 @@
-package com.datacopilotx.ai.service.flow;
+package com.datacopilotx.ai.service.graph.main;
 
 import cn.hutool.core.lang.Pair;
 import cn.hutool.json.JSONUtil;
@@ -66,6 +66,19 @@ public class WorkflowServiceHelper {
     // 输出问题和答案（内部方法）
     public void streamPrint(Sinks.Many<ServerSentEvent<WebResult<String>>> sink, String node, String content) {
         sink.tryEmitNext(buildSseEvent(node, WebResult.success(content)));
+    }
+    
+    // 输出问题和答案（同时收集数据用于保存到question_log）
+    public void streamPrint(Sinks.Many<ServerSentEvent<WebResult<String>>> sink, String node, String content, SerializableSink serializableSink) {
+        sink.tryEmitNext(buildSseEvent(node, WebResult.success(content)));
+    }
+    
+    // 输出问题和答案（同时收集数据到WorkflowState用于保存到question_log）
+    public void streamPrint(Sinks.Many<ServerSentEvent<WebResult<String>>> sink, String node, String content, SerializableSink serializableSink, WorkflowState workflowState) {
+        sink.tryEmitNext(buildSseEvent(node, WebResult.success(content)));
+        if (workflowState != null && content != null) {
+            workflowState.appendCollectedData(content);
+        }
     }
 
     // 输出问题和答案（内部方法）

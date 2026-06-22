@@ -93,8 +93,11 @@ public interface PromptConstant {
 
     String START_NODE = "start_node";
     String BEAUTIFUL_NODE = "beautiful_node";
+    String INTENT_NODE = "intent_node";
     String INTENT_RECOGNITION_NODE = "intent_recognition_node";
     String SQL_GENERATION_NODE = "sql_generation_node";
+    String SQL_EXECUTION_NODE = "sql_execution_node";
     String SQL_RESULT_NODE = "sql_result_node";
     String EASY_CHAT_NODE = "easy_chat_node";
+    String RECALL_NODE = "recall_node";
 }

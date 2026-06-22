@@ -196,9 +196,6 @@ const [agent] = useXAgent({
     
     // 添加fullContent变量用于累积所有接收到的数据，实现打字机效果
     let fullContent = '';
-    let sqlResultData = null;
-    // 删除未使用的hasSqlResult变量
-    // let hasSqlResult = false;
     try {
       // 模拟对话接口，添加数据集ID和模型ID参数
       await mockChatStreamApi(
@@ -217,13 +214,18 @@ const [agent] = useXAgent({
             let jsonData = {};
             jsonData = JSON.parse(chunk);
             
-            // 检查是否是sql_result_node类型的数据
-            if (jsonData.id === 'sql_result_node' && jsonData.data) {
-              // 保存SQL结果数据
-              sqlResultData = jsonData.data;
-              // 使用ECharts渲染数据
-              fullContent += sqlResultData;
-              onUpdate(fullContent);
+            // 检查是否是各种节点类型的数据
+            if (jsonData.id && jsonData.data) {
+              // 处理所有节点类型的数据（sql_result_node, recall_node, beautiful_node, intent_node, sql_generation_node, easy_chat_node）
+              // 检查数据是否是WebResult格式（包含code字段）
+              if (jsonData.data.code === 200 && jsonData.data.data) {
+                fullContent += jsonData.data.data;
+                onUpdate(fullContent);
+              } else {
+                // 直接作为文本处理
+                fullContent += jsonData.data;
+                onUpdate(fullContent);
+              }
             } else if (jsonData.code === 200 && jsonData.data) {
               // code为200时，累积data数据，实现打字机效果
               // 检查是否是SQL结果数据（包含columns和data字段）

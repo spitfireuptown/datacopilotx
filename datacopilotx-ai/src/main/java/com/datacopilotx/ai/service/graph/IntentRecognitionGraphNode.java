@@ -2,23 +2,22 @@ package com.datacopilotx.ai.service.graph;
 
 import cn.hutool.core.lang.Pair;
 import cn.hutool.json.JSONUtil;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.datacopilotx.ai.domian.bean.DataSetBean;
-import com.datacopilotx.ai.domian.bean.QuestionLogBean;
 import com.datacopilotx.ai.mapper.QuestionLogMapper;
-import com.datacopilotx.ai.service.flow.WorkflowServiceHelper;
+import com.datacopilotx.ai.service.graph.main.WorkflowServiceHelper;
+import com.datacopilotx.ai.service.graph.main.SerializableSink;
 import com.datacopilotx.ai.service.graph.main.WorkflowState;
 import com.datacopilotx.aigateway.domain.dto.ChatRequest;
 import com.datacopilotx.aigateway.service.chat.AIGatewayChatService;
 import com.datacopilotx.common.constant.PromptConstant;
-import com.datacopilotx.common.result.WebResult;
 import com.datacopilotx.common.util.WorkflowUtil;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.bsc.langgraph4j.action.NodeAction;
-import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Component;
+import reactor.core.publisher.Sinks;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
@@ -58,17 +57,18 @@ public class IntentRecognitionGraphNode implements NodeAction<WorkflowState> {
 
         StringBuilder resultBuilder = new StringBuilder();
         CountDownLatch latch = new CountDownLatch(1);
-        var sink = state.getSink();
+        Sinks.Many<org.springframework.http.codec.ServerSentEvent<com.datacopilotx.common.result.WebResult<String>>> sink = state.getSink();
+        SerializableSink serializableSink = state.getSerializableSink();
+
+        workflowServiceHelper.streamPrint(sink, PromptConstant.INTENT_RECOGNITION_NODE, "\n", serializableSink, state);
+        workflowServiceHelper.streamPrint(sink, PromptConstant.INTENT_RECOGNITION_NODE, "\n", serializableSink, state);
+        workflowServiceHelper.streamPrint(sink, PromptConstant.INTENT_RECOGNITION_NODE, "#### 意图识别: ", serializableSink, state);
+        workflowServiceHelper.streamPrint(sink, PromptConstant.INTENT_RECOGNITION_NODE, "\n", serializableSink, state);
+        workflowServiceHelper.streamPrint(sink, PromptConstant.INTENT_RECOGNITION_NODE, "\n", serializableSink, state);
 
         aiGatewayChatService.streamChatCompletions(chatRequest)
                 .doOnNext(chunk -> {
                     resultBuilder.append(chunk);
-                    if (sink != null) {
-                        sink.tryEmitNext(ServerSentEvent.<WebResult<String>>builder()
-                                .event("node_progress")
-                                .data(WebResult.success(chunk))
-                                .build());
-                    }
                 })
                 .doOnComplete(latch::countDown)
                 .doOnError(e -> {
@@ -89,13 +89,16 @@ public class IntentRecognitionGraphNode implements NodeAction<WorkflowState> {
         Integer score = (Integer) relationAnalysisResultMap.get("score");
         String analysis = (String) relationAnalysisResultMap.get("analysis");
 
-        QuestionLogBean questionLogBean = questionLogMapper.selectOne(new LambdaQueryWrapper<QuestionLogBean>()
-                .eq(QuestionLogBean::getQuestionId, questionId)
-                .eq(QuestionLogBean::getSessionId, sessionId)
-        );
-        if (questionLogBean != null && analysis != null) {
-            questionLogBean.setAnswer(questionLogBean.getAnswer() + analysis);
-            questionLogMapper.updateById(questionLogBean);
+        workflowServiceHelper.streamPrint(sink, PromptConstant.INTENT_RECOGNITION_NODE, "\n", serializableSink, state);
+
+        List<String> reasonSpilt = WorkflowUtil.splitString(analysis, 1);
+        for (String subReason : reasonSpilt) {
+            workflowServiceHelper.streamPrint(sink, PromptConstant.INTENT_RECOGNITION_NODE, subReason, serializableSink, state);
+        }
+
+        // 将分析结果追加到WorkflowState
+        if (analysis != null) {
+            state.appendCollectedData(analysis);
         }
 
         return Map.of(

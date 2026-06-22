@@ -1,16 +1,14 @@
 package com.datacopilotx.ai.service.graph;
 
 import cn.hutool.core.lang.Pair;
-import com.datacopilotx.ai.service.flow.WorkflowServiceHelper;
+import com.datacopilotx.ai.service.graph.main.WorkflowServiceHelper;
 import com.datacopilotx.ai.service.graph.main.WorkflowState;
 import com.datacopilotx.aigateway.domain.dto.ChatRequest;
 import com.datacopilotx.aigateway.service.chat.AIGatewayChatService;
 import com.datacopilotx.common.constant.PromptConstant;
-import com.datacopilotx.common.result.WebResult;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.bsc.langgraph4j.action.NodeAction;
-import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
@@ -44,16 +42,15 @@ public class GracefulQuestionGraphNode implements NodeAction<WorkflowState> {
         StringBuilder resultBuilder = new StringBuilder();
         CountDownLatch latch = new CountDownLatch(1);
         var sink = state.getSink();
+        var serializableSink = state.getSerializableSink();
+
+        workflowServiceHelper.streamPrint(sink, PromptConstant.BEAUTIFUL_NODE, "#### 用户问题: ", serializableSink, state);
+        workflowServiceHelper.streamPrint(sink, PromptConstant.BEAUTIFUL_NODE, "\n", serializableSink, state);
 
         aiGatewayChatService.streamChatCompletions(chatRequest)
                 .doOnNext(chunk -> {
                     resultBuilder.append(chunk);
-                    if (sink != null) {
-                        sink.tryEmitNext(ServerSentEvent.<WebResult<String>>builder()
-                                .event("node_progress")
-                                .data(WebResult.success(chunk))
-                                .build());
-                    }
+                    workflowServiceHelper.streamPrint(sink, PromptConstant.BEAUTIFUL_NODE, chunk, serializableSink, state);
                 })
                 .doOnComplete(latch::countDown)
                 .doOnError(e -> {
@@ -70,12 +67,9 @@ public class GracefulQuestionGraphNode implements NodeAction<WorkflowState> {
         }
 
         String result = resultBuilder.toString();
-        if (sink != null) {
-            sink.tryEmitNext(ServerSentEvent.<WebResult<String>>builder()
-                    .event("node_progress")
-                    .data(WebResult.success("问题美化完成"))
-                    .build());
-        }
+        
+        // 将收集到的流式数据追加到WorkflowState
+        state.appendCollectedData(result);
 
         return Map.of(
                 "beautiful_question", result,

@@ -9,14 +9,16 @@ import com.datacopilotx.ai.domian.dto.QueryDTO;
 import com.datacopilotx.ai.mapper.QuestionLogMapper;
 import com.datacopilotx.ai.service.driver.DriverFactory;
 import com.datacopilotx.ai.service.driver.base.JDBCDriver;
+import com.datacopilotx.ai.service.graph.main.WorkflowServiceHelper;
+import com.datacopilotx.ai.service.graph.main.SerializableSink;
 import com.datacopilotx.ai.service.graph.main.WorkflowState;
-import com.datacopilotx.common.result.WebResult;
+import com.datacopilotx.common.constant.PromptConstant;
+import jakarta.annotation.Resource;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.bsc.langgraph4j.action.NodeAction;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Component;
+import reactor.core.publisher.Sinks;
 
 import java.util.Map;
 
@@ -24,8 +26,11 @@ import java.util.Map;
 @Component
 public class ExecuteSQLGraphNode implements NodeAction<WorkflowState> {
 
-    @Autowired
+    @Resource
     QuestionLogMapper questionLogMapper;
+
+    @Resource
+    WorkflowServiceHelper workflowServiceHelper;
 
     @SneakyThrows
     @Override
@@ -59,13 +64,11 @@ public class ExecuteSQLGraphNode implements NodeAction<WorkflowState> {
         questionLogBean.setResult(JSONUtil.toJsonStr(queryDTO));
         questionLogMapper.updateById(questionLogBean);
 
-        var sink = state.getSink();
-        if (sink != null) {
-            sink.tryEmitNext(ServerSentEvent.<WebResult<String>>builder()
-                    .event("node_progress")
-                    .data(WebResult.success("SQL执行完成"))
-                    .build());
-        }
+        Sinks.Many<org.springframework.http.codec.ServerSentEvent<com.datacopilotx.common.result.WebResult<String>>> sink = state.getSink();
+        SerializableSink serializableSink = state.getSerializableSink();
+        workflowServiceHelper.streamPrint(sink, PromptConstant.SQL_RESULT_NODE, "\n", serializableSink, state);
+        workflowServiceHelper.streamPrint(sink, PromptConstant.SQL_RESULT_NODE, "#### 问数结果: ", serializableSink, state);
+        workflowServiceHelper.streamPrint(sink, PromptConstant.SQL_RESULT_NODE, JSONUtil.toJsonStr(queryDTO), serializableSink, state);
 
         String resultJson = JSONUtil.toJsonStr(queryDTO);
         return Map.of(

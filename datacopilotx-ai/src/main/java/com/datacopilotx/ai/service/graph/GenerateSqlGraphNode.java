@@ -4,19 +4,19 @@ import cn.hutool.core.lang.Pair;
 import cn.hutool.json.JSONUtil;
 import com.datacopilotx.ai.domian.bean.DataSetBean;
 import com.datacopilotx.ai.domian.bean.ModelConfigBean;
-import com.datacopilotx.ai.service.flow.WorkflowServiceHelper;
+import com.datacopilotx.ai.service.graph.main.WorkflowServiceHelper;
+import com.datacopilotx.ai.service.graph.main.SerializableSink;
 import com.datacopilotx.ai.service.graph.main.WorkflowState;
 import com.datacopilotx.aigateway.domain.dto.ChatRequest;
 import com.datacopilotx.aigateway.service.chat.AIGatewayChatService;
 import com.datacopilotx.common.constant.PromptConstant;
-import com.datacopilotx.common.result.WebResult;
 import com.datacopilotx.common.util.WorkflowUtil;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.bsc.langgraph4j.action.NodeAction;
-import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Component;
 import org.springframework.util.ObjectUtils;
+import reactor.core.publisher.Sinks;
 
 import java.util.List;
 import java.util.Map;
@@ -57,17 +57,18 @@ public class GenerateSqlGraphNode implements NodeAction<WorkflowState> {
 
         StringBuilder resultBuilder = new StringBuilder();
         CountDownLatch latch = new CountDownLatch(1);
-        var sink = state.getSink();
+        Sinks.Many<org.springframework.http.codec.ServerSentEvent<com.datacopilotx.common.result.WebResult<String>>> sink = state.getSink();
+        SerializableSink serializableSink = state.getSerializableSink();
+
+        workflowServiceHelper.streamPrint(sink, PromptConstant.SQL_GENERATION_NODE, "\n", serializableSink, state);
+        workflowServiceHelper.streamPrint(sink, PromptConstant.SQL_GENERATION_NODE, "\n", serializableSink, state);
+        workflowServiceHelper.streamPrint(sink, PromptConstant.SQL_GENERATION_NODE, "#### SQL: ", serializableSink, state);
+        workflowServiceHelper.streamPrint(sink, PromptConstant.SQL_GENERATION_NODE, "\n", serializableSink, state);
 
         aiGatewayChatService.streamChatCompletions(chatRequest)
                 .doOnNext(chunk -> {
                     resultBuilder.append(chunk);
-                    if (sink != null) {
-                        sink.tryEmitNext(ServerSentEvent.<WebResult<String>>builder()
-                                .event("node_progress")
-                                .data(WebResult.success(chunk))
-                                .build());
-                    }
+                    workflowServiceHelper.streamPrint(sink, PromptConstant.SQL_GENERATION_NODE, chunk, serializableSink, state);
                 })
                 .doOnComplete(latch::countDown)
                 .doOnError(e -> {
@@ -87,13 +88,9 @@ public class GenerateSqlGraphNode implements NodeAction<WorkflowState> {
         Map<String, Object> generateSqlResultMap = JSONUtil.toBean(generateSqlResult, Map.class);
         String sql = (String) generateSqlResultMap.get("sql");
 
-        if (sink != null) {
-            sink.tryEmitNext(ServerSentEvent.<WebResult<String>>builder()
-                    .event("node_progress")
-                    .data(WebResult.success("SQL生成完成"))
-                    .build());
-        }
-
+        // 将收集到的流式数据追加到WorkflowState
+        state.appendCollectedData(sql);
+        
         log.info("Generated SQL: {}", sql);
         return Map.of(
                 "sql", sql,

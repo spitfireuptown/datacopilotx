@@ -17,6 +17,9 @@ public class SerializableSink implements Serializable {
     // transient - 序列化时跳过，反序列化时从 ThreadLocal 恢复
     private transient volatile Sinks.Many<ServerSentEvent<WebResult<String>>> sink;
     
+    // 用于收集所有写入sink的数据，最后保存到question_log
+    private StringBuilder collectedData = new StringBuilder();
+    
     public SerializableSink() {
     }
     
@@ -30,6 +33,22 @@ public class SerializableSink implements Serializable {
     
     public Sinks.Many<ServerSentEvent<WebResult<String>>> getSink() {
         return sink;
+    }
+    
+    /**
+     * 收集写入sink的数据
+     */
+    public void collectData(String data) {
+        if (data != null) {
+            collectedData.append(data);
+        }
+    }
+    
+    /**
+     * 获取收集到的所有数据
+     */
+    public String getCollectedData() {
+        return collectedData.toString();
     }
 
     

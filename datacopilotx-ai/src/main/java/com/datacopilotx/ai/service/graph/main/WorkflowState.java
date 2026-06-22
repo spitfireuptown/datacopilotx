@@ -30,7 +30,7 @@ public class WorkflowState extends AgentState {
             Map.entry("result", Channels.base(null, null)),
             Map.entry("intent_score", Channels.base(null, null)),
             Map.entry("intent_analysis", Channels.base(null, null)),
-            Map.entry("recall", Channels.appender(() -> List.of()))
+            Map.entry("recall", Channels.appender(List::of))
     );
 
     public WorkflowState(Map<String, Object> initData) {
@@ -92,6 +92,29 @@ public class WorkflowState extends AgentState {
     public List<String> recall() {
         return this.<List<String>>value("recall").orElse(List.of());
     }
+    
+    // 使用 ThreadLocal 存储收集的数据，避免序列化问题
+    private static final ThreadLocal<StringBuilder> collectedDataHolder = new ThreadLocal<>();
+    
+    public static void initCollectedData() {
+        collectedDataHolder.set(new StringBuilder());
+    }
+    
+    public void appendCollectedData(String data) {
+        StringBuilder sb = collectedDataHolder.get();
+        if (sb != null && data != null) {
+            sb.append(data);
+        }
+    }
+    
+    public String getCollectedData() {
+        StringBuilder sb = collectedDataHolder.get();
+        return sb != null ? sb.toString() : "";
+    }
+    
+    public void clearCollectedData() {
+        collectedDataHolder.remove();
+    }
 
     private transient ModelConfigBean modelConfigBean;
     private transient DataSetBean dataSetBean;
@@ -107,6 +130,10 @@ public class WorkflowState extends AgentState {
 
     public Sinks.Many<ServerSentEvent<WebResult<String>>> getSink() {
         return serializableSink != null ? serializableSink.getSink() : null;
+    }
+    
+    public SerializableSink getSerializableSink() {
+        return serializableSink;
     }
 
     public ChatRequest buildLLMRequest(String question) {

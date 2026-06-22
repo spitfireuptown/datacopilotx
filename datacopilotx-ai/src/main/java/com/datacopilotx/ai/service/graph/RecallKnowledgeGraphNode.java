@@ -5,13 +5,13 @@ import com.datacopilotx.ai.controller.form.KnowledgeLibForm;
 import com.datacopilotx.ai.domian.bean.KnowledgeLibBean;
 import com.datacopilotx.ai.mapper.KnowledgeLibMapper;
 import com.datacopilotx.ai.service.KnowledgeLibService;
+import com.datacopilotx.ai.service.graph.main.WorkflowServiceHelper;
 import com.datacopilotx.ai.service.graph.main.WorkflowState;
 import com.datacopilotx.aigateway.domain.dto.OllamaResultDTO;
-import com.datacopilotx.common.result.WebResult;
+import com.datacopilotx.common.constant.PromptConstant;
+import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.bsc.langgraph4j.action.NodeAction;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -23,10 +23,12 @@ import java.util.stream.Collectors;
 @Component
 public class RecallKnowledgeGraphNode implements NodeAction<WorkflowState> {
 
-    @Autowired
+    @Resource
     KnowledgeLibService knowledgeLibService;
-    @Autowired
+    @Resource
     KnowledgeLibMapper knowledgeLibMapper;
+    @Resource
+    WorkflowServiceHelper workflowServiceHelper;
 
     @Override
     public Map<String, Object> apply(WorkflowState state) {
@@ -38,6 +40,12 @@ public class RecallKnowledgeGraphNode implements NodeAction<WorkflowState> {
                         .eq(KnowledgeLibBean::getDatasetId, datasetId)
         );
 
+        var sink = state.getSink();
+        var serializableSink = state.getSerializableSink();
+
+        workflowServiceHelper.streamPrint(sink, PromptConstant.RECALL_NODE, "\n", serializableSink, state);
+        workflowServiceHelper.streamPrint(sink, PromptConstant.RECALL_NODE, "#### 知识库匹配: ", serializableSink, state);
+        workflowServiceHelper.streamPrint(sink, PromptConstant.RECALL_NODE, "\n", serializableSink, state);
         log.info("Found {} knowledge libraries for dataset {}", knowledgeLibBeans.size(), datasetId);
 
         List<String> result = new ArrayList<>();
@@ -51,14 +59,7 @@ public class RecallKnowledgeGraphNode implements NodeAction<WorkflowState> {
             List<OllamaResultDTO.CallBackResult> results = knowledgeLibService.retrieval(retrievalForm);
             result.addAll(results.stream().map(OllamaResultDTO.CallBackResult::getAnswer).collect(Collectors.toList()));
         }
-
-        var sink = state.getSink();
-        if (sink != null) {
-            sink.tryEmitNext(ServerSentEvent.<WebResult<String>>builder()
-                    .event("node_progress")
-                    .data(WebResult.success("知识库检索完成，共检索到 " + result.size() + " 条相关知识"))
-                    .build());
-        }
+        workflowServiceHelper.streamPrint(sink, PromptConstant.RECALL_NODE, String.format("已匹配%s条知识: ", knowledgeLibBeans.size()), serializableSink, state);
 
         log.info("Knowledge retrieval completed, found {} relevant results", result.size());
         return Map.of("recall", result);

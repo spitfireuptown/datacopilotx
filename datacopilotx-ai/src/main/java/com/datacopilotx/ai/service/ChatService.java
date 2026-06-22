@@ -8,10 +8,11 @@ import com.datacopilotx.ai.domian.bean.QuestionLogBean;
 import com.datacopilotx.ai.mapper.DataSetMapper;
 import com.datacopilotx.ai.mapper.ModelConfigMapper;
 import com.datacopilotx.ai.mapper.QuestionLogMapper;
-import com.datacopilotx.ai.service.flow.*;
 import com.datacopilotx.ai.service.graph.main.SerializableSink;
 import com.datacopilotx.ai.service.graph.main.WorkflowGraph;
+import com.datacopilotx.ai.service.graph.main.WorkflowServiceHelper;
 import com.datacopilotx.ai.service.graph.main.WorkflowState;
+import org.springframework.util.ObjectUtils;
 import com.datacopilotx.common.constant.PromptConstant;
 import com.datacopilotx.common.result.WebResult;
 import com.datacopilotx.common.util.IdUtils;
@@ -22,7 +23,6 @@ import org.bsc.langgraph4j.RunnableConfig;
 import org.bsc.langgraph4j.StateGraph;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
-import org.springframework.util.ObjectUtils;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
 
@@ -108,30 +108,40 @@ public class ChatService {
 
                 log.info("Starting workflow execution, initial state keys: {}", initialData.keySet());
 
+                // 初始化收集数据的ThreadLocal
+                WorkflowState.initCollectedData();
+
                 WorkflowState finalState = null;
                 int nodeCount = 0;
-                StringBuilder answerBuilder = new StringBuilder();
 
                 for (var nodeOutput : compiledGraph.stream(initialData, runnableConfig)) {
                     nodeCount++;
                     finalState = nodeOutput.state();
-
-                    // 将每一步的回答追加到 answerBuilder
-                    finalState.answer().ifPresent(answerContent -> {
-                        if (answerContent != null && !answerContent.isEmpty()) {
-                            if (answerBuilder.length() > 0) {
-                                answerBuilder.append("\n\n");
-                            }
-                            answerBuilder.append(answerContent);
-                        }
-                    });
-
                     log.debug("Executed node {}, current state: {}", nodeCount, finalState);
                 }
 
                 if (finalState == null) {
                     throw new IllegalStateException("Workflow execution did not return any state");
                 }
+                
+                // 将收集到的sink数据保存到question_log
+                String collectedData = finalState.getCollectedData();
+                if (!ObjectUtils.isEmpty(collectedData)) {
+                    // 更新question_log记录
+                    QuestionLogBean updateLogBean = QuestionLogBean.builder()
+                            .questionId(questionId)
+                            .sessionId(sessionId)
+                            .answer(collectedData)
+                            .build();
+                    questionLogMapper.update(updateLogBean, 
+                            new LambdaQueryWrapper<QuestionLogBean>()
+                                    .eq(QuestionLogBean::getQuestionId, questionId)
+                                    .eq(QuestionLogBean::getSessionId, sessionId));
+                    log.info("Saved sink data to question_log for questionId: {}", questionId);
+                }
+                // 清理ThreadLocal
+                finalState.clearCollectedData();
+                
                 sink.tryEmitComplete();
             } catch (Exception e) {
                 log.error("Chat completions execution failed", e);
