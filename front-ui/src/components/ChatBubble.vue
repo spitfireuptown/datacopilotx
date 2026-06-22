@@ -75,6 +75,11 @@ const props = defineProps({
 
 const emit = defineEmits(['newChat', 'regenerate']);
 
+// 暴露滚动方法供父组件调用
+defineExpose({
+  scrollToBottom
+});
+
 // 新对话
 const newChat = () => {
   messageItemList.value = [];
@@ -198,14 +203,51 @@ let simpleBarInstance: SimpleBar | null = null;
 const bubbleListContentRef = ref<HTMLElement | null>(null);
 
 function scrollToBottom() {
-  nextTick(() => {
-    const scrollElement = simpleBarInstance?.getScrollElement();
-    if (scrollElement) {
-      scrollElement.scrollTo({
-        top: scrollElement.scrollHeight,
-        behavior: 'smooth'
-      });
+  console.log('scrollToBottom 被调用');
+  
+  const doScroll = () => {
+    console.log('开始执行滚动');
+    
+    // 方式1：找到最后一个气泡元素并滚动到视图
+    const lastBubble = bubbleListContentRef.value?.querySelector('.bubble-item-wrapper:last-child');
+    console.log('lastBubble:', lastBubble);
+    
+    if (lastBubble) {
+      lastBubble.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      console.log('使用 scrollIntoView 滚动');
+      return;
     }
+    
+    // 方式2：尝试找到外层的 .content-wrap 滚动容器
+    const contentWrap = document.querySelector('.content-wrap');
+    console.log('contentWrap:', contentWrap, contentWrap?.scrollHeight);
+    
+    if (contentWrap) {
+      contentWrap.scrollTop = contentWrap.scrollHeight;
+      console.log('content-wrap 滚动:', contentWrap.scrollTop, '/', contentWrap.scrollHeight);
+      return;
+    }
+    
+    // 方式3：尝试操作 SimpleBar 容器
+    const scrollContainer = bubbleListContentRef.value?.querySelector('.simplebar-scroll-content');
+    console.log('scrollContainer:', scrollContainer, scrollContainer?.scrollHeight);
+    
+    if (scrollContainer) {
+      scrollContainer.scrollTop = scrollContainer.scrollHeight;
+      console.log('SimpleBar 滚动:', scrollContainer.scrollTop, '/', scrollContainer.scrollHeight);
+      return;
+    }
+    
+    // 方式4：直接操作容器
+    if (bubbleListContentRef.value) {
+      bubbleListContentRef.value.scrollTop = bubbleListContentRef.value.scrollHeight;
+      console.log('直接滚动:', bubbleListContentRef.value.scrollTop, '/', bubbleListContentRef.value.scrollHeight);
+    }
+  };
+  
+  // 增加延迟时间，确保DOM完全渲染
+  nextTick(() => {
+    setTimeout(doScroll, 500);
   });
 }
 

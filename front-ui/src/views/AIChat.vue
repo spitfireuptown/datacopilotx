@@ -17,6 +17,7 @@
       <WelcomeIndex v-if="!messages.length && !historyLoading" class="mb-4" />
       <ChatBubble
         v-else-if="!historyLoading"
+        ref="chatBubbleRef"
         class="bubble-list-wrap mb-4"
         :messages="messages"
         :loading="waitResponse"
@@ -56,6 +57,7 @@ const handleHistoryLoading = (loading: boolean) => {
 
 // 重置对话
 const senderInputRef = ref();
+const chatBubbleRef = ref();
 const resetChat = () => {
   waitResponse.value = false;
   senderInputRef.value?.newChat();
@@ -131,6 +133,34 @@ const handleChatSelect = (chatDetail: any[]) => {
   
   // 更新消息列表
   messages.value = convertedMessages;
+  
+  // 消息更新后，使用 requestAnimationFrame 确保滚动时机正确
+  nextTick(() => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        // 尝试找到所有可能的滚动容器
+        const containers = [
+          document.querySelector('.content-wrap'),
+          document.querySelector('.bubble-list-wrap'),
+          document.querySelector('.chat-comp')
+        ];
+        
+        for (const container of containers) {
+          if (container) {
+            console.log('尝试滚动:', container.className, container.scrollHeight);
+            container.scrollTop = container.scrollHeight;
+          }
+        }
+        
+        // 额外检查：尝试滚动到最后一个气泡元素
+        const lastBubble = document.querySelector('.bubble-item-wrapper:last-child');
+        if (lastBubble) {
+          console.log('使用 scrollIntoView');
+          lastBubble.scrollIntoView({ behavior: 'auto', block: 'end' });
+        }
+      });
+    });
+  });
 };
 
 // 辅助函数：尝试解析JSON数据
