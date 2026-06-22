@@ -8,6 +8,7 @@
 <a href="#项目文档"><img src="https://img.shields.io/badge/MySQL-8.0-orange.svg" alt="MySQL版本"></a>
 <a href="#项目文档"><img src="https://img.shields.io/badge/ORM-MybatisPlus-blue.svg" alt="ORM框架"></a>
 <a href="#项目文档"><img src="https://img.shields.io/badge/大模型框架-langchain4j-green.svg" alt="大模型框架"></a>
+<a href="#项目文档"><img src="https://img.shields.io/badge/大模型框架-langgraph4j-orange.svg" alt="大模型框架"></a>
 <a href="#项目文档"><img src="https://img.shields.io/badge/向量库-ElasticSearch 7.9.3-red.svg" alt="向量库"></a>
 <a href="#项目文档"><img src="https://img.shields.io/badge/前端-Vue3.x-green.svg" alt="部署"></a>
 <a href="#项目文档"><img src="https://img.shields.io/badge/前端UI-AntDesignX-red.svg" alt="前端"></a>
@@ -37,7 +38,8 @@
 | MySQL					            | 8.0					     |DB数据库
 | ElasticSearch					    | 7.9.3					   |向量库、支持流转的数据库
 | HikariCP					         | 5.1.0 ↑					 |数据库连接池
-| LangChain					        | 1.0.1					   |大模型服务框架
+| LangChain4J					      | 1.0.1					   |大模型服务框架
+| LangGraph4J				       | 1.6.2					   |大模型服务框架
 | Ollama					           | x					       |大模型执行框架
 | Maven					            | 3.6.X					   |Java包管理
 | Vue.js					           | 3.X					     |前端框架

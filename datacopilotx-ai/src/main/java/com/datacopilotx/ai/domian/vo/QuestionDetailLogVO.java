@@ -15,8 +15,12 @@ public class QuestionDetailLogVO {
     private String answer;
     private String result;
     private String ctime;
+    private Long datasetId;
+    private String dsName;
+    private Long modelId;
+    private String modelName;
 
-    public static QuestionDetailLogVO convert(QuestionLogBean questionLogBean) {
+    public static QuestionDetailLogVO convert(QuestionLogBean questionLogBean, String dsName, String modelName) {
         QuestionDetailLogVO questionDetailLogVO = new QuestionDetailLogVO();
         questionDetailLogVO.setId(questionLogBean.getId());
         questionDetailLogVO.setQuestionId(questionLogBean.getQuestionId());
@@ -24,6 +28,10 @@ public class QuestionDetailLogVO {
         questionDetailLogVO.setQuestion(questionLogBean.getQuestion());
         questionDetailLogVO.setAnswer(questionLogBean.getAnswer());
         questionDetailLogVO.setResult(questionLogBean.getResult());
+        questionDetailLogVO.setDatasetId(questionLogBean.getDatasetId());
+        questionDetailLogVO.setDsName(dsName);
+        questionDetailLogVO.setModelId(questionLogBean.getModelId());
+        questionDetailLogVO.setModelName(modelName);
 
         LocalDateTime localDateTime = questionLogBean.getCtime().toLocalDateTime();
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");

@@ -1,16 +1,28 @@
 <template>
   <div ref="scholarAiRef" class="chat-comp">
     <LeftSidebar />
-    <SecondLeftSidebar @new-chat="resetChat" @chat-select="handleChatSelect" />
+    <SecondLeftSidebar 
+      @new-chat="resetChat" 
+      @chat-select="handleChatSelect"
+      @loading-change="handleHistoryLoading"
+    />
     <div class="content-wrap">
-      <WelcomeIndex v-if="!messages.length" class="mb-4" />
+      <!-- 历史记录加载遮罩 -->
+      <div v-if="historyLoading" class="history-loading-overlay">
+        <div class="history-loading-spinner">
+          <a-spin size="large" tip="加载对话中..." />
+        </div>
+      </div>
+      
+      <WelcomeIndex v-if="!messages.length && !historyLoading" class="mb-4" />
       <ChatBubble
-        v-else
+        v-else-if="!historyLoading"
         class="bubble-list-wrap mb-4"
         :messages="messages"
         :loading="waitResponse"
         :chat-title="currentChatTitle"
         @new-chat="resetChat"
+        @regenerate="handleRegenerate"
       />
     </div>
     <div class="sender-wrap">
@@ -36,12 +48,23 @@ const handleLoading = (loading: boolean) => {
   waitResponse.value = loading;
 };
 
+// 历史记录加载状态
+const historyLoading = ref<boolean>(false);
+const handleHistoryLoading = (loading: boolean) => {
+  historyLoading.value = loading;
+};
+
 // 重置对话
 const senderInputRef = ref();
 const resetChat = () => {
   waitResponse.value = false;
   senderInputRef.value?.newChat();
   currentChatTitle.value = '';
+};
+
+// 处理重新生成
+const handleRegenerate = (content: string) => {
+  senderInputRef.value?.setQuestion(content);
 };
 
 // Import necessary dependencies
@@ -84,6 +107,10 @@ const handleChatSelect = (chatDetail: any[]) => {
     currentChatTitle.value = firstQuestion.length > 30 
       ? firstQuestion.substring(0, 30) + '...' 
       : firstQuestion;
+      
+    // 回显数据集和模型
+    const firstItem = chatDetail[0];
+    senderInputRef.value?.setDatasetAndModel(firstItem.datasetId, firstItem.modelId, firstItem.dsName, firstItem.modelName);
   }
   
   // 将获取到的聊天详情转换为MessageItem格式并设置到messages中
@@ -159,6 +186,27 @@ const parseJsonData = (data: string) => {
         width: 100%;
         box-sizing: border-box;
       }
+    }
+    
+    /* 历史记录加载遮罩 */
+    .history-loading-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(255, 255, 255, 0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+    
+    .history-loading-spinner {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
     }
   }
 

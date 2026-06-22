@@ -17,8 +17,10 @@
           style="width: 150px;"
           allowClear
           :class="{ 'transparent-border-select': !showDatasetWarning, 'dataset-warning': showDatasetWarning }"
+          label-in-value
+          :show-search="false"
         >
-          <a-select-option v-for="dataset in datasets" :key="dataset.id" :value="dataset.id">
+          <a-select-option v-for="dataset in datasets" :key="dataset.id" :value="dataset.id" :label="dataset.name">
             {{ dataset.name }}
           </a-select-option>
         </a-select>
@@ -62,9 +64,10 @@
               style="width: 100%;"
               allowClear
               :loading="modelsLoading"
+              label-in-value
               @change="handleModelSelect"
             >
-              <a-select-option v-for="model in models" :key="model.id" :value="model.id">
+              <a-select-option v-for="model in models" :key="model.id" :value="model.id" :label="`${model.platform} (${model.model})`">
                 {{ model.platform }} ({{ model.model }})
               </a-select-option>
             </a-select>
@@ -122,6 +125,7 @@ const newChat = () => {
   selectedModelId.value = undefined;
   conversation_uuid.value = undefined;
   messages.value = [];
+  selectedDatasetId.value = undefined;
   // 只有在明确新建对话时才重置历史，从历史对话进入时不应调用此函数
   dialogueStores.resetHistory();
   dialogueStores.setCurrentConversitionUuid(undefined);
@@ -145,8 +149,59 @@ watch(
   },
   { immediate: true }
 );
+// 设置输入框内容
+const setQuestion = (value: string) => {
+  question.value = value;
+};
+
+// 设置数据集和模型
+const setDatasetAndModel = (datasetId: number | undefined, modelId: number | undefined, dsName?: string, modelName?: string) => {
+  if (datasetId) {
+    // 使用 label-in-value 模式，设置为包含 label 和 value 的对象
+    selectedDatasetId.value = {
+      value: String(datasetId),
+      label: dsName || ''
+    };
+  } else {
+    selectedDatasetId.value = undefined;
+  }
+  if (modelId) {
+    // 使用 label-in-value 模式，设置为包含 label 和 value 的对象
+    const modelLabel = modelName || '';
+    selectedModelId.value = {
+      value: String(modelId),
+      label: modelLabel
+    };
+    // 先尝试从模型列表中查找
+    const foundModel = models.value.find(model => model.id === String(modelId));
+    if (foundModel) {
+      selectedModel.value = foundModel;
+    } else if (modelName) {
+      // 如果模型列表还没加载完成，使用传入的名称创建临时模型对象
+      selectedModel.value = {
+        id: String(modelId),
+        model: modelName,
+        platform: '',
+        apiKey: '',
+        apiBase: '',
+        type: '',
+        functionType: '',
+        createTime: '',
+        dimension: 0
+      };
+    } else {
+      selectedModel.value = null;
+    }
+  } else {
+    selectedModelId.value = undefined;
+    selectedModel.value = null;
+  }
+};
+
 defineExpose({
-  newChat
+  newChat,
+  setQuestion,
+  setDatasetAndModel
 });
 
 /** 发送消息 */
@@ -266,8 +321,8 @@ const [agent] = useXAgent({
         {
           signal: controller.signal,
           message: question.value,
-          datasetId: selectedDatasetId.value,
-          modelId: selectedModelId.value,
+          datasetId: selectedDatasetId.value?.value,
+          modelId: selectedModelId.value?.value,
           questionId: questionId.value,
           sessionId: sessionId.value
         }
@@ -315,7 +370,7 @@ const changeValue = (val: string) => {
 
 // 数据集相关状态
 const datasets = ref<Dataset[]>([]);
-const selectedDatasetId = ref<string>(undefined);
+const selectedDatasetId = ref<{ value: string; label: string } | undefined>(undefined);
 
 /** 获取数据集列表 */
 const fetchDatasets = async () => {
@@ -376,12 +431,12 @@ const handleOpenHeader = () => {
 const models = ref<Model[]>([]);
 const modelsLoading = ref<boolean>(false);
 const selectedModel = ref<Model | null>(null);
-const selectedModelId = ref<string>(undefined);
+const selectedModelId = ref<{ value: string; label: string } | undefined>(undefined);
 
 // 模型选择处理
-const handleModelSelect = (modelId: string) => {
-  if (modelId) {
-    selectedModel.value = models.value.find(model => model.id === modelId) || null;
+const handleModelSelect = (modelId: { value: string; label: string }) => {
+  if (modelId && modelId.value) {
+    selectedModel.value = models.value.find(model => model.id === modelId.value) || null;
     showModelWarning.value = false;
   } else {
     selectedModel.value = null;
@@ -390,10 +445,42 @@ const handleModelSelect = (modelId: string) => {
 
 // 数据集选择监听
 watch(selectedDatasetId, (newValue) => {
-  if (newValue) {
+  if (newValue && newValue.value) {
     showDatasetWarning.value = false;
   }
 });
+
+// 模型选择监听
+watch(selectedModelId, (newValue) => {
+  if (newValue && newValue.value) {
+    showModelWarning.value = false;
+  }
+});
+// 监听数据集列表加载完成后更新选中项的标签
+watch(datasets, (newDatasets) => {
+  if (newDatasets.length > 0 && selectedDatasetId.value) {
+    const foundDataset = newDatasets.find(ds => ds.id === selectedDatasetId.value.value);
+    if (foundDataset) {
+      selectedDatasetId.value = {
+        value: selectedDatasetId.value.value,
+        label: foundDataset.name
+      };
+    }
+  }
+}, { deep: true });
+
+// 监听模型列表加载完成后更新选中项的标签
+watch(models, (newModels) => {
+  if (newModels.length > 0 && selectedModelId.value) {
+    const foundModel = newModels.find(m => m.id === selectedModelId.value.value);
+    if (foundModel) {
+      selectedModelId.value = {
+        value: selectedModelId.value.value,
+        label: `${foundModel.platform} (${foundModel.model})`
+      };
+    }
+  }
+}, { deep: true });
 
 // 移除选中的模型
 const handleRemoveModel = () => {

@@ -17,8 +17,10 @@ public class QuestionLogBean {
     private String questionId;
     @TableField("session_id")
     private String sessionId;
-    @TableField("data_id")
-    private Long dataId;
+    @TableField("dataset_id")
+    private Long datasetId;
+    @TableField("model_id")
+    private Long modelId;
     private String question;
     @TableField("cost_time")
     private String costTime;

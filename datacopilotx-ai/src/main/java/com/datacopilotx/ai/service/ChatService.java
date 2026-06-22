@@ -74,7 +74,8 @@ public class ChatService {
                 .builder()
                 .questionId(questionId)
                 .sessionId(sessionId)
-                .dataId(questionForm.getDatasetId())
+                .datasetId(questionForm.getDatasetId())
+                .modelId(questionForm.getModelId())
                 .question(questionForm.getQuestion())
                 .build();
         questionLogMapper.insert(questionLogBean);

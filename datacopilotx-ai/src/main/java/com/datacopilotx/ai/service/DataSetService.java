@@ -161,7 +161,7 @@ public class DataSetService {
         DriverFactory.removeDriver(driverInfo);
         dataSetMapper.deleteById(id);
         knowledgeLibMapper.delete(new LambdaQueryWrapper<KnowledgeLibBean>().eq(KnowledgeLibBean::getDatasetId, id));
-        questionLogMapper.delete(new LambdaQueryWrapper<QuestionLogBean>().eq(QuestionLogBean::getDataId, id));
+        questionLogMapper.delete(new LambdaQueryWrapper<QuestionLogBean>().eq(QuestionLogBean::getDatasetId, id));
     }
 
     public DataSetVO.DetailVO detail(long id) {

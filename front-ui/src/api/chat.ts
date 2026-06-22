@@ -188,7 +188,12 @@ export interface ChatHistoryDetailItem {
   sessionId: string;
   question: string;
   answer: string;
+  result: string;
   ctime: string;
+  datasetId: number;
+  dsName: string;
+  modelId: number;
+  modelName: string;
 }
 
 // 定义获取聊天历史详情的函数

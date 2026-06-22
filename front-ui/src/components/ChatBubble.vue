@@ -20,7 +20,23 @@
     </div>
     
     <div ref="bubbleListContentRef" class="bubble-list">
-      <BubbleList :roles="roles" :items="messageItemList" />
+      <div v-for="item in messageItemList" :key="item.key" class="bubble-item-wrapper">
+        <BubbleList :roles="roles" :items="[item]" />
+        
+        <!-- 用户发送的气泡下面显示重新生成按钮 -->
+        <div v-if="item.role === 'local'" class="regenerate-btn-container">
+          <a-button
+            type="text"
+            class="regenerate-btn"
+            @click="handleRegenerate(item.content)"
+          >
+            <template #icon>
+              <UndoOutlined />
+            </template>
+            重新生成
+          </a-button>
+        </div>
+      </div>
 
       <Bubble
         v-if="loading"
@@ -35,6 +51,7 @@
 <script lang="ts" setup>
 import { Bubble, BubbleList } from 'ant-design-x-vue';
 import { Avatar } from 'ant-design-vue';
+import { UndoOutlined } from '@ant-design/icons-vue';
 import MdPreview from '@/components/MdPreview.vue';
 import { MessageItem } from '@/dataTypes/chatType';
 import SimpleBar from 'simplebar';
@@ -56,12 +73,17 @@ const props = defineProps({
   }
 });
 
-const emit = defineEmits(['newChat']);
+const emit = defineEmits(['newChat', 'regenerate']);
 
 // 新对话
 const newChat = () => {
   messageItemList.value = [];
   emit('newChat');
+};
+
+// 重新生成
+const handleRegenerate = (content: string) => {
+  emit('regenerate', content);
 };
 
 // 渲染对话
@@ -194,6 +216,31 @@ onUnmounted(() => {
 
 .active-template {
   border-color: #1677ff;
+}
+
+/* 气泡项包装器 */
+.bubble-item-wrapper {
+  margin-bottom: 8px;
+}
+
+/* 重新生成按钮容器 */
+.regenerate-btn-container {
+  display: flex;
+  justify-content: flex-end;
+  padding-right: 40px;
+  margin-top: 4px;
+}
+
+/* 重新生成按钮样式 */
+.regenerate-btn {
+  color: #666;
+  font-size: 12px;
+  padding: 4px 12px;
+  
+  &:hover {
+    color: #1890ff;
+    background-color: #e6f7ff;
+  }
 }
 
 /* 固定在顶部的标题栏 */

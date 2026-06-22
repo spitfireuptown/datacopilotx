@@ -198,12 +198,18 @@ onMounted(() => {
 // 添加点击历史对话项的处理函数
 const handleChatClick = async (item: ChatHistoryItem) => {
   try {
+    // 发送加载开始事件
+    emit('loadingChange', true);
+    
     const chatDetail = await getChatHistoryDetail(item.session_id);
     
     // 发送事件给父组件AIChat.vue
     emit('chatSelect', chatDetail);
   } catch (error) {
     console.error('获取聊天详情失败:', error);
+  } finally {
+    // 发送加载结束事件
+    emit('loadingChange', false);
   }
 };
 </script>
