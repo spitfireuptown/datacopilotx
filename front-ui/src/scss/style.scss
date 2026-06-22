@@ -9,3 +9,29 @@
 .anticon:not(.anticon-delete) {
   vertical-align: 1.5px;
 }
+
+.content-wrap {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  box-sizing: border-box;
+  min-height: 0;
+}
+
+.bubble-list-wrap {
+  margin: 0 !important;
+  padding: 0;
+}
+
+.bubble-list {
+  padding: 80px 30px 20px 30px;
+}
+
+.ant-bubble-content {
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+.ant-table-body {
+  overflow-y: auto;
+}

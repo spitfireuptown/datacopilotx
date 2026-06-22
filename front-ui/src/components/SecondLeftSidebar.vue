@@ -217,7 +217,7 @@ const handleChatClick = async (item: ChatHistoryItem) => {
 <style lang="scss" scoped>
 .sidebar {
   width: 280px;
-  height: 100vh;
+  height: 100%;
   background-color: #fff;
   border-right: 1px solid #f0f0f0;
   display: flex;

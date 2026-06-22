@@ -8,18 +8,11 @@ export {}
 declare module 'vue' {
   export interface GlobalComponents {
     AButton: typeof import('ant-design-vue/es')['Button']
-    ACheckbox: typeof import('ant-design-vue/es')['Checkbox']
     ACol: typeof import('ant-design-vue/es')['Col']
     ADropdown: typeof import('ant-design-vue/es')['Dropdown']
-    AForm: typeof import('ant-design-vue/es')['Form']
-    AFormItem: typeof import('ant-design-vue/es')['FormItem']
-    AInput: typeof import('ant-design-vue/es')['Input']
-    AInputNumber: typeof import('ant-design-vue/es')['InputNumber']
-    AInputPassword: typeof import('ant-design-vue/es')['InputPassword']
     AInputSearch: typeof import('ant-design-vue/es')['InputSearch']
     AMenu: typeof import('ant-design-vue/es')['Menu']
     AMenuItem: typeof import('ant-design-vue/es')['MenuItem']
-    AModal: typeof import('ant-design-vue/es')['Modal']
     ARow: typeof import('ant-design-vue/es')['Row']
     ASelect: typeof import('ant-design-vue/es')['Select']
     ASelectOption: typeof import('ant-design-vue/es')['SelectOption']
@@ -27,9 +20,7 @@ declare module 'vue' {
     ASpin: typeof import('ant-design-vue/es')['Spin']
     ATable: typeof import('ant-design-vue/es')['Table']
     ATag: typeof import('ant-design-vue/es')['Tag']
-    ATextarea: typeof import('ant-design-vue/es')['Textarea']
     ATooltip: typeof import('ant-design-vue/es')['Tooltip']
-    AUpload: typeof import('ant-design-vue/es')['Upload']
     BarChartOutlined: typeof import('@ant-design/icons-vue')['BarChartOutlined']
     ChatBubble: typeof import('./../src/components/ChatBubble.vue')['default']
     CommentOutlined: typeof import('@ant-design/icons-vue')['CommentOutlined']
@@ -45,7 +36,6 @@ declare module 'vue' {
     SenderInput: typeof import('./../src/components/SenderInput.vue')['default']
     SettingOutlined: typeof import('@ant-design/icons-vue')['SettingOutlined']
     TableOutlined: typeof import('@ant-design/icons-vue')['TableOutlined']
-    UndoOutlined: typeof import('@ant-design/icons-vue')['UndoOutlined']
     WelcomeIndex: typeof import('./../src/components/WelcomeIndex.vue')['default']
   }
 }

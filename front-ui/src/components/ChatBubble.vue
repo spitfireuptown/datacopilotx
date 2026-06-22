@@ -54,7 +54,6 @@ import { Avatar } from 'ant-design-vue';
 import { UndoOutlined } from '@ant-design/icons-vue';
 import MdPreview from '@/components/MdPreview.vue';
 import { MessageItem } from '@/dataTypes/chatType';
-import SimpleBar from 'simplebar';
 import { message as Message } from 'ant-design-vue';
 
 const props = defineProps({
@@ -199,81 +198,41 @@ watch(
 );
 
 /** message变化时自动滚动到底部 */
-let simpleBarInstance: SimpleBar | null = null;
 const bubbleListContentRef = ref<HTMLElement | null>(null);
 
 function scrollToBottom() {
-  console.log('scrollToBottom 被调用');
-  
   const doScroll = () => {
-    console.log('开始执行滚动');
-    
-    // 方式1：找到最后一个气泡元素并滚动到视图
     const lastBubble = bubbleListContentRef.value?.querySelector('.bubble-item-wrapper:last-child');
-    console.log('lastBubble:', lastBubble);
-    
     if (lastBubble) {
       lastBubble.scrollIntoView({ behavior: 'smooth', block: 'end' });
-      console.log('使用 scrollIntoView 滚动');
       return;
     }
     
-    // 方式2：尝试找到外层的 .content-wrap 滚动容器
     const contentWrap = document.querySelector('.content-wrap');
-    console.log('contentWrap:', contentWrap, contentWrap?.scrollHeight);
-    
     if (contentWrap) {
       contentWrap.scrollTop = contentWrap.scrollHeight;
-      console.log('content-wrap 滚动:', contentWrap.scrollTop, '/', contentWrap.scrollHeight);
       return;
     }
     
-    // 方式3：尝试操作 SimpleBar 容器
-    const scrollContainer = bubbleListContentRef.value?.querySelector('.simplebar-scroll-content');
-    console.log('scrollContainer:', scrollContainer, scrollContainer?.scrollHeight);
-    
-    if (scrollContainer) {
-      scrollContainer.scrollTop = scrollContainer.scrollHeight;
-      console.log('SimpleBar 滚动:', scrollContainer.scrollTop, '/', scrollContainer.scrollHeight);
-      return;
-    }
-    
-    // 方式4：直接操作容器
     if (bubbleListContentRef.value) {
       bubbleListContentRef.value.scrollTop = bubbleListContentRef.value.scrollHeight;
-      console.log('直接滚动:', bubbleListContentRef.value.scrollTop, '/', bubbleListContentRef.value.scrollHeight);
     }
   };
   
-  // 增加延迟时间，确保DOM完全渲染
   nextTick(() => {
-    setTimeout(doScroll, 500);
+    setTimeout(doScroll, 300);
   });
 }
-
-onMounted(() => {
-  if (bubbleListContentRef.value) {
-    simpleBarInstance = new SimpleBar(bubbleListContentRef.value);
-  }
-});
-
-onUnmounted(() => {
-  if (simpleBarInstance) {
-    simpleBarInstance.unMount();
-    simpleBarInstance = null;
-  }
-});
 </script>
 
 <style lang="scss" scoped>
 .chat-bubble-container {
   position: relative;
-  height: 100%;
 }
 
 .bubble-list {
-  height: 100%;
-  padding: 80px 30px 20px 30px; /* 为固定的header-bar留出空间 */
+  padding: 80px 30px 350px 30px;
+  overflow: visible;
 }
 
 .active-template {
@@ -303,6 +262,14 @@ onUnmounted(() => {
     color: #1890ff;
     background-color: #e6f7ff;
   }
+}
+
+:deep(.ant-bubble-content),
+:deep(.ant-bubble-content-filled) {
+  height: auto !important;
+  min-height: auto !important;
+  max-height: 600px !important;
+  overflow-y: auto;
 }
 
 /* 固定在顶部的标题栏 */

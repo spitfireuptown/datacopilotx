@@ -31,7 +31,7 @@
         :columns="tableColumns"
         :data-source="tableData"
         :pagination="false"
-        :scroll="{ x: 'max-content', y: 400 }"
+        :scroll="{ x: 'max-content', y: 200 }"
         class="mt-4"
       />
       <div>
@@ -45,7 +45,7 @@
 import { marked } from 'marked';
 import hljs from 'highlight.js';
 import 'highlight.js/styles/github-dark.css';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import * as echarts from 'echarts';
 
 // 定义props
@@ -541,8 +541,8 @@ const handleTypeChange = (item) => {
   overflow-y: auto;
   word-break: break-word;
   min-height: 25px;
-  max-height: 800px;
-  height: auto !important;
+  max-height: 600px;
+  height: auto;
 
   pre {
     color: #fff;
@@ -588,15 +588,15 @@ const handleTypeChange = (item) => {
 }
 
 .md-editor {
-  min-height: 25px !important;
-  max-height: 800px !important;
-  height: auto !important;
+  min-height: 25px;
+  max-height: 600px;
+  height: auto;
 }
 
 :deep(.ant-bubble-content.ant-bubble-content-filled) {
-  min-height: 32px !important;
-  max-height: 800px !important;
-  height: auto !important;
+  min-height: 32px;
+  max-height: 600px;
+  height: auto;
 }
 
 // Ant Design表格样式
@@ -649,7 +649,7 @@ const handleTypeChange = (item) => {
 .chart{
   max-width: 100%;
   width: 73vw;
-  height: 400px;
+  height: 350px;
   margin: 0 auto;
 }
 </style>
