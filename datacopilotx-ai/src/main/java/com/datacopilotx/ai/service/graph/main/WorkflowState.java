@@ -30,7 +30,9 @@ public class WorkflowState extends AgentState {
             Map.entry("result", Channels.base(null, null)),
             Map.entry("intent_score", Channels.base(null, null)),
             Map.entry("intent_analysis", Channels.base(null, null)),
-            Map.entry("recall", Channels.appender(List::of))
+            Map.entry("recall", Channels.appender(List::of)),
+            Map.entry("sql_error", Channels.base(null, null)),
+            Map.entry("retry_count", Channels.base(null, null))
     );
 
     public WorkflowState(Map<String, Object> initData) {
@@ -91,6 +93,14 @@ public class WorkflowState extends AgentState {
     @SuppressWarnings("unchecked")
     public List<String> recall() {
         return this.<List<String>>value("recall").orElse(List.of());
+    }
+
+    public Optional<String> sqlError() {
+        return this.value("sql_error");
+    }
+
+    public Optional<Integer> retryCount() {
+        return this.value("retry_count");
     }
     
     // 使用 ThreadLocal 存储收集的数据，避免序列化问题

@@ -122,7 +122,7 @@ const handleChatSelect = (chatDetail: any[]) => {
     },
     {
       id: `${item.questionId}_answer`,
-      message: String(item.answer), // 确保是字符串类型
+      message: item.answer ? String(item.answer) : '暂无回答', // 处理answer为null的情况
       status: 'ai',
       // 尝试解析answer字段中的JSON数据
       jsonData: parseJsonData(item.result)

@@ -18,6 +18,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.ObjectUtils;
 import reactor.core.publisher.Sinks;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -38,17 +39,22 @@ public class GenerateSqlGraphNode implements NodeAction<WorkflowState> {
         DataSetBean dataSetBean = state.getDataSetBean();
 
         List<String> recall = state.recall();
+        String sqlError = state.sqlError().orElse("");
+        String intentAnalysis = state.intentAnalysis().orElse("");
+
+        HashMap<String, String> promptParams = new HashMap<>();
+        promptParams.put("${time}", workflowServiceHelper.getCurrentTime());
+        promptParams.put("${query}", beautifulQuestion);
+        promptParams.put("${engine}", modelConfigBean.getType());
+        promptParams.put("${innerPrompt}", ObjectUtils.isEmpty(dataSetBean.getInjectPrompt()) ? "" : dataSetBean.getInjectPrompt());
+        promptParams.put("${recall}", ObjectUtils.isEmpty(recall) ? "" : JSONUtil.toJsonStr(recall));
+        promptParams.put("${meta}", workflowServiceHelper.assembleDataSetInfo(dataSetBean));
+        promptParams.put("${analysis}", intentAnalysis);
+        promptParams.put("${sql_error}", sqlError);
 
         Pair<String, String> promptPair = workflowServiceHelper.injectPrompt(
                 PromptConstant.SQL_GENERATION_PROMPT,
-                Map.of(
-                        "${time}", workflowServiceHelper.getCurrentTime(),
-                        "${query}", beautifulQuestion,
-                        "${engine}", modelConfigBean.getType(),
-                        "${innerPrompt}", ObjectUtils.isEmpty(dataSetBean.getInjectPrompt()) ? "" : dataSetBean.getInjectPrompt(),
-                        "${recall}", ObjectUtils.isEmpty(recall) ? "" : JSONUtil.toJsonStr(recall),
-                        "${meta}", workflowServiceHelper.assembleDataSetInfo(dataSetBean)
-                )
+                promptParams
         );
 
         ChatRequest chatRequest = state.buildLLMRequest();

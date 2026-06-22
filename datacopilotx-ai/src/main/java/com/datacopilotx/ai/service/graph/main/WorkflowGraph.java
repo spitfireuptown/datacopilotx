@@ -19,6 +19,8 @@ import static org.bsc.langgraph4j.action.AsyncNodeAction.node_async;
 @Component
 public class WorkflowGraph {
 
+    private static final int MAX_RETRY = 3;
+
     private final GracefulQuestionGraphNode gracefulQuestionGraphNode;
     private final IntentRecognitionGraphNode intentRecognitionGraphNode;
     private final EasyChatGraphNode easyChatGraphNode;
@@ -53,7 +55,18 @@ public class WorkflowGraph {
                         }),
                         Map.of("recall_knowledge", "recall_knowledge", "easy_chat", "easy_chat")
                 )
-                .addEdge("execute_sql", END)
+                .addConditionalEdges(
+                        "execute_sql",
+                        edge_async(state -> {
+                            String sqlError = state.sqlError().orElse("");
+                            int retryCount = state.retryCount().orElse(0);
+                            if (!sqlError.isEmpty() && retryCount < MAX_RETRY) {
+                                return "generate_sql";
+                            }
+                            return END;
+                        }),
+                        Map.of("generate_sql", "generate_sql", END, END)
+                )
                 .addEdge("easy_chat", END);
 
         log.info("Main graph creation completed");

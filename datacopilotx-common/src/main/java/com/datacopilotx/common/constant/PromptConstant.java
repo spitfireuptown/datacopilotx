@@ -78,6 +78,9 @@ public interface PromptConstant {
                 "sql": ""
             }
             ```
+            
+            ## SQL修复（仅在重试时生效）
+            ${sql_error}
             """
     );
     

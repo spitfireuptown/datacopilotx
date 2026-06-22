@@ -134,30 +134,50 @@ watch(
   (newMessage) => {
     // 更新为最新的消息列表
     messageItemList.value = newMessage?.map(({ id, message, status, jsonData }) => {
+      // 处理message为null的情况
+      const currentMessage = message || '';
       // 处理jsonData为null的情况
       let processedJsonData = jsonData;
-      const startIndex = message.indexOf('问数结果:');
-      if (startIndex !== -1) {
-        // 提取'问数结果:'到最后的内容
-        const extractedData = message.substring(startIndex + 5);
-        console.log('extractedData', extractedData)
-        // 检查extractedData是否为空，避免解析空字符串
-        if (extractedData && extractedData.trim()) {
-          try {
-            processedJsonData = JSON.parse(extractedData);
-          } catch (error) {
-            console.error('解析响应失败:', error);
-            Message.error('问数结果解析失败，请检查返回数据格式');
+      // 找到最后一个"问数结果:"（处理重试导致的重复内容，最后一次执行通常是成功的）
+      const lastIndex = currentMessage.lastIndexOf('问数结果:');
+      if (lastIndex !== -1) {
+        // 提取最后一个'问数结果:'后面的内容
+        const afterLabel = currentMessage.substring(lastIndex + 5);
+        // 只取第一个完整的JSON对象
+        const jsonStart = afterLabel.indexOf('{');
+        if (jsonStart !== -1) {
+          // 找到匹配的结束花括号（处理嵌套JSON）
+          let braceCount = 0;
+          let jsonEnd = jsonStart;
+          for (let i = jsonStart; i < afterLabel.length; i++) {
+            if (afterLabel[i] === '{') {braceCount++;}
+            if (afterLabel[i] === '}') {braceCount--;}
+            if (braceCount === 0) {
+              jsonEnd = i + 1;
+              break;
+            }
+          }
+          
+          console.log('afterLabel', afterLabel)
+          if (jsonEnd > jsonStart) {
+            const extractedData = afterLabel.substring(jsonStart, jsonEnd);
+            console.log('extractedData', extractedData)
+            try {
+              processedJsonData = JSON.parse(extractedData);
+            } catch (error) {
+              console.error('解析响应失败:', error);
+              Message.error('问数结果解析失败，请检查返回数据格式');
+            }
           }
         }
       }
 
-      console.log('message', message)
+      console.log('message', currentMessage)
       console.log('processedJsonData', processedJsonData)
       return {
         key: id,
         role: status === 'local' ? 'local' : 'ai',
-        content: startIndex > -1 ? message.substring(0, startIndex + 5) : message,
+        content: lastIndex > -1 ? currentMessage.substring(0, lastIndex + 5) : currentMessage,
         // @ts-expect-error-next-line 暂时忽略content类型
         messageRender: (content) =>
           h(MdPreview, {

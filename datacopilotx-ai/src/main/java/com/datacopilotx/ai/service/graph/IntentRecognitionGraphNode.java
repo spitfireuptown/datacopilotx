@@ -38,8 +38,6 @@ public class IntentRecognitionGraphNode implements NodeAction<WorkflowState> {
         log.info("IntentRecognitionGraphNode apply");
 
         DataSetBean dataSetBean = state.getDataSetBean();
-        String questionId = state.questionId().orElseThrow(() -> new IllegalArgumentException("questionId is empty"));
-        String sessionId = state.sessionId().orElseThrow(() -> new IllegalArgumentException("sessionId is empty"));
         String beautifulQuestion = state.beautifulQuestion().orElseThrow(() -> new IllegalArgumentException("beautifulQuestion is empty"));
 
 
