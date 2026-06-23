@@ -62,7 +62,7 @@ public class ExecuteSQLGraphNode implements NodeAction<WorkflowState> {
 
             questionLogBean.setResult(JSONUtil.toJsonStr(queryDTO));
             questionLogMapper.updateById(questionLogBean);
-
+    
             Sinks.Many<org.springframework.http.codec.ServerSentEvent<com.datacopilotx.common.result.WebResult<String>>> sink = state.getSink();
             SerializableSink serializableSink = state.getSerializableSink();
             workflowServiceHelper.streamPrint(sink, PromptConstant.SQL_RESULT_NODE, "\n", serializableSink, state);

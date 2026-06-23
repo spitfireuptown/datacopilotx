@@ -2,7 +2,7 @@ import { get, post, del, uploadFile as uploadFileRequest } from '../utils/reques
 
 // 定义数据集类型接口
 interface Dataset {
-  id: string;
+  id: number;
   name: string;
   type: string;
   host: string;
@@ -15,7 +15,6 @@ interface Dataset {
   fields?: Array<{
     fieldName: string;
     fieldType: string;
-    description: string;
   }>;
 }
 
@@ -35,6 +34,13 @@ interface DatasetFormData {
     fieldName: string;
     fieldType: string;
     description: string;
+  }>;
+  relations?: Array<{
+    fromTable: string;
+    fromField: string;
+    toTable: string;
+    toField: string;
+    relationType: string;
   }>;
 }
 
@@ -87,6 +93,52 @@ export const deleteDataset = (id: string): Promise<void> => {
  */
 export const getDatasetDetail = (id: string): Promise<Dataset> => {
   return get(`/dataset/detail/${id}`);
+};
+
+/**
+ * 添加数据集关联关系
+ * @param data 关联关系数据
+ * @returns Promise<{ data: number }>
+ */
+export const addDatasetRelation = (data: {
+  fromDatasetId: number;
+  fromDatasetName: string;
+  fromField: string;
+  toDatasetId: number;
+  toDatasetName: string;
+  toField: string;
+  relationType: string;
+  description?: string;
+}): Promise<{ data: number }> => {
+  return post(`/dataset/relation/create`, data);
+};
+
+/**
+ * 删除数据集关联关系
+ * @param id 关联关系ID
+ * @returns Promise<any>
+ */
+export const deleteDatasetRelation = (id: string): Promise<any> => {
+  return del(`/dataset/relation/delete/${id}`);
+};
+
+/**
+ * 根据数据集ID查询关联关系
+ * @param datasetId 数据集ID
+ * @returns 关联关系列表
+ */
+export const getDatasetRelations = (datasetId: string): Promise<Array<{
+  id: number;
+  fromDatasetId: number;
+  fromDatasetName: string;
+  fromField: string;
+  toDatasetId: number;
+  toDatasetName: string;
+  toField: string;
+  relationType: string;
+  description?: string;
+}>> => {
+  return get(`/dataset/relation/list/${datasetId}`);
 };
 
 /**

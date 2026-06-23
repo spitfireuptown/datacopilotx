@@ -79,6 +79,7 @@ public class DataSetService {
         dataSetBean.setPort(createForm.getPort());
         dataSetBean.setUsername(createForm.getUsername());
         dataSetBean.setPassword(createForm.getPassword());
+        dataSetBean.setRelations(JSONUtil.toJsonStr(createForm.getRelations()));
 
         if ("excel".equalsIgnoreCase(dataSetBean.getType())) {
             this.syncExcelData(createForm.getName(), createForm.getFields());
@@ -107,6 +108,7 @@ public class DataSetService {
         dataSetBean.setType(updateForm.getType());
         dataSetBean.setInjectPrompt(updateForm.getPrompt());
         dataSetBean.setDescription(updateForm.getDescription());
+        dataSetBean.setRelations(JSONUtil.toJsonStr(updateForm.getRelations()));
 
         if ("excel".equalsIgnoreCase(dataSetBean.getType())) {
             dataSetBean.setDatabase(defaultMySQLDriver.getDatabase());
@@ -179,6 +181,7 @@ public class DataSetService {
         detailVO.setDescription(dataSetBean.getDescription());
         detailVO.setPrompt(dataSetBean.getInjectPrompt());
         detailVO.setFields(JSONUtil.toList(dataSetBean.getFields(), DataSetDTO.SchemaInfo.class));
+        detailVO.setRelations(JSONUtil.toList(dataSetBean.getRelations(), DataSetDTO.TableRelation.class));
         return detailVO;
     }
 

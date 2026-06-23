@@ -32,5 +32,6 @@ public class DataSetVO {
         private String description;
         private String prompt;
         private List<DataSetDTO.SchemaInfo> fields;
+        private List<DataSetDTO.TableRelation> relations;
     }
 }

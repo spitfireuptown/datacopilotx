@@ -39,4 +39,5 @@ public class DataSetBean implements Serializable {
     @TableField("is_del")
     @TableLogic
     private Integer isDel;
+    private String relations;
 }

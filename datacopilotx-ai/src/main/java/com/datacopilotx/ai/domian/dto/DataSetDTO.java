@@ -46,4 +46,19 @@ public class DataSetDTO {
         private List<List<String>> context;
         private List<String> headers;
     }
+
+    /**
+     * 表关联关系
+     */
+    @Builder
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static final class TableRelation {
+        private String fromTable;
+        private String fromField;
+        private String toTable;
+        private String toField;
+        private String relationType;
+    }
 }

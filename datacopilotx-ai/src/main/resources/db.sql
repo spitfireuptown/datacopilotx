@@ -14,6 +14,7 @@ CREATE TABLE `DATA_SET` (
     `table` char(255) DEFAULT NULL COMMENT '数据表名',
     `type` varchar(255) NOT NULL DEFAULT '0' COMMENT '数据集类型',
     `fields` longtext CHARACTER SET utf8 NOT NULL COMMENT '数据集元数据',
+    `relations` LONGTEXT NULL COMMENT '联表关系',
     `ctime` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `utime` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     `is_del` int(11) DEFAULT '0',
@@ -68,3 +69,18 @@ CREATE TABLE `KNOWLEDGE_LIB` (
      `utime` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
      PRIMARY KEY (`id`) USING BTREE
 ) ENGINE=InnoDB AUTO_INCREMENT=10 DEFAULT CHARSET=utf8mb4 COMMENT='知识库配置';
+
+CREATE TABLE DATA_SET_RELATION (
+       id BIGINT AUTO_INCREMENT PRIMARY KEY,
+       from_dataset_id BIGINT NOT NULL,
+       from_dataset_name VARCHAR(255),
+       from_field VARCHAR(255),
+       to_dataset_id BIGINT NOT NULL,
+       to_dataset_name VARCHAR(255),
+       to_field VARCHAR(255),
+       relation_type VARCHAR(50),
+       description VARCHAR(500),
+       `ctime` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+       `utime` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+       is_del INT DEFAULT 0
+);
