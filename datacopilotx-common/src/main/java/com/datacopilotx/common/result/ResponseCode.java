@@ -6,6 +6,8 @@ public enum ResponseCode {
 
     RESPONSE_SUCCESS(200),
     SYSTEM_ERROR(500, "系统内部错误，请联系管理员"),
+    AUTH_USER_ERROR(2001, "用户名或密码错误"),
+    AUTH_USER_NOT_FOUND_ERROR(2002, "用户不存在"),
 
     UNSELECT_DATASOURCE(5001, "未指定数据源"),
     UNKNOWN_DATASOURCE(5002, "指定数据源不存在"),

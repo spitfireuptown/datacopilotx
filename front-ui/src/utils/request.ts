@@ -8,6 +8,8 @@ export interface FetchRequestConfig {
   params?: Record<string, any>;
   timeout?: number;
   skipResponseParse?: boolean; // 新增选项，表示是否跳过响应体解析
+  noAuth?: boolean; // 标记为不需要认证的请求
+  noError?: boolean; // 标记为不显示错误消息，由调用方自行处理
 }
 
 // 定义响应数据接口
@@ -48,8 +50,8 @@ const request = async <T = any>(
   };
   
   // 添加token等认证信息
-  const token = localStorage.getItem('token');
-  if (token) {
+  const token = localStorage.getItem('access_token');
+  if (token && !config.noAuth) {
     defaultHeaders.Authorization = `Bearer ${token}`;
   }
   
@@ -95,6 +97,10 @@ const request = async <T = any>(
     if (!response.ok) {
       // 处理HTTP错误
       const errorData = await response.json().catch(() => ({}));
+      if (response.status === 401) {
+        localStorage.removeItem('access_token');
+        window.location.href = '/login';
+      }
       throw {
         status: response.status,
         message: errorData.message || `Request failed with status ${response.status}`,
@@ -123,27 +129,27 @@ const request = async <T = any>(
   } catch (error: any) {
     // 统一处理错误
     if (error.name === 'AbortError') {
-      message.error('请求超时，请稍后重试');
+      if (!config.noError) {message.error('请求超时，请稍后重试');}
     } else if (error.status) {
       switch (error.status) {
         case 401:
-          message.error('未授权，请重新登录');
-          // 可以在这里跳转到登录页
+          localStorage.removeItem('access_token');
+          window.location.href = '/login';
           break;
         case 403:
-          message.error('拒绝访问');
+          if (!config.noError) {message.error('拒绝访问');}
           break;
         case 404:
-          message.error('请求资源不存在');
+          if (!config.noError) {message.error('请求资源不存在');}
           break;
         case 500:
-          message.error('服务器错误');
+          if (!config.noError) {message.error('服务器错误');}
           break;
         default:
-          message.error(error.message || '请求失败');
+          if (!config.noError) {message.error(error.message || '请求失败');}
       }
     } else {
-      message.error(error.message);
+      if (!config.noError) {message.error(error.message);}
     }
     
     throw error;
@@ -162,13 +168,15 @@ export const requestApi = <T = any>(config: {
   params?: Record<string, any>;
   headers?: Record<string, string>;
   timeout?: number;
+  noAuth?: boolean;
 }): Promise<T> => {
   return request<T>(config.url, {
     method: config.method,
     body: config.data,
     params: config.params,
     headers: config.headers,
-    timeout: config.timeout
+    timeout: config.timeout,
+    noAuth: config.noAuth,
   });
 };
 

@@ -19,6 +19,24 @@
         <span class="menu-text">设置</span>
       </div>
     </div>
+
+    <!-- 左下角用户信息 -->
+    <a-popover v-if="authStore.isLoggedIn" trigger="click" placement="rightBottom">
+      <template #content>
+        <div class="user-popover">
+          <div class="user-popover-name">{{ authStore.userInfo?.nickname || authStore.userInfo?.username }}</div>
+          <div class="user-popover-role">{{ authStore.roleDesc }}</div>
+          <a-divider style="margin: 8px 0" />
+          <a-button type="text" danger block @click="handleLogout">退出登录</a-button>
+        </div>
+      </template>
+      <div class="user-info">
+        <a-avatar :size="36" :style="{ backgroundColor: '#1890ff' }">
+          {{ (authStore.userInfo?.nickname || authStore.userInfo?.username || 'U').charAt(0).toUpperCase() }}
+        </a-avatar>
+        <span class="user-name">{{ authStore.userInfo?.nickname || authStore.userInfo?.username }}</span>
+      </div>
+    </a-popover>
   </div>
 </template>
 
@@ -28,10 +46,12 @@ import { ref, onMounted, watch } from 'vue';
 import { MessageOutlined, DatabaseOutlined, RadarChartOutlined, SettingOutlined } from '@ant-design/icons-vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useDialogueStore } from '@/stores/modules/dialogues';
+import { useAuthStore } from '@/stores/modules/auth';
 
 const router = useRouter();
 const route = useRoute();
 const dialogueStore = useDialogueStore();
+const authStore = useAuthStore();
 
 // 当前激活的菜单
 const activeMenu = ref('chat'); // 默认选中"问数"
@@ -101,6 +121,12 @@ const goToSettings = () => {
   activeMenu.value = 'settings';
   router.push('/model-config');
 };
+
+// 退出登录
+const handleLogout = () => {
+  authStore.logout();
+  router.push('/login');
+};
 </script>
 
 <style lang="scss" scoped>
@@ -151,5 +177,47 @@ const goToSettings = () => {
 
 .menu-text {
   font-size: 12px;
+}
+
+/* 用户信息区域 */
+.user-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 4px;
+  cursor: pointer;
+  transition: all 0.3s;
+  border-top: 1px solid #f0f0f0;
+}
+
+.user-info:hover {
+  background-color: #f5f5f5;
+}
+
+.user-name {
+  font-size: 11px;
+  color: #333;
+  margin-top: 6px;
+  max-width: 72px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.user-popover {
+  min-width: 140px;
+}
+
+.user-popover-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+}
+
+.user-popover-role {
+  font-size: 12px;
+  color: #999;
+  margin-top: 4px;
 }
 </style>

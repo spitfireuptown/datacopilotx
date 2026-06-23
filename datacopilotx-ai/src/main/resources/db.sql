@@ -84,3 +84,27 @@ CREATE TABLE DATA_SET_RELATION (
        `utime` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
        is_del INT DEFAULT 0
 );
+
+-- 创建用户表
+CREATE TABLE IF NOT EXISTS SYSTEM_USER (
+                                           id BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+                                           user_id VARCHAR(36) NOT NULL UNIQUE COMMENT '用户ID',
+    username VARCHAR(64) NOT NULL UNIQUE COMMENT '用户名',
+    password VARCHAR(256) NOT NULL COMMENT '密码',
+    nickname VARCHAR(64) COMMENT '昵称',
+    email VARCHAR(128) COMMENT '邮箱',
+    phone VARCHAR(32) COMMENT '手机号',
+    role INT NOT NULL DEFAULT 2 COMMENT '角色：0-超级管理员，1-管理员，2-普通用户',
+    status INT NOT NULL DEFAULT 1 COMMENT '状态：0-禁用，1-启用',
+    is_del INT NOT NULL DEFAULT 0 COMMENT '是否删除：0-未删除，1-已删除',
+    ctime TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    utime TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    INDEX idx_username (username),
+    INDEX idx_user_id (user_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='系统用户表';
+
+-- 插入默认超级管理员账号（用户名：admin，密码：datacopilotx）
+-- 密码是BCrypt加密后的datacopilotx
+INSERT INTO SYSTEM_USER (user_id, username, password, nickname, role, status, is_del)
+VALUES ('admin-001', 'admin', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EH', '超级管理员', 0, 1, 0)
+    ON DUPLICATE KEY UPDATE user_id=user_id;
