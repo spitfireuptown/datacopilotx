@@ -72,6 +72,24 @@ const homeRoutes: RouteRecordRaw[] = [
       title: '知识库详情',
       keepAlive: false
     }
+  },
+  {
+    path: '/user-management',
+    name: 'UserManagement',
+    component: () => import('@/views/UserManagement.vue'),
+    meta: {
+      title: '用户管理',
+      keepAlive: true
+    }
+  },
+  {
+    path: '/auth-config',
+    name: 'AuthConfig',
+    component: () => import('@/views/AuthConfig.vue'),
+    meta: {
+      title: '权限配置',
+      keepAlive: true
+    }
   }
 ];
 

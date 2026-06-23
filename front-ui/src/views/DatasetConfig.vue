@@ -453,13 +453,15 @@ onMounted(() => {
 <style lang="scss" scoped>
 .main-container {
   display: flex;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
 }
 
 .dataset-config-container {
   flex: 1;
   padding: 24px;
   background: #f5f5f5;
+  overflow-y: auto;
 }
 
 .global-loading {

@@ -186,7 +186,7 @@ const parseJsonData = (data: string) => {
 .chat-comp {
   position: relative;
   width: 100%;
-  height: calc(100vh - 60px);
+  height: 100vh;
   margin: 0;
   padding: 0;
   box-sizing: border-box;

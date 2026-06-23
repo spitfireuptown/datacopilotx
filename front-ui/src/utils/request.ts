@@ -95,10 +95,11 @@ const request = async <T = any>(
     clearTimeout(timeoutId);
     
     if (!response.ok) {
-      // 处理HTTP错误
       const errorData = await response.json().catch(() => ({}));
       if (response.status === 401) {
         localStorage.removeItem('access_token');
+        localStorage.removeItem('user_info');
+        window.dispatchEvent(new CustomEvent('authExpired'));
         window.location.href = '/login';
       }
       throw {
@@ -134,6 +135,8 @@ const request = async <T = any>(
       switch (error.status) {
         case 401:
           localStorage.removeItem('access_token');
+          localStorage.removeItem('user_info');
+          window.dispatchEvent(new CustomEvent('authExpired'));
           window.location.href = '/login';
           break;
         case 403:
