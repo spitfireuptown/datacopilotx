@@ -107,7 +107,7 @@ const goToSettings = () => {
 /* 样式部分保持不变 */
 .sidebar2 {
   width: 80px;
-  height: 100vh;
+  height: 100%;
   background-color: #fff;
   border-right: 1px solid #f0f0f0;
   display: flex;

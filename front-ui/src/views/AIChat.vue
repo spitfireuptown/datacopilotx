@@ -18,7 +18,7 @@
       <ChatBubble
         v-else-if="!historyLoading"
         ref="chatBubbleRef"
-        class="bubble-list-wrap mb-4"
+        class="bubble-list-wrap"
         :messages="messages"
         :loading="waitResponse"
         :chat-title="currentChatTitle"
@@ -192,19 +192,18 @@ const parseJsonData = (data: string) => {
   box-sizing: border-box;
   display: flex;
   overflow: hidden;
-  /* 确保左右两侧完全顶边 */
   left: 0;
   right: 0;
   .content-wrap {
     flex: 1;
-    //margin-left: 360px; // 为两个侧边栏留出空间（80px + 280px）
-    margin-right: 0; // 右侧不留空间
-    padding-bottom: 56px; // 为固定定位的 SenderInput 预留空间
+    margin-right: 0;
     overflow-y: auto;
+    overflow-x: hidden;
+    box-sizing: border-box;
+    min-height: 0;
     .bubble-list-wrap {
-      height: 100%;
-      margin-left: 0 !important; // 强制左边靠死，移除任何可能的左侧边距
-      padding-left: 20px; // 可以根据需要添加一些内边距，让内容不紧贴侧边栏
+      margin-left: 0 !important;
+      padding-left: 20px;
     }
     .welcome-wrap.mb-4 {
       margin-left: -360px; // 让welcome-wrap靠到左侧
