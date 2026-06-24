@@ -1,6 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.datacopilotx.ai.mapper.QuestionLogMapper">
+    <!-- 
+    数据权限控制说明：
+    - 超级管理员(role=0) 和 管理员(role=1)：可以查看所有数据
+    - 普通用户(role=2)：只能查看自己创建的数据
+    
+    通过 currentUserId 和 isAdmin 参数实现权限过滤，不依赖拦截器
+    -->
     <select id="selectQueryLog" resultType="com.datacopilotx.ai.domian.dto.QuestionLogDTO">
         SELECT
             session_id,
@@ -11,6 +18,10 @@
             ctime >= DATE_SUB(NOW(), INTERVAL 1 MONTH) AND is_del = 0
         <if test="searchKey != null and searchKey != ''">
             AND question LIKE CONCAT('%', #{searchKey}, '%')
+        </if>
+        <!-- 角色权限过滤：非管理员只能查看自己创建的数据 -->
+        <if test="!isAdmin and currentUserId != null">
+            AND creator = #{currentUserId}
         </if>
         GROUP BY session_id ORDER BY ctime DESC
     </select>

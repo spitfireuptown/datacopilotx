@@ -16,6 +16,8 @@ public class DataSetVO {
        private String table;
        private String type;
        private String createTime;
+       private String creator;
+       private String creatorName;
     }
 
     @Data

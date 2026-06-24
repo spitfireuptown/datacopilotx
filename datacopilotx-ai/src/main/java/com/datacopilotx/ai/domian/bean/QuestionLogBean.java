@@ -33,4 +33,7 @@ public class QuestionLogBean {
     @TableField("is_del")
     @TableLogic
     private Integer isDel;
+    
+    @TableField("user_id")
+    private String userId;
 }

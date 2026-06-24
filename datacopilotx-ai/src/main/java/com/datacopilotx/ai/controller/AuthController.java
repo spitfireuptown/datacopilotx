@@ -54,8 +54,9 @@ public class AuthController {
     }
 
     @PostMapping("/user/reset-password")
-    public WebResult<Void> resetPassword(@RequestParam String userId, @RequestHeader("Authorization") String authorization) {
+    public WebResult<Void> resetPassword(@RequestBody Map<String, Object> body, @RequestHeader("Authorization") String authorization) {
         checkSuperAdmin(authorization);
+        String userId = (String) body.get("userId");
         authService.resetPassword(userId);
 
         return WebResult.success();
@@ -132,16 +133,19 @@ public class AuthController {
     }
 
     @PostMapping("/user/delete")
-    public WebResult<Void> deleteUser(@RequestParam String userId, @RequestHeader("Authorization") String authorization) {
+    public WebResult<Void> deleteUser(@RequestBody Map<String, Object> body, @RequestHeader("Authorization") String authorization) {
         checkSuperAdmin(authorization);
+        String userId = (String) body.get("userId");
         authService.deleteUser(userId);
 
         return WebResult.success();
     }
 
     @PostMapping("/user/status")
-    public WebResult<Void> updateUserStatus(@RequestParam String userId, @RequestParam Integer status, @RequestHeader("Authorization") String authorization) {
+    public WebResult<Void> updateUserStatus(@RequestBody Map<String, Object> body, @RequestHeader("Authorization") String authorization) {
         checkSuperAdmin(authorization);
+        String userId = (String) body.get("userId");
+        Integer status = (Integer) body.get("status");
         authService.updateUserStatus(userId, status);
 
         return WebResult.success();

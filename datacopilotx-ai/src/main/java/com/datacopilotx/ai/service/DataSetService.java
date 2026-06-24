@@ -7,6 +7,7 @@ import com.datacopilotx.ai.controller.form.DataSetForm;
 import com.datacopilotx.ai.domian.bean.KnowledgeLibBean;
 import com.datacopilotx.ai.domian.dto.DataSetDTO;
 import com.datacopilotx.ai.domian.vo.DataSetVO;
+import com.datacopilotx.ai.domian.vo.UserInfoVo;
 import com.datacopilotx.ai.mapper.KnowledgeLibMapper;
 import com.datacopilotx.ai.mapper.QuestionLogMapper;
 import com.datacopilotx.ai.service.driver.DriverFactory;
@@ -23,6 +24,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+
+import com.datacopilotx.ai.util.SecurityUtil;
 
 import java.sql.Connection;
 import java.sql.Statement;
@@ -47,6 +50,8 @@ public class DataSetService {
     private DefaultMySQLDriver defaultMySQLDriver;
     @Autowired
     Map<String, List<List<String>>> dataSetCache;
+    @Autowired
+    AuthService authService;
 
 
     public List<DataSetVO.ListVO> list() {
@@ -61,6 +66,15 @@ public class DataSetService {
             list.setName(dataSetBean.getDsName());
             list.setType(dataSetBean.getType());
             list.setCreateTime(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(dataSetBean.getCtime()));
+            list.setCreator(dataSetBean.getCreator());
+            if (dataSetBean.getCreator() != null) {
+                try {
+                    UserInfoVo user = authService.getUserById(dataSetBean.getCreator());
+                    list.setCreatorName(user != null ? user.getNickname() : "");
+                } catch (Exception e) {
+                    list.setCreatorName("");
+                }
+            }
             return list;
         }).collect(Collectors.toList());
     }
@@ -80,6 +94,7 @@ public class DataSetService {
         dataSetBean.setUsername(createForm.getUsername());
         dataSetBean.setPassword(createForm.getPassword());
         dataSetBean.setRelations(JSONUtil.toJsonStr(createForm.getRelations()));
+        dataSetBean.setCreator(SecurityUtil.getCurrentUserId());
 
         if ("excel".equalsIgnoreCase(dataSetBean.getType())) {
             this.syncExcelData(createForm.getName(), createForm.getFields());

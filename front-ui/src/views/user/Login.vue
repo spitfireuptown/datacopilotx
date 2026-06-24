@@ -28,7 +28,6 @@
             v-model:value="formState.password"
             size="large"
             placeholder="密码"
-            @keyup.enter="handleLogin"
           >
             <template #prefix>
               <LockOutlined />

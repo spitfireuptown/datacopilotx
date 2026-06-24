@@ -22,5 +22,7 @@ public class ModelConfigVO {
         private String apiBase;
         private Integer dimension;
         private String createTime;
+        private String creator;
+        private String creatorName;
     }
 }

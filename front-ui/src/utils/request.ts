@@ -139,6 +139,9 @@ const request = async <T = any>(
           window.dispatchEvent(new CustomEvent('authExpired'));
           window.location.href = '/login';
           break;
+        case 400:
+          if (!config.noError) {message.error(error.message || '参数校验失败');}
+          break;
         case 403:
           if (!config.noError) {message.error('拒绝访问');}
           break;

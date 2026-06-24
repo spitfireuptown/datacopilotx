@@ -4,6 +4,7 @@ import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.datacopilotx.ai.controller.form.ModelForm;
 import com.datacopilotx.ai.domian.vo.ModelConfigVO;
+import com.datacopilotx.ai.domian.vo.UserInfoVo;
 import com.datacopilotx.aigateway.domain.dto.ChatRequest;
 import com.datacopilotx.aigateway.service.chat.AIGatewayChatService;
 import com.datacopilotx.common.constant.GlobalConstant;
@@ -18,6 +19,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.ObjectUtils;
 
+import com.datacopilotx.ai.util.SecurityUtil;
+
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -31,6 +34,8 @@ public class ModelConfigService {
     ModelConfigMapper mapper;
     @Autowired
     AIGatewayChatService aiGatewayChatService;
+    @Autowired
+    AuthService authService;
 
 
     public List<ModelConfigVO.List> list(String name, String type) {
@@ -53,6 +58,15 @@ public class ModelConfigService {
             list.setCreateTime(localDateTime.format(formatter));
 
             list.setDimension(bean.getDimension());
+            list.setCreator(bean.getCreator());
+            if (bean.getCreator() != null) {
+                try {
+                    UserInfoVo user = authService.getUserById(bean.getCreator());
+                    list.setCreatorName(user != null ? user.getNickname() : "");
+                } catch (Exception e) {
+                    list.setCreatorName("");
+                }
+            }
             return list;
         }).collect(Collectors.toList());
     }
@@ -67,6 +81,7 @@ public class ModelConfigService {
         bean.setType(modelForm.getType());
         bean.setDimension(modelForm.getDimension());
         bean.setFunctionType(modelForm.getFunctionType());
+        bean.setCreator(SecurityUtil.getCurrentUserId());
         mapper.insert(bean);
         return bean.getId();
     }

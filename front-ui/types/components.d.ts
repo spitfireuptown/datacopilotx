@@ -25,6 +25,7 @@ declare module 'vue' {
     AMenu: typeof import('ant-design-vue/es')['Menu']
     AMenuItem: typeof import('ant-design-vue/es')['MenuItem']
     AModal: typeof import('ant-design-vue/es')['Modal']
+    APopconfirm: typeof import('ant-design-vue/es')['Popconfirm']
     APopover: typeof import('ant-design-vue/es')['Popover']
     ARow: typeof import('ant-design-vue/es')['Row']
     ASelect: typeof import('ant-design-vue/es')['Select']
@@ -42,7 +43,6 @@ declare module 'vue' {
     EyeOutlined: typeof import('@ant-design/icons-vue')['EyeOutlined']
     LeftSidebar: typeof import('./../src/components/LeftSidebar.vue')['default']
     LineChartOutlined: typeof import('@ant-design/icons-vue')['LineChartOutlined']
-    LockOutlined: typeof import('@ant-design/icons-vue')['LockOutlined']
     MdPreview: typeof import('./../src/components/MdPreview.vue')['default']
     PieChartOutlined: typeof import('@ant-design/icons-vue')['PieChartOutlined']
     RouterLink: typeof import('vue-router')['RouterLink']
@@ -51,7 +51,6 @@ declare module 'vue' {
     SenderInput: typeof import('./../src/components/SenderInput.vue')['default']
     SettingOutlined: typeof import('@ant-design/icons-vue')['SettingOutlined']
     TableOutlined: typeof import('@ant-design/icons-vue')['TableOutlined']
-    UserOutlined: typeof import('@ant-design/icons-vue')['UserOutlined']
     WelcomeIndex: typeof import('./../src/components/WelcomeIndex.vue')['default']
   }
 }

@@ -32,4 +32,7 @@ public class KnowledgeLibBean {
     @TableField("is_del")
     @TableLogic
     private Integer isDel;
+    
+    @TableField("creator")
+    private String creator;
 }

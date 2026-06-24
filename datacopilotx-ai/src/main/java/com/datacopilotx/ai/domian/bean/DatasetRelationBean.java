@@ -49,4 +49,7 @@ public class DatasetRelationBean implements Serializable {
     @TableField("is_del")
     @TableLogic
     private Integer isDel;
+    
+    @TableField("creator")
+    private String creator;
 }

@@ -11,14 +11,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
-import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseBody;
-import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
-
-import java.util.stream.Collectors;
 
 
 @Slf4j
@@ -27,8 +23,8 @@ import java.util.stream.Collectors;
 public class ExceptionControllerAdvice {
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public WebResult<String> handleMethodArgumentNotValidException(
+    @ResponseBody
+    public ResponseEntity<WebResult<String>> handleMethodArgumentNotValidException(
             MethodArgumentNotValidException ex, HttpServletRequest request) {
 
         // 获取第一个字段错误
@@ -39,15 +35,17 @@ public class ExceptionControllerAdvice {
 
         log.warn("参数校验失败: URL={}, 错误信息={}", request.getRequestURI(), errorMessage);
 
-        return WebResult.error(HttpStatus.BAD_REQUEST.value(), errorMessage);
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(WebResult.error(HttpStatus.BAD_REQUEST.value(), errorMessage));
     }
 
     /**
      * 处理参数类型不匹配异常 - MethodArgumentTypeMismatchException
      */
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public WebResult<String> handleMethodArgumentTypeMismatchException(
+    @ResponseBody
+    public ResponseEntity<WebResult<String>> handleMethodArgumentTypeMismatchException(
             MethodArgumentTypeMismatchException ex, HttpServletRequest request) {
 
         String errorMessage = String.format("参数'%s'类型不匹配，应为%s类型",
@@ -55,7 +53,9 @@ public class ExceptionControllerAdvice {
 
         log.warn("参数类型不匹配: URL={}, 错误信息={}", request.getRequestURI(), errorMessage);
 
-        return WebResult.error(HttpStatus.BAD_REQUEST.value(), errorMessage);
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(WebResult.error(HttpStatus.BAD_REQUEST.value(), errorMessage));
     }
 
     /**

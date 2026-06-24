@@ -13,6 +13,7 @@ import com.datacopilotx.ai.domian.vo.QuestionDetailLogVO;
 import com.datacopilotx.ai.mapper.DataSetMapper;
 import com.datacopilotx.ai.mapper.ModelConfigMapper;
 import com.datacopilotx.ai.mapper.QuestionLogMapper;
+import com.datacopilotx.ai.util.SecurityUtil;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.util.ObjectUtils;
@@ -33,7 +34,16 @@ public class ChatBusinessService {
 
     public PageVO<List<QuestionLogDTO>> chatHistory(ChatForm chatForm) {
         PageVO<List<QuestionLogDTO>> result = new PageVO<>();
-        IPage<QuestionLogDTO> queryLogDTOIPage = questionLogMapper. selectQueryLog(new Page<>(chatForm.getPageNo(), chatForm.getPageSize()), chatForm.getSearchkey());
+        // 获取当前用户信息用于权限控制
+        String currentUserId = SecurityUtil.getCurrentUserId();
+        Boolean isAdmin = SecurityUtil.isAdmin();
+        
+        IPage<QuestionLogDTO> queryLogDTOIPage = questionLogMapper.selectQueryLog(
+            new Page<>(chatForm.getPageNo(), chatForm.getPageSize()), 
+            chatForm.getSearchkey(),
+            currentUserId,
+            isAdmin
+        );
         result.setPageNo(chatForm.getPageNo());
         result.setPageSize(chatForm.getPageSize());
         result.setTotal(queryLogDTOIPage.getTotal());

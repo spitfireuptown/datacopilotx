@@ -8,6 +8,7 @@ import com.datacopilotx.ai.domian.bean.ModelConfigBean;
 import com.datacopilotx.ai.domian.dto.QueryDTO;
 import com.datacopilotx.ai.domian.vo.KnowledgeLibVO;
 import com.datacopilotx.ai.domian.vo.PageVO;
+import com.datacopilotx.ai.domian.vo.UserInfoVo;
 import com.datacopilotx.ai.mapper.DataSetMapper;
 import com.datacopilotx.ai.mapper.KnowledgeLibMapper;
 import com.datacopilotx.ai.mapper.ModelConfigMapper;
@@ -35,6 +36,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.ObjectUtils;
 
+import com.datacopilotx.ai.util.SecurityUtil;
+
 import java.lang.reflect.Method;
 import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
@@ -54,19 +57,32 @@ public class KnowledgeLibService {
     DataSetMapper dataSetMapper;
     @Autowired
     KnowledgeLibMapper knowledgeLibMapper;
+    @Autowired
+    AuthService authService;
 
     public List<KnowledgeLibVO.List> list() {
         return knowledgeLibMapper.selectList(
                         new LambdaQueryWrapper<KnowledgeLibBean>()
-                                .select(KnowledgeLibBean::getId, KnowledgeLibBean::getName, KnowledgeLibBean::getDatasetId, KnowledgeLibBean::getModelId, KnowledgeLibBean::getDescription))
+                                .select(KnowledgeLibBean::getId, KnowledgeLibBean::getName, KnowledgeLibBean::getDatasetId, KnowledgeLibBean::getModelId, KnowledgeLibBean::getDescription, KnowledgeLibBean::getCreator))
                 .stream()
                 .map(item -> {
+                    String creatorName = "";
+                    if (item.getCreator() != null) {
+                        try {
+                            UserInfoVo user = authService.getUserById(item.getCreator());
+                            creatorName = user != null ? user.getNickname() : "";
+                        } catch (Exception e) {
+                            creatorName = "";
+                        }
+                    }
                     return KnowledgeLibVO.List.builder()
                             .id(item.getId())
                             .name(item.getName())
                             .datasetId(item.getDatasetId())
                             .modelId(item.getModelId())
                             .description(item.getDescription())
+                            .creator(item.getCreator())
+                            .creatorName(creatorName)
                             .build();
                 })
                 .collect(Collectors.toList());
@@ -94,6 +110,7 @@ public class KnowledgeLibService {
         knowledgeLibBean.setDatasetId(createForm.getDatasetId());
         knowledgeLibBean.setModelId(createForm.getModelId());
         knowledgeLibBean.setDescription(createForm.getDescription());
+        knowledgeLibBean.setCreator(SecurityUtil.getCurrentUserId());
         knowledgeLibMapper.insert(knowledgeLibBean);
 
         elasticSearchVectorStorage.initIndex(createForm.getName(), modelConfigBean.getDimension());

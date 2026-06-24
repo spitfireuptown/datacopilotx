@@ -40,4 +40,6 @@ public class DataSetBean implements Serializable {
     @TableLogic
     private Integer isDel;
     private String relations;
+    @TableField("creator")
+    private String creator;
 }

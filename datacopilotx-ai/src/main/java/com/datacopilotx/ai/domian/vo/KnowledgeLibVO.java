@@ -19,6 +19,8 @@ public class KnowledgeLibVO {
         private Long datasetId;
         private Long modelId;
         private String description;
+        private String creator;
+        private String creatorName;
     }
 
     @Data
