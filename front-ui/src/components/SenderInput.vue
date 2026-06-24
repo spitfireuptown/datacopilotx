@@ -239,15 +239,31 @@ const generateNewQuestionId = () => {
 };
 
 const [agent] = useXAgent({
-  request: async ({ message }, { onSuccess, onUpdate }) => {
+  request: async ({ message: _message }, { onSuccess, onUpdate }) => {
     controller = new AbortController();
 
     senderLoading.value = true;
     waitResponse.value = true;
-    console.log('message', message);    // 读取流数据
     
     // 每次请求重新生成questionId
     generateNewQuestionId();
+    
+    // 添加超时机制，防止loading状态一直存在
+    const timeoutId = setTimeout(() => {
+      senderLoading.value = false;
+      waitResponse.value = false;
+      if (controller) {
+        controller.abort();
+      }
+    }, 60000); // 60秒超时
+    
+    // 流结束时立刻重置loading
+    const resetLoading = () => {
+      clearTimeout(timeoutId);
+      senderLoading.value = false;
+      waitResponse.value = false;
+      isCode.value = false;
+    };
     
     // 添加fullContent变量用于累积所有接收到的数据，实现打字机效果
     let fullContent = '';
@@ -255,14 +271,10 @@ const [agent] = useXAgent({
       // 模拟对话接口，添加数据集ID和模型ID参数
       await mockChatStreamApi(
         (chunk: string) => {
-          // 移除这行代码，避免loading状态过早结束
-          // waitResponse.value = false;
           try {
-            // 解析JSON数据
             // 移除所有可能的'data:'前缀
             chunk = chunk.replace(/^data:\s*/, '');
             if (!chunk || chunk.trim() === '') {
-              console.log('接收到空的chunk数据');
               return;
             }
 
@@ -271,46 +283,35 @@ const [agent] = useXAgent({
             
             // 检查是否是各种节点类型的数据
             if (jsonData.id && jsonData.data) {
-              // 处理所有节点类型的数据（sql_result_node, recall_node, beautiful_node, intent_node, sql_generation_node, easy_chat_node）
-              // 检查数据是否是WebResult格式（包含code字段）
               if (jsonData.data.code === 200 && jsonData.data.data) {
                 fullContent += jsonData.data.data;
                 onUpdate(fullContent);
               } else {
-                // 直接作为文本处理
                 fullContent += jsonData.data;
                 onUpdate(fullContent);
               }
             } else if (jsonData.code === 200 && jsonData.data) {
-              // code为200时，累积data数据，实现打字机效果
-              // 检查是否是SQL结果数据（包含columns和data字段）
               try {
                 const parsedData = typeof jsonData.data === 'string' ? JSON.parse(jsonData.data) : jsonData.data;
                 if (parsedData.columns && parsedData.data) {
-                  // 这是SQL结果数据，添加问数结果标记
                   if (!fullContent.includes('问数结果:')) {
                     fullContent += '#### 问数结果: ';
                   }
-                  // 将JSON数据附加到消息中
                   fullContent += JSON.stringify(parsedData);
                   onUpdate(fullContent);
                 } else {
-                  // 普通文本数据
                   fullContent += jsonData.data;
                   onUpdate(fullContent);
                 }
               } catch {
-                // 解析失败，当作普通文本处理
                 fullContent += jsonData.data;
                 onUpdate(fullContent);
               }
             } else if (jsonData.code === 500 && jsonData.message) {
-              // code为500时，显示错误消息并实现打字机效果
               fullContent += jsonData.message;
-              onUpdate(fullContent); // 使用fullContent来更新，实现打字机效果
+              onUpdate(fullContent);
               onSuccess(fullContent);
             } else {
-              // 处理其他情况
               onUpdate('未知响应格式');
               console.error('未知响应格式:', jsonData);
             }
@@ -325,14 +326,13 @@ const [agent] = useXAgent({
           modelId: selectedModelId.value?.value,
           questionId: questionId.value,
           sessionId: sessionId.value
-        }
+        },
+        resetLoading  // onComplete 回调：流结束立刻重置loading
       );
     } catch (streamError: any) {
       Msg.error(streamError.message);
     } finally {
-      senderLoading.value = false;
-      waitResponse.value = false;
-      isCode.value = false;
+      resetLoading();
     }
   }
 });

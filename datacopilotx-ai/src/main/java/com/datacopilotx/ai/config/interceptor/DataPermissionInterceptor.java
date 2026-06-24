@@ -170,12 +170,16 @@ public class DataPermissionInterceptor implements InnerInterceptor {
                 int innerWhereIndex = innerSql.toLowerCase().indexOf(" where ");
                 
                 if (innerWhereIndex > 0) {
-                    // 在子查询内部已有WHERE条件
-                    return sql.substring(0, fromParenIndex + 5 + innerWhereIndex)
-                            + " WHERE "
-                            + innerSql.substring(innerWhereIndex + 7)
+                    // 在子查询内部已有WHERE条件，查找ORDER BY等关键字的位置
+                    int innerOrderByIndex = findKeywordPosition(innerSql, " order by ");
+                    int innerGroupByIndex = findKeywordPosition(innerSql, " group by ");
+                    int innerLimitIndex = findKeywordPosition(innerSql, " limit ");
+                    
+                    int endOfWhereConditions = findEndOfWhereConditions(innerSql, innerWhereIndex + 7);
+                    
+                    return sql.substring(0, fromParenIndex + 5 + endOfWhereConditions)
                             + " AND creator = '" + userId + "'"
-                            + sql.substring(closeParenIndex);
+                            + sql.substring(fromParenIndex + 5 + innerOrderByIndex);
                 } else {
                     // 在子查询内部没有WHERE条件，找到GROUP BY、ORDER BY或LIMIT之前的位置插入
                     int insertIndex = findInsertPositionInQuery(innerSql);
@@ -191,15 +195,57 @@ public class DataPermissionInterceptor implements InnerInterceptor {
         // 处理普通SQL的情况
         if (whereIndex > 0) {
             // 如果已有WHERE条件，添加AND条件
-            return sql.substring(0, whereIndex) 
-                    + " WHERE " 
-                    + sql.substring(whereIndex + 7) 
-                    + " AND creator = '" + userId + "'";
+            // 需要在ORDER BY、GROUP BY、LIMIT之前插入条件
+            int orderByIndex = findKeywordPosition(sql, " order by ");
+            int groupByIndex = findKeywordPosition(sql, " group by ");
+            int limitIndex = findKeywordPosition(sql, " limit ");
+            
+            // 找到WHERE条件结束的位置（即ORDER BY、GROUP BY或LIMIT之前）
+            int endOfWhereConditions = findEndOfWhereConditions(sql, whereIndex + 7);
+            
+            // 在WHERE条件后、ORDER BY等关键字前插入AND条件
+            return sql.substring(0, endOfWhereConditions)
+                    + " AND creator = '" + userId + "'"
+                    + sql.substring(endOfWhereConditions);
         } else {
             // 如果没有WHERE条件，找到GROUP BY、ORDER BY或LIMIT之前的位置插入
             int insertIndex = findInsertPositionInQuery(sql);
             return sql.substring(0, insertIndex) + " WHERE creator = '" + userId + "' " + sql.substring(insertIndex);
         }
+    }
+    
+    /**
+     * 查找关键字在SQL中的位置
+     */
+    private int findKeywordPosition(String sql, String keyword) {
+        int index = sql.toLowerCase().indexOf(keyword);
+        return index > 0 ? index : sql.length();
+    }
+    
+    /**
+     * 找到WHERE条件结束的位置（即ORDER BY、GROUP BY、LIMIT等关键字之前）
+     */
+    private int findEndOfWhereConditions(String sql, int startPos) {
+        String lowerSql = sql.toLowerCase();
+        
+        int orderByIndex = lowerSql.indexOf(" order by ", startPos);
+        int groupByIndex = lowerSql.indexOf(" group by ", startPos);
+        int limitIndex = lowerSql.indexOf(" limit ", startPos);
+        
+        // 找到最近的关键词位置
+        int minIndex = sql.length();
+        
+        if (orderByIndex > 0 && orderByIndex < minIndex) {
+            minIndex = orderByIndex;
+        }
+        if (groupByIndex > 0 && groupByIndex < minIndex) {
+            minIndex = groupByIndex;
+        }
+        if (limitIndex > 0 && limitIndex < minIndex) {
+            minIndex = limitIndex;
+        }
+        
+        return minIndex;
     }
     
     /**

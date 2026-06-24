@@ -28,8 +28,7 @@ public class DataSetController {
         return WebResult.success(dataSetService.create(createForm));
     }
 
-    @PostMapping("/updat" +
-            "")
+    @PostMapping("/update")
     public WebResult<Long> update(@RequestBody DataSetForm.Create updateForm) {
         return WebResult.success(dataSetService.update(updateForm));
     }

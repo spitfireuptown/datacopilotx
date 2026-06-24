@@ -12,6 +12,7 @@ import com.datacopilotx.ai.service.graph.main.SerializableSink;
 import com.datacopilotx.ai.service.graph.main.WorkflowGraph;
 import com.datacopilotx.ai.service.graph.main.WorkflowServiceHelper;
 import com.datacopilotx.ai.service.graph.main.WorkflowState;
+import com.datacopilotx.ai.util.SecurityUtil;
 import org.springframework.util.ObjectUtils;
 import com.datacopilotx.common.constant.PromptConstant;
 import com.datacopilotx.common.result.WebResult;
@@ -70,6 +71,9 @@ public class ChatService {
         String questionId = ObjectUtils.isEmpty(questionForm.getQuestionId()) ? IdUtils.genKey("ques") : questionForm.getQuestionId();
         String sessionId = ObjectUtils.isEmpty(questionForm.getSessionId()) ? IdUtils.genKey("sess") : questionForm.getSessionId();
 
+        // 获取当前登录用户ID
+        String creator = SecurityUtil.getCurrentUserId();
+
         QuestionLogBean questionLogBean = QuestionLogBean
                 .builder()
                 .questionId(questionId)
@@ -77,6 +81,7 @@ public class ChatService {
                 .datasetId(questionForm.getDatasetId())
                 .modelId(questionForm.getModelId())
                 .question(questionForm.getQuestion())
+                .creator(creator)
                 .build();
         questionLogMapper.insert(questionLogBean);
         questionForm.setQuestionLogBean(questionLogBean);
@@ -143,7 +148,9 @@ public class ChatService {
                 // 清理ThreadLocal
                 finalState.clearCollectedData();
                 
+                log.info("Emitting SSE complete event");
                 sink.tryEmitComplete();
+                log.info("SSE complete event emitted successfully");
             } catch (Exception e) {
                 log.error("Chat completions execution failed", e);
                 sink.tryEmitNext(ServerSentEvent.<WebResult<String>>builder()

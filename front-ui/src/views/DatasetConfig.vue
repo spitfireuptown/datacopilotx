@@ -146,7 +146,7 @@
 
 <script setup lang="ts">
 // 导入路由
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { message, Modal } from 'ant-design-vue';
 // 导入Spin组件用于loading效果
@@ -172,6 +172,7 @@ interface Dataset {
   table: string;
   username: string;
   createTime: string;
+  creatorName: string;
   fields?: Array<{
     fieldName: string;
     fieldType: string;
@@ -207,6 +208,11 @@ const columns = [
     title: '数据表',
     dataIndex: 'table',
     key: 'table'
+  },
+  {
+    title: '创建者',
+    dataIndex: 'creatorName',
+    key: 'creatorName'
   },
   {
     title: '创建时间',

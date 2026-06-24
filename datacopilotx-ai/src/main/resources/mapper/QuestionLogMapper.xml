@@ -20,9 +20,7 @@
             AND question LIKE CONCAT('%', #{searchKey}, '%')
         </if>
         <!-- 角色权限过滤：非管理员只能查看自己创建的数据 -->
-        <if test="!isAdmin and currentUserId != null">
-            AND creator = #{currentUserId}
-        </if>
+        AND creator = #{currentUserId}
         GROUP BY session_id ORDER BY ctime DESC
     </select>
 </mapper>

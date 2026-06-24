@@ -29,7 +29,8 @@ interface ChatStreamOptions {
  */
 export async function mockChatStreamApi(
   onChunk: (chunk: string) => void,
-  options: ChatStreamOptions = {}
+  options: ChatStreamOptions = {},
+  onComplete?: () => void
 ): Promise<void> {
   const { signal, message = '', datasetId, modelId, questionId: providedQuestionId, sessionId } = options;
   
@@ -39,14 +40,25 @@ export async function mockChatStreamApi(
   // 移除重试机制，直接执行请求
   // 构建完整的请求URL
   const requestUrl = `/api/chat/completions`;
-  
-  // 发送请求到后端接口，添加credentials选项解决跨域
+
+  // 获取token
+  const token = localStorage.getItem('access_token');
+
+  // 构建请求头
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  // 如果有token，添加到Authorization header
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  // 发送请求到后端接口
   const response = await fetch(requestUrl, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    credentials: 'include', // 包含cookies等凭证信息，解决跨域问题
+    headers,
+    credentials: 'include', // 包含cookies等凭证信息
     body: JSON.stringify({
       'question': message,
       'datasetId': datasetId,
@@ -71,6 +83,7 @@ export async function mockChatStreamApi(
   // 存储上次未处理完的数据
   let remainingData = '';
   let lastId = '';
+  let lastEvent = '';
 
   while (!done) {
     const { value, done: readerDone } = await reader.read();
@@ -78,7 +91,7 @@ export async function mockChatStreamApi(
     
     if (value) {
       // 解码新数据
-      const chunk = decoder.decode(value, { stream: readerDone ? false : true });
+      const chunk = decoder.decode(value, { stream: !readerDone });
       // 合并剩余数据和新数据
       const fullData = remainingData + chunk;
       // 按行拆分数据
@@ -87,19 +100,35 @@ export async function mockChatStreamApi(
       // 处理每行数据，提取SSE格式中的有效信息
       for (let i = 0; i < lines.length - 1; i++) {
         const line = lines[i].trim();
-        if (!line) {continue;} // 忽略空行
+        if (!line) {
+          // 空行表示一个SSE事件结束，重置lastEvent
+          lastEvent = '';
+          continue;
+        }
         
-        // 解析SSE格式，提取data字段
-        if (line.startsWith('id:')) {
-          // 提取id
+        if (line.startsWith('event:')) {
+          lastEvent = line.substring(6).trim();
+        } else if (line.startsWith('id:')) {
           lastId = line.substring(3).trim();
         } else if (line.startsWith('data:')) {
-          // 移除data:前缀并再次trim，获取实际数据内容
           const dataContent = line.substring(5).trim();
-          if (dataContent) {
-            const dataContentObj = JSON.parse(dataContent)
-            dataContentObj.id = lastId
+          if (!dataContent) {continue;}
+          
+          // 检测 [DONE] 标记，立即结束流读取
+          if (dataContent.includes('[DONE]') || lastEvent === 'complete') {
+            done = true;
+            reader.cancel();
+            if (onComplete) {onComplete();}
+            break;
+          }
+          
+          try {
+            const dataContentObj = JSON.parse(dataContent);
+            dataContentObj.id = lastId;
             onChunk(JSON.stringify(dataContentObj));
+          } catch {
+            // 非JSON数据，直接传递
+            onChunk(dataContent);
           }
         }
       }
@@ -109,15 +138,8 @@ export async function mockChatStreamApi(
     }
   }
   
-  // 处理最后剩余的数据（如果有）
-  if (remainingData.trim()) {
-    if (remainingData.startsWith('data:')) {
-      const dataContent = remainingData.substring(5).trim();
-      if (dataContent) {
-        onChunk(dataContent);
-      }
-    }
-  }
+  // 流读取完成，触发完成回调
+  if (onComplete) {onComplete();}
 }
 
 /**

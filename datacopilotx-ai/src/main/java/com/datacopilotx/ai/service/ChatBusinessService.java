@@ -36,13 +36,11 @@ public class ChatBusinessService {
         PageVO<List<QuestionLogDTO>> result = new PageVO<>();
         // 获取当前用户信息用于权限控制
         String currentUserId = SecurityUtil.getCurrentUserId();
-        Boolean isAdmin = SecurityUtil.isAdmin();
-        
+
         IPage<QuestionLogDTO> queryLogDTOIPage = questionLogMapper.selectQueryLog(
             new Page<>(chatForm.getPageNo(), chatForm.getPageSize()), 
             chatForm.getSearchkey(),
-            currentUserId,
-            isAdmin
+            currentUserId
         );
         result.setPageNo(chatForm.getPageNo());
         result.setPageSize(chatForm.getPageSize());

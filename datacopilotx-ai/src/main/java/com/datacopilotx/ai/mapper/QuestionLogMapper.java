@@ -16,5 +16,5 @@ public interface QuestionLogMapper extends BaseMapper<QuestionLogBean> {
      * 该方法自己实现角色权限过滤，不依赖拦截器
      */
     @InterceptorIgnore(dataPermission = "true")
-    IPage<QuestionLogDTO> selectQueryLog(IPage<QuestionLogDTO> page, String searchKey, @Param("currentUserId") String currentUserId, @Param("isAdmin") Boolean isAdmin);
+    IPage<QuestionLogDTO> selectQueryLog(IPage<QuestionLogDTO> page, String searchKey, @Param("currentUserId") String currentUserId);
 }

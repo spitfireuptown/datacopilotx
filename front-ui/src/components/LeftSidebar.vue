@@ -14,10 +14,6 @@
         <DatabaseOutlined class="menu-icon" />
         <span class="menu-text">知识库</span>
       </div>
-      <div class="menu-item" :class="{ active: activeMenu === 'settings' }" @click="goToSettings">
-        <SettingOutlined class="menu-icon" />
-        <span class="menu-text">设置</span>
-      </div>
     </div>
 
     <div class="sidebar-bottom">
@@ -26,6 +22,14 @@
         <div class="menu-item" :class="{ active: activeMenu === 'user-management' }" @click="goToUserManagement">
           <UserOutlined class="menu-icon" />
           <span class="menu-text">用户管理</span>
+        </div>
+      </div>
+
+      <!-- 管理员和超级管理员专属菜单 -->
+      <div v-if="authStore.role === 0 || authStore.role === 1" class="admin-menu-list">
+        <div class="menu-item" :class="{ active: activeMenu === 'settings' }" @click="goToSettings">
+          <SettingOutlined class="menu-icon" />
+          <span class="menu-text">设置</span>
         </div>
         <div class="menu-item" :class="{ active: activeMenu === 'auth-config' }" @click="goToAuthConfig">
           <LockOutlined class="menu-icon" />
