@@ -85,7 +85,7 @@ const homeRoutes: RouteRecordRaw[] = [
   {
     path: '/auth-config',
     name: 'AuthConfig',
-    component: () => import('@/views/AuthConfig.vue'),
+    component: () => import('@/views/permission/index.vue'),
     meta: {
       title: '权限配置',
       keepAlive: true

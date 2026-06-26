@@ -78,7 +78,7 @@ import { getChatHistory, getChatHistoryDetail, deleteChatHistory, type ChatHisto
 import { message } from 'ant-design-vue';
 
 // 添加新的emit事件类型
-const emit = defineEmits(['newChat', 'chatSelect']);
+const emit = defineEmits(['newChat', 'chatSelect', 'loadingChange']);
 
 // 历史记录容器引用
 const historyContainer = ref<HTMLElement>();

@@ -46,7 +46,7 @@ export default [
     },
     /** @link https://typescript-eslint.io/rules/ */
     rules: {
-      '@typescript-eslint/no-unused-vars': 'error', // 禁止定义未使用的变量
+      '@typescript-eslint/no-unused-vars': 'off', // 在 Vue 文件中关闭，因为模板中使用的变量无法被检测到
       '@typescript-eslint/explicit-module-boundary-types': 'off', // 允许不显式声明函数返回类型
       '@typescript-eslint/no-explicit-any': 'off', // 允许使用any类型
       '@typescript-eslint/no-unused-expressions': 'off', // 允许未使用的表达式
@@ -76,6 +76,7 @@ export default [
     rules: {
       'vue/no-v-model-argument': 'off', // 关闭对 `v-model` 参数使用的规则。
       'vue/component-name-in-template-casing': ['error', 'PascalCase'], // 模板中组件名大小写
+      'vue/no-v-html': 'off', // 允许使用 v-html
       // HTML标签闭合括号的空格
       'vue/html-closing-bracket-spacing': [
         'error',

@@ -113,3 +113,34 @@ CREATE TABLE IF NOT EXISTS SYSTEM_USER (
 INSERT INTO SYSTEM_USER (user_id, username, password, nickname, role, status, is_del)
 VALUES ('admin-001', 'admin', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EH', '超级管理员', 0, 1, 0)
     ON DUPLICATE KEY UPDATE user_id=user_id;
+
+-- 数据权限表 - 定义行权限和列权限规则
+CREATE TABLE IF NOT EXISTS `DS_PERMISSION` (
+    `id` BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+    `enable` TINYINT NOT NULL DEFAULT 1 COMMENT '是否启用：0-禁用，1-启用',
+    `type` VARCHAR(64) NOT NULL COMMENT '权限类型：row（行权限）/ column（列权限）',
+    `ds_id` BIGINT NOT NULL COMMENT '数据集ID',
+    `name` VARCHAR(128) NOT NULL COMMENT '权限规则名称',
+    `expression_tree` LONGTEXT COMMENT '行权限表达式树（JSON格式）',
+    `permissions` LONGTEXT COMMENT '列权限字段列表（JSON格式）',
+    `white_list_user` LONGTEXT COMMENT '白名单用户（JSON数组）',
+    `creator` VARCHAR(36) NOT NULL COMMENT '创建人ID',
+    `is_del` INT NOT NULL DEFAULT 0 COMMENT '是否删除：0-未删除，1-已删除',
+    `ctime` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `utime` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    INDEX idx_ds_id (`ds_id`),
+    INDEX idx_type (`type`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='数据权限表';
+
+-- 权限规则组表 - 将权限规则和用户关联
+CREATE TABLE IF NOT EXISTS `DS_RULES` (
+    `id` BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+    `enable` TINYINT NOT NULL DEFAULT 1 COMMENT '是否启用：0-禁用，1-启用',
+    `name` VARCHAR(128) NOT NULL COMMENT '规则组名称',
+    `permission_list` LONGTEXT NOT NULL COMMENT '关联的权限ID列表（JSON数组）',
+    `user_list` LONGTEXT NOT NULL COMMENT '关联的用户ID列表（JSON数组）',
+    `creator` VARCHAR(36) NOT NULL COMMENT '创建人ID',
+    `is_del` INT NOT NULL DEFAULT 0 COMMENT '是否删除：0-未删除，1-已删除',
+    `ctime` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `utime` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='权限规则组表';

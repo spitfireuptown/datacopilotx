@@ -147,10 +147,12 @@ public class ChatService {
                 }
                 // 清理ThreadLocal
                 finalState.clearCollectedData();
+                sink.tryEmitNext(ServerSentEvent.<WebResult<String>>builder()
+                        .event("complete")
+                        .data(WebResult.success("[DONE]"))
+                        .build());
                 
-                log.info("Emitting SSE complete event");
                 sink.tryEmitComplete();
-                log.info("SSE complete event emitted successfully");
             } catch (Exception e) {
                 log.error("Chat completions execution failed", e);
                 sink.tryEmitNext(ServerSentEvent.<WebResult<String>>builder()

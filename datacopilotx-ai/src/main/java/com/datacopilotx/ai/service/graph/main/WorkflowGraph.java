@@ -26,6 +26,7 @@ public class WorkflowGraph {
     private final EasyChatGraphNode easyChatGraphNode;
     private final RecallKnowledgeGraphNode recallKnowledgeGraphNode;
     private final GenerateSqlGraphNode generateSqlGraphNode;
+    private final PermissionInjectNode permissionInjectNode;
     private final ExecuteSQLGraphNode executeSQLGraphNode;
 
     public StateGraph<WorkflowState> createResearchGraph() throws GraphStateException {
@@ -37,12 +38,14 @@ public class WorkflowGraph {
                 .addNode("easy_chat", node_async(easyChatGraphNode))
                 .addNode("recall_knowledge", node_async(recallKnowledgeGraphNode))
                 .addNode("generate_sql", node_async(generateSqlGraphNode))
+                .addNode("permission_inject", node_async(permissionInjectNode))
                 .addNode("execute_sql", node_async(executeSQLGraphNode))
 
                 .addEdge(START, "graceful_question")
                 .addEdge("graceful_question", "intent_recognition")
                 .addEdge("recall_knowledge", "generate_sql")
-                .addEdge("generate_sql", "execute_sql")
+                .addEdge("generate_sql", "permission_inject")
+                .addEdge("permission_inject", "execute_sql")
                 .addConditionalEdges(
                         "intent_recognition",
                         edge_async(state -> {

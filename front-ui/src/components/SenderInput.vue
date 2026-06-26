@@ -239,7 +239,7 @@ const generateNewQuestionId = () => {
 };
 
 const [agent] = useXAgent({
-  request: async ({ message: _message }, { onSuccess, onUpdate }) => {
+  request: async (_data: unknown, { onSuccess, onUpdate }) => {
     controller = new AbortController();
 
     senderLoading.value = true;
