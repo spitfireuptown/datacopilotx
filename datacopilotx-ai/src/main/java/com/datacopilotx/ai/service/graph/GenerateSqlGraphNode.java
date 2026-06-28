@@ -90,17 +90,40 @@ public class GenerateSqlGraphNode implements NodeAction<WorkflowState> {
             throw new RuntimeException("等待流式输出完成被中断", e);
         }
 
-        String generateSqlResult = WorkflowUtil.cleanJsonStr(resultBuilder.toString());
-        Map<String, Object> generateSqlResultMap = JSONUtil.toBean(generateSqlResult, Map.class);
-        String sql = (String) generateSqlResultMap.get("sql");
+        try {
+            String generateSqlResult = WorkflowUtil.cleanJsonStr(resultBuilder.toString());
+            Map<String, Object> generateSqlResultMap = JSONUtil.toBean(generateSqlResult, Map.class);
+            String sql = (String) generateSqlResultMap.get("sql");
 
-        // 将收集到的流式数据追加到WorkflowState
-        state.appendCollectedData(sql);
-        
-        log.info("Generated SQL: {}", sql);
-        return Map.of(
-                "sql", sql,
-                "token", chatRequest.getTokenUsage()
-        );
+            if (sql == null || sql.trim().isEmpty()) {
+                throw new RuntimeException("生成的SQL为空，请重新生成");
+            }
+
+            state.appendCollectedData(sql);
+            
+            log.info("Generated SQL: {}", sql);
+            return Map.of(
+                    "sql", sql,
+                    "token", chatRequest.getTokenUsage(),
+                    "sql_error", ""
+            );
+        } catch (Exception e) {
+            log.error("SQL生成失败: {}", e.getMessage(), e);
+            int retryCount = state.retryCount().orElse(0) + 1;
+
+            workflowServiceHelper.streamPrint(sink, PromptConstant.SQL_GENERATION_NODE,
+                    "\nSQL生成失败，正在重试...\n", serializableSink, state);
+
+            String newSqlError = "SQL生成失败: " + e.getMessage() + "\n请根据错误信息修复并重新生成SQL。";
+            if (!sqlError.isEmpty()) {
+                newSqlError = sqlError + "\n" + newSqlError;
+            }
+
+            return Map.of(
+                    "sql_error", newSqlError,
+                    "retry_count", retryCount,
+                    "sql", ""
+            );
+        }
     }
 }

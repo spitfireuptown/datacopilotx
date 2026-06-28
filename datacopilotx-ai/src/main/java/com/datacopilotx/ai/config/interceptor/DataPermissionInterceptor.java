@@ -29,7 +29,8 @@ import java.util.regex.Pattern;
  * - data_set
  * - data_set_relation
  * - knowledge_lib
- * - model_config
+ * - question_log
+ * - model_config（仅限部分方法，见 SKIP_PERMISSION_METHODS）
  */
 @Slf4j
 public class DataPermissionInterceptor implements InnerInterceptor {
@@ -43,6 +44,13 @@ public class DataPermissionInterceptor implements InnerInterceptor {
             "knowledge_lib",
             "question_log",
             "model_config"
+    );
+
+    /**
+     * 跳过权限校验的 Mapper 方法名（支持模糊匹配）
+     */
+    private static final Set<String> SKIP_PERMISSION_METHODS = Set.of(
+            "com.datacopilotx.ai.mapper.ModelConfigMapper.selectList"
     );
 
     /**
@@ -80,21 +88,27 @@ public class DataPermissionInterceptor implements InnerInterceptor {
             return;
         }
 
-        // 2. 获取当前用户信息
+        // 2. 检查是否在跳过权限校验的方法列表中
+        if (SKIP_PERMISSION_METHODS.contains(sqlId)) {
+            log.debug("数据权限拦截器: SQL [{}] 在跳过列表中，放行", sqlId);
+            return;
+        }
+
+        // 3. 获取当前用户信息
         String userId = SecurityUtil.getCurrentUserId();
         if (userId == null) {
             log.debug("数据权限拦截器: 用户未登录，放行所有数据");
             return;
         }
 
-        // 3. 获取用户角色并判断权限
+        // 4. 获取用户角色并判断权限
         Integer role = SecurityUtil.getCurrentUserRole();
         if (role == ROLE_SUPER_ADMIN || role == ROLE_ADMIN) {
             log.debug("数据权限拦截器: 用户[{}]角色[{}]为管理员，放行所有数据", userId, role);
             return;
         }
 
-        // 4. 普通用户需要添加数据权限过滤
+        // 5. 普通用户需要添加数据权限过滤
         applyDataPermission(boundSql, userId, sqlId);
     }
 

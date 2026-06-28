@@ -71,8 +71,10 @@ public class ChatService {
         String questionId = ObjectUtils.isEmpty(questionForm.getQuestionId()) ? IdUtils.genKey("ques") : questionForm.getQuestionId();
         String sessionId = ObjectUtils.isEmpty(questionForm.getSessionId()) ? IdUtils.genKey("sess") : questionForm.getSessionId();
 
-        // 获取当前登录用户ID
+        // 获取当前登录用户信息（在主线程获取，因为虚拟线程无法继承 SecurityContext）
         String creator = SecurityUtil.getCurrentUserId();
+        Integer userRole = SecurityUtil.getCurrentUserRole();
+        boolean isAdmin = SecurityUtil.isAdmin();
 
         QuestionLogBean questionLogBean = QuestionLogBean
                 .builder()
@@ -102,11 +104,15 @@ public class ChatService {
                         questionForm.getQuestion()
                 );
 
-                // 将 sink、dataSetBean、modelConfigBean 放入 initialData
+                // 将 sink、dataSetBean、modelConfigBean、用户信息放入 initialData
                 initialData = new HashMap<>(initialData);
                 initialData.put("sink", new SerializableSink(sink));
                 initialData.put("data_set_bean", dataSetBean);
                 initialData.put("model_config_bean", modelConfigBean);
+                // 覆盖虚拟线程中无法获取的用户信息
+                initialData.put("user_id", creator != null ? creator : "");
+                initialData.put("user_role", userRole);
+                initialData.put("is_admin", isAdmin);
 
                 RunnableConfig runnableConfig = RunnableConfig.builder()
                         .threadId(sessionId)

@@ -30,8 +30,6 @@ public class WorkflowGraph {
     private final ExecuteSQLGraphNode executeSQLGraphNode;
 
     public StateGraph<WorkflowState> createResearchGraph() throws GraphStateException {
-        log.info("Creating deep research main graph...");
-
         StateGraph<WorkflowState> workflow = new StateGraph<>(WorkflowState.SCHEMA, new WorkflowStateSerializer())
                 .addNode("graceful_question", node_async(gracefulQuestionGraphNode))
                 .addNode("intent_recognition", node_async(intentRecognitionGraphNode))
@@ -44,7 +42,24 @@ public class WorkflowGraph {
                 .addEdge(START, "graceful_question")
                 .addEdge("graceful_question", "intent_recognition")
                 .addEdge("recall_knowledge", "generate_sql")
-                .addEdge("generate_sql", "permission_inject")
+                .addConditionalEdges(
+                        "generate_sql",
+                        edge_async(state -> {
+                            String sql = state.sql().orElse("");
+                            int retryCount = state.retryCount().orElse(0);
+                            if ((sql == null || sql.trim().isEmpty()) && retryCount < MAX_RETRY) {
+                                return "generate_sql";
+                            }
+                            // 根据用户角色判断是否需要权限注入
+                            Integer userRole = state.userRole().orElse(2);
+                            if (userRole == 0 || userRole == 1) {
+                                // 超级管理员和管理员跳过权限注入
+                                return "execute_sql";
+                            }
+                            return "permission_inject";
+                        }),
+                        Map.of("generate_sql", "generate_sql", "permission_inject", "permission_inject", "execute_sql", "execute_sql")
+                )
                 .addEdge("permission_inject", "execute_sql")
                 .addConditionalEdges(
                         "intent_recognition",

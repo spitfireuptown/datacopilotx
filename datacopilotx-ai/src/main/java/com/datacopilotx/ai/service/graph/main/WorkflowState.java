@@ -2,6 +2,7 @@ package com.datacopilotx.ai.service.graph.main;
 
 import com.datacopilotx.ai.domian.bean.DataSetBean;
 import com.datacopilotx.ai.domian.bean.ModelConfigBean;
+import com.datacopilotx.ai.util.SecurityUtil;
 import com.datacopilotx.aigateway.domain.dto.ChatRequest;
 import com.datacopilotx.common.exception.DataCopilotXException;
 import com.datacopilotx.common.result.WebResult;
@@ -32,7 +33,11 @@ public class WorkflowState extends AgentState {
             Map.entry("intent_analysis", Channels.base(null, null)),
             Map.entry("recall", Channels.appender(List::of)),
             Map.entry("sql_error", Channels.base(null, null)),
-            Map.entry("retry_count", Channels.base(null, null))
+            Map.entry("retry_count", Channels.base(null, null)),
+            Map.entry("user_id", Channels.base(null, null)),
+            Map.entry("user_role", Channels.base(null, null)),
+            Map.entry("is_admin", Channels.base(null, null)),
+            Map.entry("is_piaoyitong_user", Channels.base(null, null))
     );
 
     public WorkflowState(Map<String, Object> initData) {
@@ -101,6 +106,22 @@ public class WorkflowState extends AgentState {
 
     public Optional<Integer> retryCount() {
         return this.value("retry_count");
+    }
+
+    public Optional<String> userId() {
+        return this.value("user_id");
+    }
+
+    public Optional<Integer> userRole() {
+        return this.value("user_role");
+    }
+
+    public Optional<Boolean> isAdmin() {
+        return this.value("is_admin");
+    }
+
+    public Optional<Boolean> isPiaoyitongUser() {
+        return this.value("is_piaoyitong_user");
     }
     
     // 使用 ThreadLocal 存储收集的数据，避免序列化问题
@@ -173,12 +194,21 @@ public class WorkflowState extends AgentState {
             Long datasetId,
             Long modelId,
             String question) {
+        String userId = SecurityUtil.getCurrentUserId();
+        Integer userRole = SecurityUtil.getCurrentUserRole();
+        boolean isAdmin = SecurityUtil.isAdmin();
+        boolean isPiaoyitongUser = userId != null && !isAdmin;
+
         return Map.of(
                 "session_id", sessionId,
                 "question_id", questionId,
                 "dataset_id", datasetId,
                 "model_id", modelId,
-                "question", question
+                "question", question,
+                "user_id", userId != null ? userId : "",
+                "user_role", userRole != null ? userRole : 2,
+                "is_admin", isAdmin,
+                "is_piaoyitong_user", isPiaoyitongUser
         );
     }
 }

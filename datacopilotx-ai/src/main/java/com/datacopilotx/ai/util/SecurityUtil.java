@@ -77,4 +77,8 @@ public class SecurityUtil {
         Integer role = getCurrentUserRole();
         return role == 0 || role == 1;
     }
+
+    public static boolean isAdmin(Integer currentUserRole) {
+        return currentUserRole == 0 || currentUserRole == 1;
+    }
 }

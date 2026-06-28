@@ -8,6 +8,7 @@ import com.datacopilotx.ai.domian.vo.UserInfoVo;
 import com.datacopilotx.ai.mapper.UserMapper;
 import com.datacopilotx.ai.service.AuthService;
 import com.datacopilotx.common.exception.DataCopilotXException;
+import com.datacopilotx.common.util.IdUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -60,7 +61,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
         UserBean user = UserBean.builder()
-                .userId(UUID.randomUUID().toString())
+                .userId(IdUtils.genKey("user"))
                 .username(username)
                 .password(passwordEncoder.encode(password))
                 .nickname(nickname)
@@ -157,7 +158,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
         UserBean user = UserBean.builder()
-                .userId(UUID.randomUUID().toString())
+                .userId(IdUtils.genKey("user"))
                 .username(username)
                 .password(passwordEncoder.encode(password))
                 .nickname(nickname)

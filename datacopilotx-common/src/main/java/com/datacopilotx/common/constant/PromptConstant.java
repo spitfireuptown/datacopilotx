@@ -137,7 +137,15 @@ public interface PromptConstant {
             }
             ```
             
-            ## SQL修复（仅在重试时生效）
+            ## 错误修复指引（仅在重试时生效）
+            如果"${sql_error}"不为空，说明之前的SQL生成或执行失败，你需要：
+            - 仔细阅读错误信息，分析失败原因
+            - 根据错误类型修复SQL：
+              - 如果是SQL语法错误，修正语法问题
+              - 如果是字段/表名不存在，使用正确的元数据字段
+              - 如果是JSON格式解析失败，确保输出严格符合JSON格式
+            - 输出修复后的正确SQL
+            
             ${sql_error}
             """
     );
@@ -161,4 +169,5 @@ public interface PromptConstant {
     String SQL_RESULT_NODE = "sql_result_node";
     String EASY_CHAT_NODE = "easy_chat_node";
     String RECALL_NODE = "recall_node";
+    String PERMISSION_INJECT_NODE = "permission_inject_node";
 }

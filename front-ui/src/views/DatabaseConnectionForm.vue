@@ -183,48 +183,6 @@
               />
             </a-form-item>
           </a-card>
-
-          <!-- 添加联表关系配置卡片 -->
-          <a-card v-if="selectedTable" class="mt-4">
-            <div class="relations-header">
-              <h3>联表关系配置</h3>
-              <a-button type="primary" size="small" @click="handleAddRelation">
-                添加关联
-              </a-button>
-            </div>
-            <a-alert 
-              message="提示" 
-              description="配置多表关联关系后，支持跨表查询。例如：orders.user_id = users.id" 
-              type="info" 
-              show-icon 
-              :closable="false" 
-              class="mb-4"
-            />
-            <div v-if="tableRelations.length === 0" class="no-relations">
-              暂无关联关系配置
-            </div>
-            <div v-else class="relations-list">
-              <div v-for="(relation, index) in tableRelations" :key="index" class="relation-item">
-                <a-space wrap>
-                  <a-input v-model:value="relation.fromTable" placeholder="从表名称" style="width: 150px" />
-                  <a-select v-model:value="relation.fromField" placeholder="从表字段" style="width: 150px">
-                    <a-select-option v-for="fld in tableFields.map(f => f.fieldName)" :key="fld" :value="fld">{{ fld }}</a-select-option>
-                  </a-select>
-                  <span>=</span>
-                  <a-input v-model:value="relation.toTable" placeholder="关联表名称" style="width: 150px" />
-                  <a-input v-model:value="relation.toField" placeholder="关联表字段" style="width: 150px" />
-                  <a-select v-model:value="relation.relationType" placeholder="关联类型" style="width: 120px">
-                    <a-select-option value="INNER JOIN">INNER JOIN</a-select-option>
-                    <a-select-option value="LEFT JOIN">LEFT JOIN</a-select-option>
-                    <a-select-option value="RIGHT JOIN">RIGHT JOIN</a-select-option>
-                  </a-select>
-                </a-space>
-                <a-button type="text" danger size="small" @click="handleRemoveRelation(index)">
-                  删除
-                </a-button>
-              </div>
-            </div>
-          </a-card>
           
           <div v-else class="no-table-selected">
             请先连接数据库并选择数据表
@@ -273,15 +231,6 @@ interface TableField {
   description: string;
 }
 
-// 定义联表关系类型
-interface TableRelation {
-  fromTable: string;
-  fromField: string;
-  toTable: string;
-  toField: string;
-  relationType: string;
-}
-
 // 表单引用
 const formRef = ref<FormInstance>();
 
@@ -322,9 +271,6 @@ const editDescriptionValue = ref<string>('');
 
 // 用于标记哪些字段描述为空（用于置红提醒）
 const emptyDescriptionFields = ref<string[]>([]);
-
-// 联表关系配置
-const tableRelations = ref<TableRelation[]>([]);
 
 // 保存状态
 const saving = ref(false);
@@ -407,11 +353,6 @@ const loadEditData = async () => {
         // 否则调用获取表结构的API
         onTableChange(connectionData.table);
       }
-
-      // 加载联表关系
-      if (connectionData.relations && connectionData.relations.length > 0) {
-        tableRelations.value = connectionData.relations;
-      }
     } catch (error) {
       message.destroy();
       console.error('加载数据失败:', error);
@@ -463,9 +404,7 @@ const handleSubmit = async () => {
         fieldName: field.fieldName,
         fieldType: field.fieldType,
         description: field.description
-      })),
-      // 添加联表关系配置
-      relations: tableRelations.value
+      }))
     };
     
     if (editMode.value) { 
@@ -617,22 +556,6 @@ const cancelEditDescription = () => {
   editingField.value = '';
 };
 
-// 添加联表关系
-const handleAddRelation = () => {
-  tableRelations.value.push({
-    fromTable: '',
-    fromField: '',
-    toTable: '',
-    toField: '',
-    relationType: 'INNER JOIN'
-  });
-};
-
-// 移除联表关系
-const handleRemoveRelation = (index: number) => {
-  tableRelations.value.splice(index, 1);
-};
-
 // 移除数据集描述相关的编辑方法
 
 // 在脚本部分添加返回方法
@@ -773,35 +696,6 @@ const handleBack = () => {
   align-items: center;
   height: 200px;
   color: #999;
-}
-
-/* 联表关系配置样式 */
-.relations-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-}
-
-.no-relations {
-  color: #999;
-  text-align: center;
-  padding: 20px;
-}
-
-.relations-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.relation-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px;
-  background: #fafafa;
-  border-radius: 4px;
 }
 
 /* 表格样式 */
