@@ -35,7 +35,7 @@ import AuthTreeNode from './AuthTreeNode.vue'
 
 interface ExpressionItem {
   term: string
-  field_id: string
+  fieldName: string
   filter_type: string
   enum_value: string
   name: string
@@ -77,15 +77,14 @@ const dfsInit = (arr: any[]): ExpressionItem[] => {
       const child = dfsInit(items)
       elementList.push({ logic: childLogic, child })
     } else {
-      const { enum_value, enumValue, field_id, fieldId, filter_type, filterType, term, value, field, fieldName } = ele
-      const { name } = field || {}
+      const { enum_value, enumValue, fieldName, filter_type, filterType, term, value } = ele
       elementList.push({
         enum_value: (enum_value || enumValue)?.join(',') || '',
-        field_id: field_id || fieldId || '',
+        fieldName: fieldName || '',
         filter_type: filter_type || filterType || '',
         term: term || '',
         value: value || '',
-        name: name || fieldName || '',
+        name: fieldName || '',
       })
     }
   })
@@ -107,7 +106,7 @@ const dfsSubmit = (arr: ExpressionItem[]): any[] => {
       const sub_tree = dfsSubmit(child)
       items.push({
         enum_value: [],
-        field_id: '',
+        fieldName: '',
         filter_type: '',
         term: '',
         type: 'tree',
@@ -115,17 +114,16 @@ const dfsSubmit = (arr: ExpressionItem[]): any[] => {
         sub_tree: { logic: groupLogic, items: sub_tree },
       })
     } else {
-      const { enum_value, field_id, filter_type, term, value, name } = ele
-      if (field_id) {
+      const { enum_value, fieldName, filter_type, term, value } = ele
+      if (fieldName) {
         items.push({
           enum_value: enum_value ? enum_value.split(',') : [],
-          field_id,
+          fieldName,
           filter_type,
           term,
           value,
           type: 'item',
           sub_tree: null,
-          name,
         })
       }
     }
@@ -137,7 +135,7 @@ const addCondition = (type: string) => {
   relationList.value.push(
     type === 'condition'
       ? {
-          field_id: '',
+          fieldName: '',
           value: '',
           enum_value: '',
           term: '',
@@ -173,7 +171,7 @@ const addChild = (path: number[], type: string) => {
   parent.child.push(
     type === 'condition'
       ? {
-          field_id: '',
+          fieldName: '',
           value: '',
           enum_value: '',
           term: '',

@@ -53,10 +53,6 @@
                   <EditOutlined />
                   编辑
                 </a-button>
-                <a-button type="link" size="small" @click="setUser(record)">
-                  <UserOutlined />
-                  用户
-                </a-button>
                 <a-popconfirm title="确定删除该规则组吗？" @confirm="deleteHandler(record)">
                   <a-button type="link" danger size="small">
                     <DeleteOutlined />
@@ -80,7 +76,7 @@
         <span>{{ drawerTitle }}</span>
       </template>
 
-      <div v-if="isCreate" class="steps-wrapper">
+      <div class="steps-wrapper">
         <a-steps :current="activeStep" :size="'small'" class="drawer-steps">
           <a-step title="设置权限规则" />
           <a-step title="选择受限用户" />
@@ -161,13 +157,9 @@
 
       <template #footer>
         <a-button @click="beforeClose">取消</a-button>
-        <a-button v-if="activeStep === 1 && isCreate" @click="preview">上一步</a-button>
-        <a-button v-if="activeStep === 0 && isCreate" type="primary" @click="next">下一步</a-button>
-        <a-button
-          v-if="(isCreate && activeStep === 1) || !isCreate"
-          type="primary"
-          @click="savePermission"
-        >
+        <a-button v-if="activeStep === 1" @click="preview">上一步</a-button>
+        <a-button v-if="activeStep === 0" type="primary" @click="next">下一步</a-button>
+        <a-button v-if="activeStep === 1" type="primary" @click="savePermission">
           保存
         </a-button>
       </template>
@@ -260,7 +252,7 @@
               :columns="columnColumns"
               :data-source="tableColumnData"
               :pagination="false"
-              row-key="field_id"
+              row-key="fieldName"
               :size="'middle'"
             >
               <template #bodyCell="{ column, record }">
@@ -289,7 +281,6 @@ import {
   CloseOutlined,
   EditOutlined,
   DeleteOutlined,
-  UserOutlined,
   LockOutlined,
   UnlockOutlined,
 } from '@ant-design/icons-vue'
@@ -310,7 +301,6 @@ const keywords = ref('')
 const activeStep = ref(0)
 const dialogFormVisible = ref(false)
 const ruleConfigvVisible = ref(false)
-const editRule = ref(0)
 const termFormRef = ref()
 const columnFormRef = ref()
 const drawerTitle = ref('')
@@ -390,15 +380,10 @@ const tableColumnData = computed<any[]>(() => {
 })
 
 const setDrawerTitle = () => {
-  if (activeStep.value === 0 && isCreate.value) {
+  if (isCreate.value) {
     drawerTitle.value = '添加规则组'
   } else {
-    if (editRule.value === 1) {
-      drawerTitle.value = '设置权限规则'
-    }
-    if (editRule.value === 2) {
-      drawerTitle.value = '选择受限用户'
-    }
+    drawerTitle.value = '编辑规则组'
   }
 }
 
@@ -415,7 +400,7 @@ const handleAddPermission = (val: any) => {
 }
 
 const saveAuthTree = (val: any) => {
-  columnForm.expression_tree = JSON.parse(JSON.stringify(val))
+  columnForm.expression_tree = val ? JSON.parse(JSON.stringify(val)) : {}
   const { expression_tree, dsId, type, name, dsName } = columnForm
   if (columnForm.id) {
     for (const key in currentPermission.permissions) {
@@ -481,7 +466,7 @@ const handleRowPermission = (row: any) => {
       name,
       dsId,
       dsName,
-      expression_tree: typeof expressionData === 'object' ? expressionData : (expressionData ? JSON.parse(expressionData) : {}),
+      expression_tree: typeof expressionData === 'object' ? expressionData : (typeof expressionData === 'string' && expressionData !== 'undefined' && expressionData !== 'null' && expressionData.trim() ? JSON.parse(expressionData) : {}),
     })
   }
   dialogFormVisible.value = true
@@ -521,7 +506,7 @@ const handleInitDsIdChange = async (val: any) => {
         }))
         if (columnForm.type === 'column') {
           columnForm.permissions = fieldListOptions.value.map((ele: any) => ({
-            field_id: ele.fieldName,
+            fieldName: ele.fieldName,
             field_name: ele.fieldName,
             field_comment: ele.description || '',
             enable: true,
@@ -558,11 +543,11 @@ const handleEditeTable = async (val: any) => {
       }))
       if (columnForm.type !== 'row') {
         const enableMap = columnForm.permissions.reduce((pre: any, next: any) => {
-          pre[next.field_id] = next.enable
+          pre[next.fieldName] = next.enable
           return pre
         }, {})
         columnForm.permissions = fieldListOptions.value.map((ele: any) => ({
-          field_id: ele.fieldName,
+          fieldName: ele.fieldName,
           field_name: ele.fieldName,
           field_comment: ele.description || '',
           enable: enableMap[ele.fieldName] ?? false,
@@ -598,9 +583,9 @@ const handleSearch = () => {
 handleSearch()
 
 const addHandler = () => {
-  editRule.value = 0
   setDrawerTitle()
   isCreate.value = true
+  activeStep.value = 0
   Object.assign(currentPermission, JSON.parse(JSON.stringify(defaultPermission)))
   ruleConfigvVisible.value = true
 }
@@ -616,11 +601,14 @@ const editForm = (row: any) => {
 }
 
 const handleEditRule = (row: any) => {
-  editRule.value = 1
   isCreate.value = false
+  activeStep.value = 0
   setDrawerTitle()
   Object.assign(currentPermission, JSON.parse(JSON.stringify(row)))
   ruleConfigvVisible.value = true
+  nextTick(() => {
+    selectPermissionRef.value?.open(row.userList || [])
+  })
 }
 
 const deleteRuleHandler = (row: any) => {
@@ -632,18 +620,6 @@ const deleteRuleHandler = (row: any) => {
 const deleteHandler = (row: any) => {
   deleteRule(row.id).then(() => {
     handleSearch()
-  })
-}
-
-const setUser = (row: any) => {
-  editRule.value = 2
-  setDrawerTitle()
-  isCreate.value = false
-  Object.assign(currentPermission, JSON.parse(JSON.stringify(row)))
-  activeStep.value = 1
-  ruleConfigvVisible.value = true
-  nextTick(() => {
-    selectPermissionRef.value?.open(row.userList)
   })
 }
 
@@ -705,7 +681,7 @@ const next = () => {
   }
   activeStep.value = 1
   nextTick(() => {
-    selectPermissionRef.value?.open(currentPermission.users)
+    selectPermissionRef.value?.open(currentPermission.userList || [])
   })
 }
 
@@ -721,10 +697,9 @@ const transformExpressionTree = (tree: any): any => {
 
 const transformExpressionItem = (item: any): any => {
   if (!item) {return null}
-  const { field_id, fieldId, filter_type, filterType, sub_tree, subTree, name, fieldName } = item
+  const { fieldName, filter_type, filterType, sub_tree, subTree, name } = item
   return {
     type: item.type,
-    fieldId: field_id ? parseInt(field_id) : (fieldId || null),
     fieldName: fieldName || name || '',
     filterType: filterType || filter_type || '',
     term: item.term || '',
@@ -763,12 +738,16 @@ const save = async () => {
       if (perm.type === 'row') {
         const expressionTree = typeof perm.expression_tree === 'object' 
           ? perm.expression_tree 
-          : JSON.parse(perm.expression_tree)
-        permData.expressionTree = transformExpressionTree(expressionTree)
+          : (typeof perm.expression_tree === 'string' && perm.expression_tree !== 'undefined' && perm.expression_tree !== 'null' && perm.expression_tree.trim()) 
+            ? JSON.parse(perm.expression_tree)
+            : null
+        permData.expressionTree = expressionTree ? transformExpressionTree(expressionTree) : null
       } else {
         const columnPermissions = typeof perm.permissions === 'object' 
           ? perm.permissions 
-          : JSON.parse(perm.permissions)
+          : (typeof perm.permissions === 'string' && perm.permissions !== 'undefined' && perm.permissions !== 'null' && perm.permissions.trim())
+            ? JSON.parse(perm.permissions)
+            : []
         permData.permissions = transformColumnPermissions(columnPermissions)
       }
 
@@ -784,7 +763,7 @@ const save = async () => {
     const obj: any = {
       name,
       permissionList,
-      userList: isCreate.value || activeStep.value === 1 ? selectedUsers : users,
+      userList: selectedUsers,
       enable: 1,
     }
 
@@ -805,11 +784,6 @@ const save = async () => {
 }
 
 const savePermission = () => {
-  if (!isCreate.value && activeStep.value === 0) {
-    if (!currentPermission.name) {return}
-    save()
-    return
-  }
   save()
 }
 </script>

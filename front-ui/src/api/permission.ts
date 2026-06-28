@@ -2,7 +2,6 @@ import { get, post, put, del } from '../utils/request';
 
 interface ExpressionItem {
   type: string;
-  fieldId?: number;
   fieldName?: string;
   filterType?: string;
   term?: string;

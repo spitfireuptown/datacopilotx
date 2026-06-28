@@ -6,12 +6,12 @@
       @mouseleave="showDel = false"
     >
       <a-select
-        v-model:value="fieldId"
+        v-model:value="fieldName"
         placeholder="选择字段"
         style="width: 200px"
         @change="onFieldChange"
       >
-        <a-select-option v-for="ele in dimensions" :key="ele.id" :value="ele.id">
+        <a-select-option v-for="ele in dimensions" :key="ele.field_name" :value="ele.field_name">
           {{ ele.field_name }}
         </a-select-option>
       </a-select>
@@ -19,7 +19,7 @@
         v-model:value="term"
         style="width: 120px; margin-left: 8px"
         placeholder="操作符"
-        :disabled="!fieldId"
+        :disabled="!fieldName"
         @change="onTermChange"
       >
         <a-select-option
@@ -35,7 +35,7 @@
         v-model:value="value"
         style="max-width: 280px; margin-left: 8px"
         placeholder="请输入值"
-        :disabled="!fieldId || !term"
+        :disabled="!fieldName || !term"
         allow-clear
         @change="onValueChange"
       />
@@ -52,7 +52,7 @@ import { DeleteOutlined } from '@ant-design/icons-vue'
 
 export interface Item {
   term: string
-  field_id: string
+  fieldName: string
   filter_type: string
   enum_value: string
   name: string
@@ -68,7 +68,7 @@ const props = withDefaults(defineProps<Props>(), {
   index: 0,
   item: () => ({
     term: '',
-    field_id: '',
+    fieldName: '',
     filter_type: '',
     enum_value: '',
     name: '',
@@ -79,7 +79,7 @@ const props = withDefaults(defineProps<Props>(), {
 const emits = defineEmits(['update:item', 'del'])
 const showDel = ref(false)
 
-const fieldId = ref(props.item.field_id)
+const fieldName = ref(props.item.fieldName || props.item.name)
 const term = ref(props.item.term)
 const value = ref(props.item.value)
 
@@ -107,21 +107,19 @@ const dimensions = computed(() => {
 })
 
 const emitUpdate = () => {
-  const field = dimensions.value.find((f: any) => f.id === fieldId.value)
-  const fieldName = field ? field.field_name : ''
   emits('update:item', {
     ...props.item,
-    field_id: fieldId.value,
+    fieldName: fieldName.value,
     term: term.value,
     value: value.value,
     filter_type: 'logic',
-    name: fieldName,
+    name: fieldName.value,
     enum_value: '',
   })
 }
 
-const onFieldChange = (newFieldId: string) => {
-  fieldId.value = newFieldId
+const onFieldChange = (newFieldName: string) => {
+  fieldName.value = newFieldName
   term.value = ''
   value.value = ''
   emitUpdate()
@@ -139,18 +137,15 @@ const onValueChange = () => {
   emitUpdate()
 }
 
-watch(() => props.item.field_id, (newFieldId) => {
-  if (fieldId.value !== newFieldId) {
-    fieldId.value = newFieldId
+watch(() => props.item.fieldName, (newFieldName) => {
+  if (fieldName.value !== newFieldName) {
+    fieldName.value = newFieldName
   }
 })
 
 watch(() => props.item.name, (newName) => {
-  if (newName && !fieldId.value) {
-    const field = dimensions.value.find((f: any) => f.field_name === newName)
-    if (field) {
-      fieldId.value = field.id
-    }
+  if (newName && !fieldName.value) {
+    fieldName.value = newName
   }
 })
 
@@ -167,11 +162,8 @@ watch(() => props.item.value, (newValue) => {
 })
 
 onMounted(() => {
-  if (props.item.name && !fieldId.value) {
-    const field = dimensions.value.find((f: any) => f.field_name === props.item.name)
-    if (field) {
-      fieldId.value = field.id
-    }
+  if (props.item.name && !fieldName.value) {
+    fieldName.value = props.item.name
   }
 })
 </script>
