@@ -11,10 +11,8 @@ public class DatasetRelationForm {
     public static class Create {
         private Long id;
         private Long fromDatasetId;
-        private String fromDatasetName;
         private String fromField;
         private Long toDatasetId;
-        private String toDatasetName;
         private String toField;
         private String relationType;
         private String description;

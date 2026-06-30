@@ -16,6 +16,15 @@
 
 
 🔥🔥 **近4W+字，共40个文档，带你玩转datacopilotx**，详情可戳：[细致文档带你吃透DataCopilotX](https://share.note.youdao.com/s/NcfQQFTs)
+
+## 玩转DataCopilotX
+
+![输入图片说明](datacopilotx-ai/src/main/resources/readme/dataset.png)
+![输入图片说明](datacopilotx-ai/src/main/resources/readme/permission.png)
+![输入图片说明](datacopilotx-ai/src/main/resources/readme/img.png)
+![输入图片说明](datacopilotx-ai/src/main/resources/readme/chart.png)
+
+
 ## 智能问数DataCopilotX介绍
 
 **核心功能** ：基于大模型自然语言处理的数据分析系统，通过对话的方式用户可以直接用中文提问，例如“近三个月各选择采购订单的入库总金额Top 5”，系统会理解问题、生成SQL、查询结果、图表展示

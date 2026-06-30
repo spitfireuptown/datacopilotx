@@ -21,17 +21,11 @@ public class DatasetRelationBean implements Serializable {
     @TableField("from_dataset_id")
     private Long fromDatasetId;
     
-    @TableField("from_dataset_name")
-    private String fromDatasetName;
-    
     @TableField("from_field")
     private String fromField;
     
     @TableField("to_dataset_id")
     private Long toDatasetId;
-    
-    @TableField("to_dataset_name")
-    private String toDatasetName;
     
     @TableField("to_field")
     private String toField;

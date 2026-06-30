@@ -138,19 +138,19 @@ public class ChatService {
                 
                 // 将收集到的sink数据保存到question_log
                 String collectedData = finalState.getCollectedData();
-                if (!ObjectUtils.isEmpty(collectedData)) {
-                    // 更新question_log记录
-                    QuestionLogBean updateLogBean = QuestionLogBean.builder()
-                            .questionId(questionId)
-                            .sessionId(sessionId)
-                            .answer(collectedData)
-                            .build();
-                    questionLogMapper.update(updateLogBean, 
-                            new LambdaQueryWrapper<QuestionLogBean>()
-                                    .eq(QuestionLogBean::getQuestionId, questionId)
-                                    .eq(QuestionLogBean::getSessionId, sessionId));
-                    log.info("Saved sink data to question_log for questionId: {}", questionId);
-                }
+                
+                QuestionLogBean updateLogBean = QuestionLogBean.builder()
+                        .questionId(questionId)
+                        .sessionId(sessionId)
+                        .answer(collectedData)
+                        .sql(finalState.sql().orElse(null))
+                        .result(finalState.result().orElse(null))
+                        .build();
+                questionLogMapper.update(updateLogBean, 
+                        new LambdaQueryWrapper<QuestionLogBean>()
+                                .eq(QuestionLogBean::getQuestionId, questionId)
+                                .eq(QuestionLogBean::getSessionId, sessionId));
+                log.info("Saved sink data, sql and result to question_log for questionId: {}", questionId);
                 // 清理ThreadLocal
                 finalState.clearCollectedData();
                 sink.tryEmitNext(ServerSentEvent.<WebResult<String>>builder()

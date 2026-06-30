@@ -12,6 +12,7 @@ public class QuestionDetailLogVO {
     private String questionId;
     private String sessionId;
     private String question;
+    private String sql;
     private String answer;
     private String result;
     private String ctime;
@@ -26,6 +27,7 @@ public class QuestionDetailLogVO {
         questionDetailLogVO.setQuestionId(questionLogBean.getQuestionId());
         questionDetailLogVO.setSessionId(questionLogBean.getSessionId());
         questionDetailLogVO.setQuestion(questionLogBean.getQuestion());
+        questionDetailLogVO.setSql(questionLogBean.getSql());
         questionDetailLogVO.setAnswer(questionLogBean.getAnswer());
         questionDetailLogVO.setResult(questionLogBean.getResult());
         questionDetailLogVO.setDatasetId(questionLogBean.getDatasetId());

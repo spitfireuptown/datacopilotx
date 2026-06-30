@@ -1,12 +1,9 @@
 package com.datacopilotx.ai.service.graph;
 
 import cn.hutool.json.JSONUtil;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.datacopilotx.ai.domian.bean.DataSetBean;
-import com.datacopilotx.ai.domian.bean.QuestionLogBean;
 import com.datacopilotx.ai.domian.dto.DataSetDTO;
 import com.datacopilotx.ai.domian.dto.QueryDTO;
-import com.datacopilotx.ai.mapper.QuestionLogMapper;
 import com.datacopilotx.ai.service.driver.DriverFactory;
 import com.datacopilotx.ai.service.driver.base.JDBCDriver;
 import com.datacopilotx.ai.service.graph.main.WorkflowServiceHelper;
@@ -24,9 +21,6 @@ import java.util.Map;
 @Slf4j
 @Component
 public class ExecuteSQLGraphNode implements NodeAction<WorkflowState> {
-
-    @Resource
-    QuestionLogMapper questionLogMapper;
 
     @Resource
     WorkflowServiceHelper workflowServiceHelper;
@@ -55,14 +49,6 @@ public class ExecuteSQLGraphNode implements NodeAction<WorkflowState> {
             JDBCDriver driver = DriverFactory.getDriver(driverInfo);
             QueryDTO queryDTO = driver.execute(driverInfo, sql);
 
-            QuestionLogBean questionLogBean = questionLogMapper.selectOne(new LambdaQueryWrapper<QuestionLogBean>()
-                    .eq(QuestionLogBean::getQuestionId, questionId)
-                    .eq(QuestionLogBean::getSessionId, sessionId)
-            );
-
-            questionLogBean.setResult(JSONUtil.toJsonStr(queryDTO));
-            questionLogMapper.updateById(questionLogBean);
-    
             Sinks.Many<org.springframework.http.codec.ServerSentEvent<com.datacopilotx.common.result.WebResult<String>>> sink = state.getSink();
             SerializableSink serializableSink = state.getSerializableSink();
             workflowServiceHelper.streamPrint(sink, PromptConstant.SQL_RESULT_NODE, "\n", serializableSink, state);

@@ -26,6 +26,8 @@ public class QuestionLogBean {
     private String costTime;
     @TableField("cost_token")
     private Long costToken;
+    @TableField("`sql`")
+    private String sql;
     private String answer;
     private String result;
     private Timestamp utime;
