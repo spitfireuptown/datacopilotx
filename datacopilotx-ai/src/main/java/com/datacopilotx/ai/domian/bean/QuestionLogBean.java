@@ -35,6 +35,6 @@ public class QuestionLogBean {
     @TableField("is_del")
     @TableLogic
     private Integer isDel;
-    @TableField("creator")
+    @TableField("creator")  
     private String creator;
 }

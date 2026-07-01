@@ -1,5 +1,25 @@
 package com.datacopilotx.aigateway.service.embedding;
 
+import co.elastic.clients.elasticsearch.ElasticsearchClient;
+import co.elastic.clients.elasticsearch._types.KnnSearch;
+import co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery;
+import co.elastic.clients.elasticsearch._types.query_dsl.MatchQuery;
+import co.elastic.clients.elasticsearch._types.query_dsl.TermQuery;
+import co.elastic.clients.elasticsearch.core.BulkRequest;
+import co.elastic.clients.elasticsearch.core.BulkResponse;
+import co.elastic.clients.elasticsearch.core.DeleteRequest;
+import co.elastic.clients.elasticsearch.core.GetRequest;
+import co.elastic.clients.elasticsearch.core.GetResponse;
+import co.elastic.clients.elasticsearch.core.SearchRequest;
+import co.elastic.clients.elasticsearch.core.SearchResponse;
+import co.elastic.clients.elasticsearch.core.bulk.BulkOperation;
+import co.elastic.clients.elasticsearch.core.bulk.IndexOperation;
+import co.elastic.clients.elasticsearch.core.search.Hit;
+import co.elastic.clients.elasticsearch.indices.CreateIndexRequest;
+import co.elastic.clients.elasticsearch.indices.CreateIndexResponse;
+import co.elastic.clients.elasticsearch.indices.DeleteIndexRequest;
+import co.elastic.clients.elasticsearch.indices.GetIndexRequest;
+import co.elastic.clients.elasticsearch.indices.GetIndexResponse;
 import cn.hutool.core.map.MapUtil;
 import cn.hutool.json.JSONUtil;
 import com.datacopilotx.aigateway.domain.dto.ElasticSearchVectorData;
@@ -9,32 +29,6 @@ import com.datacopilotx.common.result.ResponseCode;
 import com.datacopilotx.common.util.WorkflowUtil;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.delete.DeleteRequest;
-import org.elasticsearch.action.get.GetRequest;
-import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.client.IndicesClient;
-import org.elasticsearch.client.RequestOptions;
-import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.client.indices.CreateIndexRequest;
-import org.elasticsearch.client.indices.GetIndexRequest;
-import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
-import org.elasticsearch.index.query.functionscore.ScriptScoreQueryBuilder;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.xcontent.XContentType;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -46,119 +40,222 @@ import java.util.*;
 public class ElasticSearchVectorStorage {
 
     @Autowired
-    RestHighLevelClient esClient;
+    ElasticsearchClient esClient;
+
+    private static final int RRF_K = 60;
 
 
-    /**
-     * 初始化向量数据库index
-     * @param dim 维度
-     */
     public void initIndex(String indexName, int dim) {
         indexName = WorkflowUtil.innerIndexName(indexName);
         try {
-            // 查看向量索引是否存在，此方法为固定默认索引字段
-            IndicesClient indices = esClient.indices();
-            GetIndexRequest getIndexRequest = new GetIndexRequest(indexName);
-            if (!indices.exists(getIndexRequest, RequestOptions.DEFAULT)) {
-                CreateIndexRequest request = new CreateIndexRequest(indexName);
-                request.mapping(this.elasticMapping(dim));
-                this.esClient.indices().create(request, RequestOptions.DEFAULT);
+            GetIndexRequest getIndexRequest = new GetIndexRequest.Builder().index(indexName).build();
+            boolean exists = false;
+            try {
+                GetIndexResponse response = esClient.indices().get(getIndexRequest);
+                exists = response.result().containsKey(indexName);
+            } catch (Exception e) {
+                exists = false;
+            }
+
+            if (!exists) {
+                CreateIndexRequest request = new CreateIndexRequest.Builder()
+                        .index(indexName)
+                        .mappings(m -> m
+                                .properties("_class", p -> p.keyword(k -> k.docValues(false).index(false)))
+                                .properties("datasetId", p -> p.keyword(k -> k))
+                                .properties("modelId", p -> p.keyword(k -> k))
+                                .properties("question", p -> p.text(t -> t.analyzer("standard")))
+                                .properties("question_kw", p -> p.keyword(k -> k))
+                                .properties("answer", p -> p.text(t -> t.analyzer("standard")))
+                                .properties("answer_kw", p -> p.keyword(k -> k))
+                                .properties("enable", p -> p.keyword(k -> k))
+                                .properties("ctime", p -> p.keyword(k -> k))
+                                .properties("vector", p -> p.denseVector(d -> d.dims(dim).index(true).similarity("cosine")))
+                        )
+                        .build();
+
+                CreateIndexResponse response = esClient.indices().create(request);
+                log.info("Created index {}: {}", indexName, response.acknowledged());
             }
         } catch (Exception e) {
-            log.error(e.getMessage(), e);
+            log.error("Failed to create index: {}", e.getMessage(), e);
             throw new RuntimeException(e);
         }
     }
 
-    // 删除索引
     public void deleteIndex(String indexName) throws IOException {
         indexName = WorkflowUtil.innerIndexName(indexName);
-        GetIndexRequest request = new GetIndexRequest(indexName);
-        request.local(false);
-        request.humanReadable(true);
-        request.includeDefaults(false);
+        GetIndexRequest getIndexRequest = new GetIndexRequest.Builder().index(indexName).build();
+        boolean exists = false;
+        try {
+            GetIndexResponse response = esClient.indices().get(getIndexRequest);
+            exists = response.result().containsKey(indexName);
+        } catch (Exception e) {
+            exists = false;
+        }
 
-        boolean exists = esClient.indices().exists(request, RequestOptions.DEFAULT);
         if (exists) {
-            DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(indexName);
-            esClient.indices().delete(deleteIndexRequest, RequestOptions.DEFAULT);
+            DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest.Builder().index(indexName).build();
+            esClient.indices().delete(deleteIndexRequest);
         }
     }
 
-    // 检索向量库
     @SneakyThrows
     public List<OllamaResultDTO.CallBackResult> retrieval(String indexName, List<Float> vectors, Integer topK, Float minScore) {
-        try {
-            Map<String, Object> params = new HashMap<>();
-            params.put("query_vector", vectors);
-
-            // 计算cos值+1，避免出现负数的情况，得到结果后，实际score值在减1再计算
-            Script script = new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "cosineSimilarity(params.query_vector, 'vector')+1", params);
-            ScriptScoreQueryBuilder scriptScoreQueryBuilder = new ScriptScoreQueryBuilder(QueryBuilders.termQuery("enable", true), script);
-
-            String actualIndexName = WorkflowUtil.innerIndexName(indexName);
-            SearchRequest searchRequest = new SearchRequest(actualIndexName);
-            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder()
-                    .query(scriptScoreQueryBuilder)
-                    .from(0)
-                    .size(topK);
-
-            searchSourceBuilder.minScore(minScore + 1);
-            searchRequest.source(searchSourceBuilder);
-
-            SearchResponse searchResponse = esClient.search(searchRequest, RequestOptions.DEFAULT);
-            SearchHits searchHits = searchResponse.getHits();
-
-            List<OllamaResultDTO.CallBackResult> results = new LinkedList<>();
-            for (SearchHit hit : searchHits) {
-                try {
-                    // 使用ElasticSearchVectorData类进行反序列化，确保类型安全
-                    ElasticSearchVectorData vectorData = JSONUtil.toBean(hit.getSourceAsString(), ElasticSearchVectorData.class);
-
-                    // 计算实际相似度分数（减去之前加的1）
-                    double actualScore = hit.getScore() - 1;
-
-                    // 构建CallBackResult对象并设置所有必要属性
-                    results.add(
-                            OllamaResultDTO.CallBackResult.builder()
-                                    .score((Math.round(actualScore * 100.0) / 100.0))
-                                    .question(vectorData.getQuestion())
-                                    .answer(vectorData.getAnswer())
-                                    .build()
-                    );
-                } catch (Exception e) {
-                    log.error("Error processing search hit: {}", e.getMessage(), e);
-                }
-            }
-            return results;
-        } catch (Exception e) {
-            log.error("Vector search failed: {}", e.getMessage(), e);
-            throw new DataCopilotXException(ResponseCode.COMPONENT_FAILED, "Failed to search vector database: " + e.getMessage());
-        }
+        return hybridRetrieval(indexName, vectors, null, topK, minScore);
     }
 
+    @SneakyThrows
+    public List<OllamaResultDTO.CallBackResult> hybridRetrieval(String indexName, List<Float> vectors, String queryText, Integer topK, Float minScore) {
+        String actualIndexName = WorkflowUtil.innerIndexName(indexName);
 
-    private Map<String, Object> elasticMapping(int dims) {
-        Map<String, Object> properties = new HashMap<>();
-        properties.put("_class", MapUtil.builder("type", "keyword").put("doc_values", "false").put("index", "false").build());
-        properties.put("datasetId", MapUtil.builder("type", "keyword").build());
-        properties.put("modelId", MapUtil.builder("type", "keyword").build());
-        properties.put("question", MapUtil.builder("type", "keyword").build());
-        properties.put("answer", MapUtil.builder("type", "keyword").build());
-        properties.put("enable", MapUtil.builder("type", "keyword").build());
-        properties.put("ctime", MapUtil.builder("type", "keyword").build());
-        properties.put("vector", MapUtil.<String, Object>builder("type", "dense_vector").put("dims", dims).build());
-        Map<String, Object> root = new HashMap<>();
-        root.put("properties", properties);
-        return root;
+        List<OllamaResultDTO.CallBackResult> vectorResults = knnSearch(actualIndexName, vectors, topK * 2);
+        List<OllamaResultDTO.CallBackResult> bm25Results = queryText != null && !queryText.isEmpty()
+                ? bm25Search(actualIndexName, queryText, topK * 2)
+                : Collections.emptyList();
+
+        Map<String, OllamaResultDTO.CallBackResult> mergedMap = new HashMap<>();
+        Map<String, Integer> vectorRankMap = new HashMap<>();
+        Map<String, Integer> bm25RankMap = new HashMap<>();
+
+        for (int i = 0; i < vectorResults.size(); i++) {
+            var result = vectorResults.get(i);
+            mergedMap.put(result.getDocId(), result);
+            vectorRankMap.put(result.getDocId(), i + 1);
+        }
+
+        for (int i = 0; i < bm25Results.size(); i++) {
+            var result = bm25Results.get(i);
+            if (!mergedMap.containsKey(result.getDocId())) {
+                mergedMap.put(result.getDocId(), result);
+            }
+            bm25RankMap.put(result.getDocId(), i + 1);
+        }
+
+        List<OllamaResultDTO.CallBackResult> finalResults = new ArrayList<>();
+        for (var entry : mergedMap.entrySet()) {
+            String docId = entry.getKey();
+            var result = entry.getValue();
+
+            double rrfScore = 0;
+            if (vectorRankMap.containsKey(docId)) {
+                rrfScore += 1.0 / (RRF_K + vectorRankMap.get(docId));
+            }
+            if (bm25RankMap.containsKey(docId)) {
+                rrfScore += 1.0 / (RRF_K + bm25RankMap.get(docId));
+            }
+
+            finalResults.add(OllamaResultDTO.CallBackResult.builder()
+                    .docId(docId)
+                    .score(Math.round(rrfScore * 1000.0) / 1000.0)
+                    .question(result.getQuestion())
+                    .answer(result.getAnswer())
+                    .build());
+        }
+
+        finalResults.sort((a, b) -> Double.compare(b.getScore(), a.getScore()));
+
+        return finalResults.stream()
+                .filter(r -> r.getScore() >= minScore)
+                .limit(topK)
+                .collect(java.util.stream.Collectors.toList());
+    }
+
+    @SneakyThrows
+    private List<OllamaResultDTO.CallBackResult> knnSearch(String indexName, List<Float> vectors, int size) {
+        KnnSearch knnSearch = new KnnSearch.Builder()
+                .field("vector")
+                .queryVector(vectors)
+                .numCandidates(size * 5L)
+                .build();
+
+        TermQuery enableFilter = new TermQuery.Builder()
+                .field("enable")
+                .value("true")
+                .build();
+
+        SearchRequest searchRequest = new SearchRequest.Builder()
+                .index(indexName)
+                .knn(knnSearch)
+                .query(q -> q.term(enableFilter))
+                .size(size)
+                .build();
+
+        SearchResponse<ElasticSearchVectorData> searchResponse = esClient.search(searchRequest, ElasticSearchVectorData.class);
+
+        List<OllamaResultDTO.CallBackResult> results = new LinkedList<>();
+        for (Hit<ElasticSearchVectorData> hit : searchResponse.hits().hits()) {
+            ElasticSearchVectorData vectorData = hit.source();
+            if (vectorData != null) {
+                results.add(OllamaResultDTO.CallBackResult.builder()
+                        .docId(hit.id())
+                        .score(Math.round(hit.score() * 100.0) / 100.0)
+                        .question(vectorData.getQuestion())
+                        .answer(vectorData.getAnswer())
+                        .build());
+            }
+        }
+        return results;
+    }
+
+    @SneakyThrows
+    private List<OllamaResultDTO.CallBackResult> bm25Search(String indexName, String queryText, int size) {
+        MatchQuery questionQuery = new MatchQuery.Builder()
+                .field("question")
+                .query(queryText)
+                .boost(1.0f)
+                .build();
+
+        MatchQuery answerQuery = new MatchQuery.Builder()
+                .field("answer")
+                .query(queryText)
+                .boost(0.8f)
+                .build();
+
+        TermQuery enableFilter = new TermQuery.Builder()
+                .field("enable")
+                .value("true")
+                .build();
+
+        BoolQuery boolQuery = new BoolQuery.Builder()
+                .filter(f -> f.term(enableFilter))
+                .should(s -> s.match(questionQuery))
+                .should(s -> s.match(answerQuery))
+                .minimumShouldMatch("1")
+                .build();
+
+        SearchRequest searchRequest = new SearchRequest.Builder()
+                .index(indexName)
+                .query(q -> q.bool(boolQuery))
+                .size(size)
+                .build();
+
+        SearchResponse<ElasticSearchVectorData> searchResponse = esClient.search(searchRequest, ElasticSearchVectorData.class);
+
+        List<OllamaResultDTO.CallBackResult> results = new LinkedList<>();
+        for (Hit<ElasticSearchVectorData> hit : searchResponse.hits().hits()) {
+            ElasticSearchVectorData vectorData = hit.source();
+            if (vectorData != null) {
+                results.add(OllamaResultDTO.CallBackResult.builder()
+                        .docId(hit.id())
+                        .score(Math.round(hit.score() * 100.0) / 100.0)
+                        .question(vectorData.getQuestion())
+                        .answer(vectorData.getAnswer())
+                        .build());
+            }
+        }
+        return results;
     }
 
 
     public void deleteData(String index, String docId) {
         index = WorkflowUtil.innerIndexName(index);
-        DeleteRequest deleteRequest = new DeleteRequest(index, docId);
         try {
-            esClient.delete(deleteRequest, RequestOptions.DEFAULT);
+            DeleteRequest deleteRequest = new DeleteRequest.Builder()
+                    .index(index)
+                    .id(docId)
+                    .build();
+            esClient.delete(deleteRequest);
         } catch (IOException e) {
             log.error("delete data error, index: {}, docId: {}", index, docId, e);
             throw new DataCopilotXException(ResponseCode.COMPONENT_FAILED, e.getMessage());
@@ -167,14 +264,19 @@ public class ElasticSearchVectorStorage {
 
     public ElasticSearchVectorData selectOneData(String index, String docId) {
         index = WorkflowUtil.innerIndexName(index);
-        GetRequest getRequest = new GetRequest(index, docId);
         try {
-            GetResponse getResponse = esClient.get(getRequest, RequestOptions.DEFAULT);
-            ElasticSearchVectorData vectorData = JSONUtil.toBean(getResponse.getSourceAsString(), ElasticSearchVectorData.class);
-            vectorData.setDocId(getResponse.getId());
+            GetRequest getRequest = new GetRequest.Builder()
+                    .index(index)
+                    .id(docId)
+                    .build();
+            GetResponse<ElasticSearchVectorData> getResponse = esClient.get(getRequest, ElasticSearchVectorData.class);
+            ElasticSearchVectorData vectorData = getResponse.source();
+            if (vectorData != null) {
+                vectorData.setDocId(getResponse.id());
+            }
             return vectorData;
         } catch (IOException e) {
-            log.error("delete data error, index: {}, docId: {}", index, docId, e);
+            log.error("select data error, index: {}, docId: {}", index, docId, e);
             throw new DataCopilotXException(ResponseCode.COMPONENT_FAILED, e.getMessage());
         }
     }
@@ -182,86 +284,103 @@ public class ElasticSearchVectorStorage {
 
     public void updateData(String index, String docId, ElasticSearchVectorData ele) {
         index = WorkflowUtil.innerIndexName(index);
-        UpdateRequest updateRequest = new UpdateRequest(index, docId);
         try {
-            updateRequest.doc(JSONUtil.toJsonStr(ele), XContentType.JSON);
-            esClient.update(updateRequest, RequestOptions.DEFAULT);
+            Map<String, Object> source = JSONUtil.toBean(JSONUtil.toJsonStr(ele), Map.class);
+            source.put("question_kw", ele.getQuestion());
+            source.put("answer_kw", ele.getAnswer());
+
+            String finalIndex = index;
+            esClient.update(u -> u
+                    .index(finalIndex)
+                    .id(docId)
+                    .doc(source),
+                    Map.class
+            );
         } catch (IOException e) {
             log.error("update data error, index: {}, docId: {}", index, docId, e);
             throw new DataCopilotXException(ResponseCode.COMPONENT_FAILED, e.getMessage());
         }
     }
 
-    // 存储向量库
     @SneakyThrows
     public void storeData(String indexName, ElasticSearchVectorData ele) {
         indexName = WorkflowUtil.innerIndexName(indexName);
-        IndexRequest indexRequest = new IndexRequest(indexName).source(JSONUtil.toJsonStr(ele), XContentType.JSON);
+        Map<String, Object> source = JSONUtil.toBean(JSONUtil.toJsonStr(ele), Map.class);
+        source.put("question_kw", ele.getQuestion());
+        source.put("answer_kw", ele.getAnswer());
 
-        BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(indexRequest);
+        IndexOperation<Map<String, Object>> indexOp = new IndexOperation.Builder<Map<String, Object>>()
+                .index(indexName)
+                .document(source)
+                .build();
 
-        BulkResponse bulkResponse = esClient.bulk(bulkRequest, RequestOptions.DEFAULT);
-        if (bulkResponse.hasFailures()) {
-            log.error("store data save error: {}", bulkResponse.buildFailureMessage());
-            throw new DataCopilotXException(ResponseCode.COMPONENT_FAILED, bulkResponse.buildFailureMessage());
+        BulkRequest bulkRequest = new BulkRequest.Builder()
+                .operations(BulkOperation.of(o -> o.index(indexOp)))
+                .build();
+
+        BulkResponse bulkResponse = esClient.bulk(bulkRequest);
+        if (bulkResponse.errors()) {
+            log.error("store data save error: {}", bulkResponse.errors());
+            throw new DataCopilotXException(ResponseCode.COMPONENT_FAILED, "Bulk operation failed");
         }
     }
 
-    /**
-     * 查询指定index下的所有数据
-     * @return 查询到的向量数据列表
-     */
     @SneakyThrows
     public ElasticSearchVectorData.ElasticSearchVectorPageDTO pageIndexData(ElasticSearchVectorData.ElasticSearchFormDTO elasticSearchFormDTO) {
         String indexName = elasticSearchFormDTO.getIndexName();
-    
+
         indexName = WorkflowUtil.innerIndexName(indexName);
         ElasticSearchVectorData.ElasticSearchVectorPageDTO elasticSearchVectorPageDTO = new ElasticSearchVectorData.ElasticSearchVectorPageDTO();
-    
-        IndicesClient indices = esClient.indices();
-        GetIndexRequest getIndexRequest = new GetIndexRequest(indexName);
-        if (!indices.exists(getIndexRequest, RequestOptions.DEFAULT)) {
+
+        try {
+            GetIndexRequest getIndexRequest = new GetIndexRequest.Builder().index(indexName).build();
+            GetIndexResponse response = esClient.indices().get(getIndexRequest);
+            if (!response.result().containsKey(indexName)) {
+                log.info("Index {} does not exist", indexName);
+                return elasticSearchVectorPageDTO;
+            }
+        } catch (Exception e) {
             log.info("Index {} does not exist", indexName);
             return elasticSearchVectorPageDTO;
         }
-    
-        SearchRequest searchRequest = new SearchRequest();
-        //索引名称
-        searchRequest.indices(indexName);
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
-        //根据ID进行排序
-    //        sourceBuilder.sort("_id");
-        //分页
-        sourceBuilder.from(elasticSearchFormDTO.getPageNo());
-        sourceBuilder.size(elasticSearchFormDTO.getPageSize());
-        BoolQueryBuilder query = new BoolQueryBuilder();
-        sourceBuilder.query(query);
-    
-        QueryBuilder queryBuilder = QueryBuilders.matchAllQuery();
-        //匹配策略
-        query.must(queryBuilder);
-        
-        // 增加name字段筛选条件
+
+        BoolQuery.Builder boolQueryBuilder = new BoolQuery.Builder();
+
         if (elasticSearchFormDTO.getName() != null && !elasticSearchFormDTO.getName().isEmpty()) {
-            query.must(QueryBuilders.matchQuery("name", elasticSearchFormDTO.getName()));
+            MatchQuery nameQuery = new MatchQuery.Builder()
+                    .field("name")
+                    .query(elasticSearchFormDTO.getName())
+                    .build();
+            boolQueryBuilder.must(m -> m.match(nameQuery));
         }
-        
-        // 增加enable字段筛选条件
+
         if (elasticSearchFormDTO.getEnable() != null) {
-            query.must(QueryBuilders.termQuery("enable", elasticSearchFormDTO.getEnable()));
+            TermQuery enableQuery = new TermQuery.Builder()
+                    .field("enable")
+                    .value(elasticSearchFormDTO.getEnable().toString())
+                    .build();
+            boolQueryBuilder.must(m -> m.term(enableQuery));
         }
-        
-        searchRequest.source(sourceBuilder);
-        SearchResponse rp = esClient.search(searchRequest, RequestOptions.DEFAULT);
+
+        SearchRequest searchRequest = new SearchRequest.Builder()
+                .index(indexName)
+                .query(q -> q.bool(boolQueryBuilder.build()))
+                .from(elasticSearchFormDTO.getPageNo())
+                .size(elasticSearchFormDTO.getPageSize())
+                .build();
+
+        SearchResponse<ElasticSearchVectorData> rp = esClient.search(searchRequest, ElasticSearchVectorData.class);
+
         List<ElasticSearchVectorData> resultList = new ArrayList<>();
-        for (SearchHit hit : rp.getHits()) {
-            ElasticSearchVectorData vectorData = JSONUtil.toBean(hit.getSourceAsString(), ElasticSearchVectorData.class);
-            vectorData.setDocId(hit.getId());
-            resultList.add(vectorData);
+        for (Hit<ElasticSearchVectorData> hit : rp.hits().hits()) {
+            ElasticSearchVectorData vectorData = hit.source();
+            if (vectorData != null) {
+                vectorData.setDocId(hit.id());
+                resultList.add(vectorData);
+            }
         }
         elasticSearchVectorPageDTO.setData(resultList);
-        elasticSearchVectorPageDTO.setTotal(Objects.requireNonNull(rp.getHits().getTotalHits()).value);
+        elasticSearchVectorPageDTO.setTotal(rp.hits().total().value());
         return elasticSearchVectorPageDTO;
     }
 }

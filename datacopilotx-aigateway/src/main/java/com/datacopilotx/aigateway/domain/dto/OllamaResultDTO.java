@@ -38,6 +38,7 @@ public class OllamaResultDTO {
     @AllArgsConstructor
     @NoArgsConstructor
     public static final class CallBackResult {
+        private String docId;
         private Double score;
         private String question;
         private String answer;

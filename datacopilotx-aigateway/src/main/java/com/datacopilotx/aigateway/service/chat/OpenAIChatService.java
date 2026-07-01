@@ -94,7 +94,7 @@ public class OpenAIChatService implements AIChatService {
 
 
         TextSegment segment = TextSegment.from(chatRequest.getQuestion());
-        Embedding embedding = embeddingModel.embed(segment).content();
+            Embedding embedding = embeddingModel.embed(segment).content();
         return Floats.asList(embedding.vector());
     }
 }

@@ -21,16 +21,6 @@ import com.datacopilotx.common.exception.DataCopilotXException;
 import com.datacopilotx.common.result.ResponseCode;
 import com.datacopilotx.common.util.IdUtils;
 import lombok.extern.slf4j.Slf4j;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.RequestOptions;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.functionscore.ScriptScoreQueryBuilder;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -196,7 +186,7 @@ public class KnowledgeLibService {
     }
 
     /**
-     * 检索向量化数据
+     * 检索向量化数据（混合检索：向量相似度 + BM25文本匹配）
      */
     public List<OllamaResultDTO.CallBackResult> retrieval(KnowledgeLibForm.RetrievalForm retrievalForm) {
         KnowledgeLibBean knowledgeLibBean = knowledgeLibMapper.selectById(retrievalForm.getKnowledgeLibId());
@@ -223,7 +213,7 @@ public class KnowledgeLibService {
             throw new DataCopilotXException(ResponseCode.VECTOR_EMBEDDING_FAILED);
         }
 
-        return elasticSearchVectorStorage.retrieval(knowledgeLibBean.getName(), embedding, retrievalForm.getTopK(), retrievalForm.getScore());
+        return elasticSearchVectorStorage.hybridRetrieval(knowledgeLibBean.getName(), embedding, retrievalForm.getQuestion(), retrievalForm.getTopK(), retrievalForm.getScore());
     }
 
     @Transactional(rollbackFor = Exception.class)

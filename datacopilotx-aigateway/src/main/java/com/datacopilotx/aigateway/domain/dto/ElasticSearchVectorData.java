@@ -1,5 +1,6 @@
 package com.datacopilotx.aigateway.domain.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -15,6 +16,7 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 @Builder
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class ElasticSearchVectorData {
     private String docId;
     // 数据集id
@@ -23,8 +25,12 @@ public class ElasticSearchVectorData {
     private Long modelId;
     // 问题
     private String question;
+    // 问题关键字（用于精确匹配）
+    private String question_kw;
     // 召回替换文案
     private String answer;
+    // 答案关键字（用于精确匹配）
+    private String answer_kw;
     private Boolean enable;
     private Timestamp ctime;
     private String createTime;

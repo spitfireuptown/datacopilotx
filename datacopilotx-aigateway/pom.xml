@@ -68,9 +68,12 @@
             <version>1.6.2</version>
         </dependency>
         <dependency>
+            <groupId>co.elastic.clients</groupId>
+            <artifactId>elasticsearch-java</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.elasticsearch.client</groupId>
-            <artifactId>elasticsearch-rest-high-level-client</artifactId>
-            <version>7.17.12</version>
+            <artifactId>elasticsearch-rest-client</artifactId>
         </dependency>
     </dependencies>
 </project>
