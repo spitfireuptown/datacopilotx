@@ -1,8 +1,18 @@
 package com.datacopilotx.autotest;
 
+import cn.hutool.json.JSONUtil;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.datacopilotx.ai.DataCopilotXAIApplication;
+import com.datacopilotx.ai.controller.form.DataSetForm;
+import com.datacopilotx.ai.controller.form.DatasetRelationForm;
 import com.datacopilotx.ai.domian.bean.DataSetBean;
 import com.datacopilotx.ai.domian.bean.ModelConfigBean;
+import com.datacopilotx.ai.domian.dto.DataSetDTO;
+import com.datacopilotx.ai.mapper.DataSetMapper;
+import com.datacopilotx.ai.mapper.DatasetRelationMapper;
+import com.datacopilotx.ai.mapper.ModelConfigMapper;
+import com.datacopilotx.ai.service.DataSetService;
+import com.datacopilotx.ai.service.DatasetRelationService;
 import com.datacopilotx.ai.service.graph.main.SerializableSink;
 import com.datacopilotx.ai.service.graph.main.WorkflowGraph;
 import com.datacopilotx.ai.service.graph.main.WorkflowState;
@@ -15,15 +25,12 @@ import org.bsc.langgraph4j.RunnableConfig;
 import org.bsc.langgraph4j.StateGraph;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.http.codec.ServerSentEvent;
 import reactor.core.publisher.Sinks;
-import org.testcontainers.containers.MySQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.io.InputStream;
 import java.sql.Connection;
@@ -34,23 +41,10 @@ import java.sql.ResultSetMetaData;
 import java.util.*;
 
 @Slf4j
-@Testcontainers
 @SpringBootTest(classes = DataCopilotXAIApplication.class)
+@ActiveProfiles("test")
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class TextToSqlAccuracyTest {
-
-    @Container
-    static MySQLContainer<?> mysqlContainer = new MySQLContainer<>("mysql:8.0")
-            .withDatabaseName("datacopilotx_autotest")
-            .withUsername("test")
-            .withPassword("test");
-
-    @DynamicPropertySource
-    static void registerMySQLProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", mysqlContainer::getJdbcUrl);
-        registry.add("spring.datasource.username", mysqlContainer::getUsername);
-        registry.add("spring.datasource.password", mysqlContainer::getPassword);
-    }
 
     @Autowired
     private WorkflowGraph workflowGraph;
@@ -61,28 +55,46 @@ public class TextToSqlAccuracyTest {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private DataSetService dataSetService;
+
+    @Autowired
+    private DataSetMapper dataSetMapper;
+
+    @Autowired
+    private ModelConfigMapper modelConfigMapper;
+
+    @Autowired
+    private DatasetRelationService datasetRelationService;
+
+    @Autowired
+    private DatasetRelationMapper datasetRelationMapper;
+
+    @Value("${spring.datasource.url}")
+    private String dataSourceUrl;
+
+    @Value("${spring.datasource.username}")
+    private String dataSourceUsername;
+
+    @Value("${spring.datasource.password}")
+    private String dataSourcePassword;
+
     private List<TestQuestion> testQuestions;
     private String testDbUrl;
     private String testDbUsername;
     private String testDbPassword;
-
-    @BeforeAll
-    static void startContainer() {
-        mysqlContainer.start();
-    }
-
-    @AfterAll
-    static void stopContainer() {
-        mysqlContainer.stop();
-    }
+    private Long shopDatasetId;
+    private Long productDatasetId;
+    private Long salesDatasetId;
 
     @BeforeEach
     void setUp() throws Exception {
-        testDbUrl = mysqlContainer.getJdbcUrl();
-        testDbUsername = mysqlContainer.getUsername();
-        testDbPassword = mysqlContainer.getPassword();
+        testDbUrl = dataSourceUrl;
+        testDbUsername = dataSourceUsername;
+        testDbPassword = dataSourcePassword;
 
         initTestData();
+        registerTestDataSet();
 
         try (InputStream is = getClass().getResourceAsStream("/test_questions.json")) {
             testQuestions = objectMapper.readValue(is, new TypeReference<List<TestQuestion>>() {});
@@ -99,6 +111,141 @@ public class TextToSqlAccuracyTest {
             );
         }
         log.info("Test data initialized");
+    }
+
+    private void registerTestDataSet() throws Exception {
+        String dbName = extractDatabaseName(testDbUrl);
+        String host = extractHost(testDbUrl);
+        Long port = extractPort(testDbUrl);
+
+        List<DataSetDTO.SchemaInfo> shopFields = Arrays.asList(
+                new DataSetDTO.SchemaInfo("shop_id", "varchar(20)", "门店唯一编码"),
+                new DataSetDTO.SchemaInfo("shop_name", "varchar(100)", "门店全称"),
+                new DataSetDTO.SchemaInfo("region", "varchar(50)", "所属大区"),
+                new DataSetDTO.SchemaInfo("city", "varchar(50)", "所在城市"),
+                new DataSetDTO.SchemaInfo("manager", "varchar(50)", "门店店长姓名")
+        );
+
+        List<DataSetDTO.SchemaInfo> productFields = Arrays.asList(
+                new DataSetDTO.SchemaInfo("product_id", "varchar(20)", "商品唯一编码"),
+                new DataSetDTO.SchemaInfo("product_name", "varchar(200)", "商品名称"),
+                new DataSetDTO.SchemaInfo("category", "varchar(50)", "一级品类"),
+                new DataSetDTO.SchemaInfo("subcategory", "varchar(50)", "二级品类"),
+                new DataSetDTO.SchemaInfo("price", "decimal(10,2)", "标准零售单价"),
+                new DataSetDTO.SchemaInfo("cost", "decimal(10,2)", "商品进货成本")
+        );
+
+        List<DataSetDTO.SchemaInfo> salesFields = Arrays.asList(
+                new DataSetDTO.SchemaInfo("id", "int(11)", "自增主键"),
+                new DataSetDTO.SchemaInfo("order_id", "varchar(30)", "订单全局唯一流水号"),
+                new DataSetDTO.SchemaInfo("shop_id", "varchar(20)", "门店编码"),
+                new DataSetDTO.SchemaInfo("product_id", "varchar(20)", "商品编码"),
+                new DataSetDTO.SchemaInfo("sale_time", "datetime", "销售交易时间"),
+                new DataSetDTO.SchemaInfo("quantity", "int(11)", "销售数量"),
+                new DataSetDTO.SchemaInfo("price", "decimal(10,2)", "单价"),
+                new DataSetDTO.SchemaInfo("discount_amount", "decimal(10,2)", "优惠/折扣金额"),
+                new DataSetDTO.SchemaInfo("total_amount", "decimal(10,2)", "最终实付总金额")
+        );
+
+        DataSetForm.Create shopForm = new DataSetForm.Create();
+        shopForm.setName("门店维度表");
+        shopForm.setType("mysql");
+        shopForm.setHost(host);
+        shopForm.setPort(port);
+        shopForm.setDatabase(dbName);
+        shopForm.setTable("dims_shop");
+        shopForm.setUsername(testDbUsername);
+        shopForm.setPassword(testDbPassword);
+        shopForm.setDescription("门店维度表 - Text-to-SQL测试");
+        shopForm.setPrompt("");
+        shopForm.setFields(shopFields);
+        shopForm.setRelations(new ArrayList<>());
+        shopDatasetId = dataSetService.create(shopForm);
+        log.info("Shop dataset registered with id: {}", shopDatasetId);
+
+        DataSetForm.Create productForm = new DataSetForm.Create();
+        productForm.setName("商品维度表");
+        productForm.setType("mysql");
+        productForm.setHost(host);
+        productForm.setPort(port);
+        productForm.setDatabase(dbName);
+        productForm.setTable("dims_product");
+        productForm.setUsername(testDbUsername);
+        productForm.setPassword(testDbPassword);
+        productForm.setDescription("商品维度表 - Text-to-SQL测试");
+        productForm.setPrompt("");
+        productForm.setFields(productFields);
+        productForm.setRelations(new ArrayList<>());
+        productDatasetId = dataSetService.create(productForm);
+        log.info("Product dataset registered with id: {}", productDatasetId);
+
+        DataSetForm.Create salesForm = new DataSetForm.Create();
+        salesForm.setName("销售事实表");
+        salesForm.setType("mysql");
+        salesForm.setHost(host);
+        salesForm.setPort(port);
+        salesForm.setDatabase(dbName);
+        salesForm.setTable("facts_sales");
+        salesForm.setUsername(testDbUsername);
+        salesForm.setPassword(testDbPassword);
+        salesForm.setDescription("销售事实表 - Text-to-SQL测试");
+        salesForm.setPrompt("");
+        salesForm.setFields(salesFields);
+        salesForm.setRelations(new ArrayList<>());
+        salesDatasetId = dataSetService.create(salesForm);
+        log.info("Sales dataset registered with id: {}", salesDatasetId);
+
+        registerDataSetRelations();
+    }
+
+    private void registerDataSetRelations() {
+        DatasetRelationForm.Create shopRelation = new DatasetRelationForm.Create();
+        shopRelation.setFromDatasetId(salesDatasetId);
+        shopRelation.setFromField("shop_id");
+        shopRelation.setToDatasetId(shopDatasetId);
+        shopRelation.setToField("shop_id");
+        shopRelation.setRelationType("JOIN");
+        shopRelation.setDescription("销售表与门店表关联");
+        datasetRelationService.create(shopRelation);
+        log.info("Registered relation: facts_sales.shop_id -> dims_shop.shop_id");
+
+        DatasetRelationForm.Create productRelation = new DatasetRelationForm.Create();
+        productRelation.setFromDatasetId(salesDatasetId);
+        productRelation.setFromField("product_id");
+        productRelation.setToDatasetId(productDatasetId);
+        productRelation.setToField("product_id");
+        productRelation.setRelationType("JOIN");
+        productRelation.setDescription("销售表与商品表关联");
+        datasetRelationService.create(productRelation);
+        log.info("Registered relation: facts_sales.product_id -> dims_product.product_id");
+    }
+
+    private String extractDatabaseName(String jdbcUrl) {
+        int start = jdbcUrl.indexOf("/", jdbcUrl.indexOf("//") + 2);
+        int end = jdbcUrl.indexOf("?", start);
+        if (end == -1) {
+            end = jdbcUrl.length();
+        }
+        return jdbcUrl.substring(start + 1, end);
+    }
+
+    private String extractHost(String jdbcUrl) {
+        int start = jdbcUrl.indexOf("//") + 2;
+        int end = jdbcUrl.indexOf(":", start);
+        if (end == -1) {
+            end = jdbcUrl.indexOf("/", start);
+        }
+        return jdbcUrl.substring(start, end);
+    }
+
+    private Long extractPort(String jdbcUrl) {
+        int start = jdbcUrl.indexOf(":", jdbcUrl.indexOf("//") + 2);
+        if (start == -1) {
+            return 3306L;
+        }
+        start++;
+        int end = jdbcUrl.indexOf("/", start);
+        return Long.parseLong(jdbcUrl.substring(start, end));
     }
 
     @Test
@@ -169,11 +316,14 @@ public class TextToSqlAccuracyTest {
         String sessionId = UUID.randomUUID().toString();
         String questionId = UUID.randomUUID().toString();
 
-        Map<String, Object> initialData = workflowGraph.createInitialState(sessionId, questionId, 1L, 1L, question);
+        DataSetBean dataSetBean = createMockDataSetBean();
+        ModelConfigBean modelConfigBean = createMockModelConfigBean();
+
+        Map<String, Object> initialData = workflowGraph.createInitialState(sessionId, questionId, salesDatasetId, modelConfigBean.getId(), question);
         initialData = new HashMap<>(initialData);
         initialData.put("sink", new SerializableSink(sink));
-        initialData.put("data_set_bean", createMockDataSetBean());
-        initialData.put("model_config_bean", createMockModelConfigBean());
+        initialData.put("data_set_bean", dataSetBean);
+        initialData.put("model_config_bean", modelConfigBean);
         initialData.put("user_id", "test_user");
         initialData.put("user_role", 0);
         initialData.put("is_admin", true);
@@ -202,30 +352,24 @@ public class TextToSqlAccuracyTest {
     }
 
     private DataSetBean createMockDataSetBean() {
-        DataSetBean bean = new DataSetBean();
-        bean.setId(1L);
-        bean.setDsName("测试数据集");
-        bean.setType("mysql");
-        bean.setHost("localhost");
-        bean.setPort(3306L);
-        bean.setDatabase("datacopilotx_autotest");
-        bean.setUsername("test");
-        bean.setPassword("test");
-        bean.setTable("dims_shop,dims_product,facts_sales");
-        bean.setFields("dims_shop(shop_id,shop_name,region,city,manager);dims_product(product_id,product_name,category,subcategory,price,cost);facts_sales(id,order_id,shop_id,product_id,sale_time,quantity,price,discount_amount,total_amount)");
-        bean.setRelations("facts_sales.shop_id=dims_shop.shop_id;facts_sales.product_id=dims_product.product_id");
+        DataSetBean bean = dataSetMapper.selectById(salesDatasetId);
+        if (bean == null) {
+            throw new IllegalStateException("Sales dataset not found with id: " + salesDatasetId);
+        }
         return bean;
     }
 
     private ModelConfigBean createMockModelConfigBean() {
-        ModelConfigBean bean = new ModelConfigBean();
-        bean.setId(1L);
-        bean.setModel("gpt-4");
-        bean.setPlatform("openai");
-        bean.setType("openai");
-        bean.setFunctionType("chat");
-        bean.setApiKey(System.getenv("OPENAI_API_KEY"));
-        bean.setBaseUrl("https://api.openai.com/v1");
+        ModelConfigBean bean = modelConfigMapper.selectOne(
+                new LambdaQueryWrapper<ModelConfigBean>()
+                        .eq(ModelConfigBean::getFunctionType, "chat")
+                        .orderByAsc(ModelConfigBean::getId)
+                        .last("LIMIT 1")
+        );
+        if (bean == null) {
+            throw new IllegalStateException("No chat model found in MODEL_CONFIG table");
+        }
+        log.info("Using model: {} (id:{}, platform:{})", bean.getModel(), bean.getId(), bean.getPlatform());
         return bean;
     }
 
@@ -368,5 +512,25 @@ public class TextToSqlAccuracyTest {
         }
 
         log.info("========================================");
+    }
+
+    @AfterEach
+    void tearDown() {
+        deleteDatasetIfExists(salesDatasetId);
+        deleteDatasetIfExists(productDatasetId);
+        deleteDatasetIfExists(shopDatasetId);
+    }
+
+    private void deleteDatasetIfExists(Long datasetId) {
+        if (datasetId != null) {
+            try {
+                datasetRelationMapper.deleteByDatasetId(datasetId);
+                log.info("Relations deleted for dataset: {}", datasetId);
+                dataSetService.del(datasetId);
+                log.info("Test dataset deleted: {}", datasetId);
+            } catch (Exception e) {
+                log.warn("Failed to delete test dataset {}: {}", datasetId, e.getMessage());
+            }
+        }
     }
 }
