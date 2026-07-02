@@ -1,0 +1,38 @@
+server:
+  port: 34568
+
+spring:
+  application:
+    name: DataCopilotX-AutoTest
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: ${MYSQL_USERNAME:test}
+    password: ${MYSQL_PASSWORD:test}
+    url: jdbc:mysql://${MYSQL_URL:127.0.0.1}:3306/datacopilotx_autotest?characterEncoding=UTF-8&autoReconnect=true&serverTimezone=Asia/Shanghai&zeroDateTimeBehavior=convertToNull
+    hikari:
+      minimum-idle: 3
+      maximum-pool-size: 10
+      max-lifetime: 30000
+      connection-test-query: SELECT 1
+
+logging:
+  level:
+    com.datacopilotx: INFO
+
+mybatis-plus:
+  global-config:
+    db-config:
+      logic-delete-field: is_del
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+elasticsearch:
+  host: 127.0.0.1
+  port: 9200
+  scheme: http
+  username: ${ES_USERNAME:}
+  password: ${ES_PASSWORD:}
+
+jwt:
+  secret: datacopilotx-secret-key-2024-very-long-secret-key-for-jwt-token-generation
+  expiration: 86400000

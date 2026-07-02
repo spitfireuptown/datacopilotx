@@ -19,6 +19,7 @@
         <module>datacopilotx-ai</module>
         <module>datacopilotx-common</module>
         <module>datacopilotx-aigateway</module>
+        <module>datacopilotx-autotest</module>
     </modules>
 
     <properties>
