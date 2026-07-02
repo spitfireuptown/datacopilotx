@@ -5,6 +5,7 @@
       @new-chat="resetChat" 
       @chat-select="handleChatSelect"
       @loading-change="handleHistoryLoading"
+      @delete-chat="handleDeleteChat"
     />
     <div class="content-wrap">
       <!-- 历史记录加载遮罩 -->
@@ -55,18 +56,24 @@ const handleHistoryLoading = (loading: boolean) => {
   historyLoading.value = loading;
 };
 
-// 重置对话
 const senderInputRef = ref();
 const chatBubbleRef = ref();
 const resetChat = () => {
   waitResponse.value = false;
   senderInputRef.value?.newChat();
   currentChatTitle.value = '';
+  currentSessionId.value = undefined;
+  dialogueStore.setSessionId('');
 };
 
-// 处理重新生成
 const handleRegenerate = (content: string) => {
   senderInputRef.value?.setQuestion(content);
+};
+
+const handleDeleteChat = (sessionId: string) => {
+  if (currentSessionId.value === sessionId) {
+    resetChat();
+  }
 };
 
 // Import necessary dependencies

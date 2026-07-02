@@ -77,8 +77,7 @@ import { defineEmits, onMounted, ref } from 'vue';
 import { getChatHistory, getChatHistoryDetail, deleteChatHistory, type ChatHistoryItem } from '@/api/chat';
 import { message } from 'ant-design-vue';
 
-// 添加新的emit事件类型
-const emit = defineEmits(['newChat', 'chatSelect', 'loadingChange']);
+const emit = defineEmits(['newChat', 'chatSelect', 'loadingChange', 'deleteChat']);
 
 // 历史记录容器引用
 const historyContainer = ref<HTMLElement>();
@@ -171,18 +170,16 @@ const newChat = () => {
   emit('newChat');
 };
 
-// 处理删除聊天记录
 const handleDelete = async (id: string) => {
   try {
     await deleteChatHistory(id);
-    console.log(historyList)
     historyList.value = historyList.value.filter(item => item.session_id !== id);
-    // 如果删除后列表为空，重新加载数据
     if (historyList.value.length === 0) {
       currentPage.value = 1;
       hasMore.value = true;
       loadData();
     }
+    emit('deleteChat', id);
     message.success('删除成功');
   } catch (error) {
     console.error('删除聊天记录时出错:', error);

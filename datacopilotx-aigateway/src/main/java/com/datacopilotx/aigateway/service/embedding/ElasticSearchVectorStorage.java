@@ -42,7 +42,8 @@ public class ElasticSearchVectorStorage {
     @Autowired
     ElasticsearchClient esClient;
 
-    private static final int RRF_K = 60;
+    private static final double VECTOR_WEIGHT = 0.7;
+    private static final double BM25_WEIGHT = 0.3;
 
 
     public void initIndex(String indexName, int dim) {
@@ -115,21 +116,25 @@ public class ElasticSearchVectorStorage {
                 : Collections.emptyList();
 
         Map<String, OllamaResultDTO.CallBackResult> mergedMap = new HashMap<>();
-        Map<String, Integer> vectorRankMap = new HashMap<>();
-        Map<String, Integer> bm25RankMap = new HashMap<>();
+        Map<String, Double> vectorScoreMap = new HashMap<>();
+        Map<String, Double> bm25ScoreMap = new HashMap<>();
 
-        for (int i = 0; i < vectorResults.size(); i++) {
-            var result = vectorResults.get(i);
+        for (var result : vectorResults) {
             mergedMap.put(result.getDocId(), result);
-            vectorRankMap.put(result.getDocId(), i + 1);
+            vectorScoreMap.put(result.getDocId(), result.getScore());
         }
 
-        for (int i = 0; i < bm25Results.size(); i++) {
-            var result = bm25Results.get(i);
+        for (var result : bm25Results) {
             if (!mergedMap.containsKey(result.getDocId())) {
                 mergedMap.put(result.getDocId(), result);
             }
-            bm25RankMap.put(result.getDocId(), i + 1);
+            bm25ScoreMap.put(result.getDocId(), result.getScore());
+        }
+
+        double bm25Min = Double.MAX_VALUE, bm25Max = Double.MIN_VALUE;
+        for (double score : bm25ScoreMap.values()) {
+            bm25Min = Math.min(bm25Min, score);
+            bm25Max = Math.max(bm25Max, score);
         }
 
         List<OllamaResultDTO.CallBackResult> finalResults = new ArrayList<>();
@@ -137,17 +142,24 @@ public class ElasticSearchVectorStorage {
             String docId = entry.getKey();
             var result = entry.getValue();
 
-            double rrfScore = 0;
-            if (vectorRankMap.containsKey(docId)) {
-                rrfScore += 1.0 / (RRF_K + vectorRankMap.get(docId));
+            double vectorScore = vectorScoreMap.getOrDefault(docId, 0.0);
+
+            double normalizedBm25Score = 0.0;
+            if (bm25ScoreMap.containsKey(docId)) {
+                double rawScore = bm25ScoreMap.get(docId);
+                normalizedBm25Score = normalizeBm25(rawScore, bm25Min, bm25Max);
             }
-            if (bm25RankMap.containsKey(docId)) {
-                rrfScore += 1.0 / (RRF_K + bm25RankMap.get(docId));
+
+            double finalScore;
+            if (!bm25Results.isEmpty()) {
+                finalScore = VECTOR_WEIGHT * vectorScore + BM25_WEIGHT * normalizedBm25Score;
+            } else {
+                finalScore = vectorScore;
             }
 
             finalResults.add(OllamaResultDTO.CallBackResult.builder()
                     .docId(docId)
-                    .score(Math.round(rrfScore * 1000.0) / 1000.0)
+                    .score(Math.round(finalScore * 1000.0) / 1000.0)
                     .question(result.getQuestion())
                     .answer(result.getAnswer())
                     .build());
@@ -159,6 +171,13 @@ public class ElasticSearchVectorStorage {
                 .filter(r -> r.getScore() >= minScore)
                 .limit(topK)
                 .collect(java.util.stream.Collectors.toList());
+    }
+
+    private double normalizeBm25(double score, double min, double max) {
+        if (max - min < 1e-9) {
+            return 0.0;
+        }
+        return (score - min) / (max - min);
     }
 
     @SneakyThrows
@@ -189,7 +208,7 @@ public class ElasticSearchVectorStorage {
             if (vectorData != null) {
                 results.add(OllamaResultDTO.CallBackResult.builder()
                         .docId(hit.id())
-                        .score(Math.round(hit.score() * 100.0) / 100.0)
+                        .score(hit.score())
                         .question(vectorData.getQuestion())
                         .answer(vectorData.getAnswer())
                         .build());
@@ -238,7 +257,7 @@ public class ElasticSearchVectorStorage {
             if (vectorData != null) {
                 results.add(OllamaResultDTO.CallBackResult.builder()
                         .docId(hit.id())
-                        .score(Math.round(hit.score() * 100.0) / 100.0)
+                        .score(hit.score())
                         .question(vectorData.getQuestion())
                         .answer(vectorData.getAnswer())
                         .build());
