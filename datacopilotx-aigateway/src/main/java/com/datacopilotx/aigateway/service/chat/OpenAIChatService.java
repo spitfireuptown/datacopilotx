@@ -14,6 +14,7 @@ import dev.langchain4j.model.openai.OpenAiEmbeddingModel;
 import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.util.ObjectUtils;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.FluxSink;
 
@@ -39,7 +40,23 @@ public class OpenAIChatService implements AIChatService {
                 .temperature(0.0)
                 .topP(1.0)
                 .build();
-        return chatModel.chat(chatRequest.getQuestion());
+        String userMessageContent = chatRequest.getUserPrompt();
+        if (userMessageContent == null || userMessageContent.trim().isEmpty()) {
+            userMessageContent = chatRequest.getQuestion();
+        }
+
+        String systemMessageContent = chatRequest.getSystemPrompt();
+
+        List<ChatMessage> messages;
+        if (systemMessageContent != null && !systemMessageContent.trim().isEmpty()) {
+            messages = asList(
+                    systemMessage(systemMessageContent),
+                    userMessage(userMessageContent)
+            );
+        } else {
+            messages = List.of(userMessage(userMessageContent));
+        }
+        return chatModel.chat(messages).aiMessage().text();
     }
 
     @Override
@@ -52,10 +69,22 @@ public class OpenAIChatService implements AIChatService {
                 .topP(1.0)
                 .build();
 
-        List<ChatMessage> messages = asList(
-                systemMessage(chatRequest.getSystemPrompt()),
-                userMessage(chatRequest.getUserPrompt())
-        );
+        String userMessageContent = chatRequest.getUserPrompt();
+        if (userMessageContent == null || userMessageContent.trim().isEmpty()) {
+            userMessageContent = chatRequest.getQuestion();
+        }
+
+        String systemMessageContent = chatRequest.getSystemPrompt();
+
+        List<ChatMessage> messages;
+        if (systemMessageContent != null && !systemMessageContent.trim().isEmpty()) {
+            messages = asList(
+                    systemMessage(systemMessageContent),
+                    userMessage(userMessageContent)
+            );
+        } else {
+            messages = List.of(userMessage(userMessageContent));
+        }
         long startTime = System.currentTimeMillis();
         return Flux.create(sink -> {
             streamingChatModel.chat(messages, new StreamingChatResponseHandler() {

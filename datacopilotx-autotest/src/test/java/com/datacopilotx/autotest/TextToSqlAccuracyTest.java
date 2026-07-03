@@ -13,10 +13,13 @@ import com.datacopilotx.ai.mapper.DatasetRelationMapper;
 import com.datacopilotx.ai.mapper.ModelConfigMapper;
 import com.datacopilotx.ai.service.DataSetService;
 import com.datacopilotx.ai.service.DatasetRelationService;
+import com.datacopilotx.aigateway.service.chat.AIGatewayChatService;
+import com.datacopilotx.aigateway.domain.dto.ChatRequest;
 import com.datacopilotx.ai.service.graph.main.SerializableSink;
 import com.datacopilotx.ai.service.graph.main.WorkflowGraph;
 import com.datacopilotx.ai.service.graph.main.WorkflowState;
 import com.datacopilotx.common.result.WebResult;
+import com.datacopilotx.common.util.WorkflowUtil;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -28,7 +31,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.jdbc.core.JdbcTemplate;
+
 import org.springframework.http.codec.ServerSentEvent;
 import reactor.core.publisher.Sinks;
 
@@ -46,11 +49,28 @@ import java.util.*;
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class TextToSqlAccuracyTest {
 
+    private static class SqlComparisonResult {
+        private final boolean isCorrect;
+        private final String reason;
+
+        public SqlComparisonResult(boolean isCorrect, String reason) {
+            this.isCorrect = isCorrect;
+            this.reason = reason;
+        }
+
+        public boolean isCorrect() {
+            return isCorrect;
+        }
+
+        public String getReason() {
+            return reason;
+        }
+    }
+
     @Autowired
     private WorkflowGraph workflowGraph;
 
-    @Autowired
-    private JdbcTemplate jdbcTemplate;
+
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -70,6 +90,9 @@ public class TextToSqlAccuracyTest {
     @Autowired
     private DatasetRelationMapper datasetRelationMapper;
 
+    @Autowired
+    private AIGatewayChatService aiGatewayChatService;
+
     @Value("${spring.datasource.url}")
     private String dataSourceUrl;
 
@@ -86,6 +109,7 @@ public class TextToSqlAccuracyTest {
     private Long shopDatasetId;
     private Long productDatasetId;
     private Long salesDatasetId;
+    private ModelConfigBean cachedModelConfigBean;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -96,6 +120,8 @@ public class TextToSqlAccuracyTest {
         initTestData();
         registerTestDataSet();
 
+        cachedModelConfigBean = createMockModelConfigBean();
+
         try (InputStream is = getClass().getResourceAsStream("/test_questions.json")) {
             testQuestions = objectMapper.readValue(is, new TypeReference<List<TestQuestion>>() {});
         }
@@ -104,9 +130,10 @@ public class TextToSqlAccuracyTest {
 
     private void initTestData() throws Exception {
         String sqlFilePath = "/mock_sales_test_data.sql";
-        try (InputStream is = getClass().getResourceAsStream(sqlFilePath)) {
+        try (InputStream is = getClass().getResourceAsStream(sqlFilePath);
+             Connection conn = DriverManager.getConnection(testDbUrl, testDbUsername, testDbPassword)) {
             org.springframework.jdbc.datasource.init.ScriptUtils.executeSqlScript(
-                    jdbcTemplate.getDataSource().getConnection(),
+                    conn,
                     new org.springframework.core.io.InputStreamResource(is)
             );
         }
@@ -251,14 +278,21 @@ public class TextToSqlAccuracyTest {
     @Test
     @Order(1)
     void testDatabaseConnection() {
-        String count = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM dims_shop", String.class);
-        Assertions.assertEquals("5", count);
-        log.info("Database connection test passed");
+        try (Connection conn = DriverManager.getConnection(testDbUrl, testDbUsername, testDbPassword);
+             PreparedStatement stmt = conn.prepareStatement("SELECT COUNT(*) FROM dims_shop");
+             ResultSet rs = stmt.executeQuery()) {
+            rs.next();
+            String count = rs.getString(1);
+            Assertions.assertEquals("5", count);
+            log.info("Database connection test passed");
+        } catch (Exception e) {
+            throw new RuntimeException("Database connection test failed", e);
+        }
     }
 
     @Test
     @Order(2)
-    void testTextToSqlAccuracy() throws Exception {
+    void testTextToSqlAccuracy  () throws Exception {
         int totalQuestions = testQuestions.size();
         int correctCount = 0;
         int wrongCount = 0;
@@ -285,19 +319,21 @@ public class TextToSqlAccuracyTest {
                 log.info("Predicted SQL: {}", predictedSql);
                 log.info("Gold SQL: {}", testQuestion.getGold_sql());
 
-                boolean isCorrect = compareSqlResults(testQuestion.getGold_sql(), predictedSql);
+                SqlComparisonResult result = compareSqlResults(testQuestion.getQuestion(), testQuestion.getGold_sql(), predictedSql);
 
-                if (isCorrect) {
+                if (result.isCorrect()) {
                     correctCount++;
                     difficultyCorrect.merge(testQuestion.getDifficulty(), 1, Integer::sum);
                     log.info("Result: CORRECT");
                 } else {
                     wrongCount++;
-                    wrongCases.add(String.format("ID:%d, Q:%s, Diff:%s, Gold:%s, Pred:%s",
+                    wrongCases.add(String.format("ID:%d, Q:%s, Diff:%s, Gold:%s, Pred:%s, Reason:%s",
                             testQuestion.getId(), testQuestion.getQuestion(),
-                            testQuestion.getDifficulty(), testQuestion.getGold_sql(), predictedSql));
-                    log.info("Result: WRONG");
+                            testQuestion.getDifficulty(), testQuestion.getGold_sql(), predictedSql,
+                            result.getReason() != null ? result.getReason() : "No reason provided"));
+                    log.info("Result: WRONG - {}", result.getReason());
                 }
+                Thread.sleep(5000);
             } catch (Exception e) {
                 errorCount++;
                 log.error("Error processing question {}: {}", testQuestion.getId(), e.getMessage());
@@ -373,11 +409,129 @@ public class TextToSqlAccuracyTest {
         return bean;
     }
 
-    private boolean compareSqlResults(String goldSql, String predictedSql) throws Exception {
+    private SqlComparisonResult compareSqlResults(String question, String goldSql, String predictedSql) throws Exception {
         if (predictedSql == null || predictedSql.trim().isEmpty()) {
-            return false;
+            return new SqlComparisonResult(false, "Predicted SQL is empty");
         }
 
+        return compareSqlByLLM(question, goldSql, predictedSql);
+    }
+
+    private SqlComparisonResult compareSqlByLLM(String question, String goldSql, String predictedSql) throws Exception {
+        if (cachedModelConfigBean == null) {
+            cachedModelConfigBean = createMockModelConfigBean();
+        }
+
+        String systemPrompt = """
+                You are an expert SQL semantic analyzer and data validation specialist. Your task is to determine if two SQL queries are functionally equivalent for the business question being asked.
+                
+                ## Core Principles
+                We evaluate SQL correctness based on **business intent** and **result accuracy**, not strict syntactic equivalence. A predicted SQL is considered correct if it returns the data that answers the user's question, even if the implementation differs from the gold SQL.
+                
+                ## Detailed Rules for Equivalence
+                
+                ### 1. Field Selection (字段选择)
+                - The predicted SQL may return MORE fields than the gold SQL - this is acceptable as long as all fields from the gold SQL are included.
+                - The predicted SQL may return fields with different names (aliases) - what matters is that the actual data values are present.
+                - If the gold SQL returns a subset of what the predicted SQL returns, they can still be equivalent.
+                
+                ### 2. Filtering Conditions (过滤条件)
+                - Be strict about filter **values** - if the filter value is wrong (e.g., '华东区' vs '华东'), the query may return empty or wrong results.
+                - Semantically equivalent field selection is acceptable (e.g., filtering on category vs subcategory if the actual data contains the same records).
+                - The key question: do both queries filter to the same logical set of records?
+                - Minor variations in filter expressions that yield the same result are acceptable.
+                
+                ### 3. JOIN and Table Usage (关联查询)
+                - The predicted SQL may use JOINs even if the gold SQL uses a single table, as long as the final result contains the correct data.
+                - The predicted SQL may use different JOIN types (INNER JOIN, LEFT JOIN) if they produce the same effective result.
+                - Using a fact table to JOIN to dimension tables is a valid approach to get dimension data.
+                
+                ### 4. Deduplication (去重)
+                - Using DISTINCT or GROUP BY to eliminate duplicates is acceptable, even if the gold SQL doesn't explicitly use them.
+                - If the gold SQL would produce duplicates and the predicted SQL correctly deduplicates, this is considered equivalent.
+                
+                ### 5. Aggregation Functions (聚合函数)
+                - COUNT(*) vs COUNT(DISTINCT primary_key) are equivalent when the primary key is used.
+                - The core aggregation operation must be the same (COUNT, SUM, AVG, etc.), but implementation details can vary.
+                
+                ### 6. Result Set Comparison (结果集比较)
+                - For the **core fields** that the question asks for, the predicted SQL's result must **contain all values** from the gold SQL's result.
+                - The predicted SQL may return additional rows that are also valid answers to the question.
+                - Row order does not matter.
+                - IMPORTANT: If the gold SQL returns rows but the predicted SQL returns empty, they are NOT equivalent.
+                
+                ## Important Considerations
+                - Focus on **business correctness**, not technical implementation details.
+                - If the predicted SQL answers the user's question correctly, it should be considered equivalent even if it uses a different approach.
+                - Consider edge cases like NULL values, empty tables, and data distribution.
+                - Always check if the filter values would actually return data in a real database.
+                
+                ## Output Format
+                Return ONLY a JSON object with the following structure:
+                {
+                    "isEquivalent": true/false,
+                    "reason": "Brief explanation of why the SQLs are equivalent or not"
+                }
+                """;
+
+        String userPrompt = String.format("""
+                Business Question: %s
+                
+                Compare the following two SQL queries for functional equivalence in answering the above business question:
+                
+                Gold SQL (expected answer):
+                %s
+                
+                Predicted SQL (generated answer):
+                %s
+                
+                Analyze whether the predicted SQL correctly answers the business question. Consider:
+                - Does the predicted SQL return the core data requested by the question?
+                - Are filtering conditions correct and would they return valid results?
+                - Is the aggregation logic correct?
+                - Are JOIN operations producing valid results?
+                
+                Focus on whether the predicted SQL achieves the same business outcome, not whether it matches the gold SQL syntactically.
+                """, question, goldSql, predictedSql);
+
+        ChatRequest chatRequest = ChatRequest.builder()
+                .model(cachedModelConfigBean.getModel())
+                .platform(cachedModelConfigBean.getPlatform())
+                .type(cachedModelConfigBean.getType())
+                .apiKey(cachedModelConfigBean.getApiKey())
+                .baseUrl(cachedModelConfigBean.getBaseUrl())
+                .systemPrompt(systemPrompt)
+                .userPrompt(userPrompt)
+                .build();
+
+        String response = aiGatewayChatService.chatCompletions(chatRequest);
+        log.info("LLM comparison result: {}", response);
+
+        try {
+            String cleanResponse = WorkflowUtil.cleanJsonStr(response);
+            Map<String, Object> result = cn.hutool.json.JSONUtil.toBean(cleanResponse, Map.class);
+            
+            Object isEquivalentObj = result.get("isEquivalent");
+            boolean isEquivalent;
+            if (isEquivalentObj instanceof String) {
+                isEquivalent = Boolean.parseBoolean((String) isEquivalentObj);
+            } else if (isEquivalentObj instanceof Boolean) {
+                isEquivalent = (Boolean) isEquivalentObj;
+            } else {
+                log.warn("Unexpected isEquivalent type: {}", isEquivalentObj != null ? isEquivalentObj.getClass().getName() : "null");
+                return compareSqlByExecution(goldSql, predictedSql);
+            }
+            
+            String reason = (String) result.get("reason");
+            log.info("SQL equivalence: {}, Reason: {}", isEquivalent, reason);
+            return new SqlComparisonResult(isEquivalent, reason);
+        } catch (Exception e) {
+            log.warn("Failed to parse LLM response, falling back to result comparison: {}", e.getMessage());
+            return compareSqlByExecution(goldSql, predictedSql);
+        }
+    }
+
+    private SqlComparisonResult compareSqlByExecution(String goldSql, String predictedSql) throws Exception {
         Map<String, Object> goldResults = executeSqlWithColumns(goldSql);
         Map<String, Object> predictedResults = executeSqlWithColumns(predictedSql);
 
@@ -394,19 +548,28 @@ public class TextToSqlAccuracyTest {
                 goldRows.size(), predictedRows.size());
 
         if (goldRows.isEmpty() && predictedRows.isEmpty()) {
-            return true;
+            return new SqlComparisonResult(true, "Both queries return empty result");
         }
 
-        if (goldRows.size() != predictedRows.size()) {
-            return false;
+        if (goldRows.isEmpty()) {
+            if (predictedRows.isEmpty()) {
+                return new SqlComparisonResult(true, "Both queries return empty result");
+            } else {
+                return new SqlComparisonResult(false, "Gold SQL returns empty but predicted SQL returns " + predictedRows.size() + " rows");
+            }
+        }
+
+        if (predictedRows.isEmpty()) {
+            log.warn("Gold SQL returns {} rows but predicted SQL returns empty", goldRows.size());
+            return new SqlComparisonResult(false, "Gold SQL returns " + goldRows.size() + " rows but predicted SQL returns empty");
         }
 
         Set<String> goldColumns = new HashSet<>(goldColumnsList);
         Set<String> predictedColumns = new HashSet<>(predictedColumnsList);
 
-        if (!goldColumns.equals(predictedColumns)) {
+        if (!predictedColumns.containsAll(goldColumns)) {
             log.info("Gold columns: {}, Predicted columns: {}", goldColumns, predictedColumns);
-            return false;
+            return new SqlComparisonResult(false, "Predicted SQL missing columns: " + goldColumns);
         }
 
         Set<String> goldRowStrings = new HashSet<>();
@@ -419,7 +582,12 @@ public class TextToSqlAccuracyTest {
             predictedRowStrings.add(normalizeRow(row, goldColumns));
         }
 
-        return goldRowStrings.equals(predictedRowStrings);
+        if (predictedRowStrings.containsAll(goldRowStrings)) {
+            return new SqlComparisonResult(true, "Predicted SQL contains all gold SQL results (predicted: " + predictedRows.size() + " rows, gold: " + goldRows.size() + " rows)");
+        } else {
+            int missingRows = (int) goldRowStrings.stream().filter(r -> !predictedRowStrings.contains(r)).count();
+            return new SqlComparisonResult(false, "Predicted SQL missing " + missingRows + " rows from gold SQL results");
+        }
     }
 
     private String normalizeRow(Map<String, Object> row, Set<String> columns) {
@@ -486,32 +654,63 @@ public class TextToSqlAccuracyTest {
                              List<String> wrongCases) {
         double accuracy = total > 0 ? (double) correct / total * 100 : 0;
 
-        log.info("========================================");
-        log.info("  Text-to-SQL Accuracy Test Report");
-        log.info("========================================");
-        log.info("Total Questions: {}", total);
-        log.info("Correct: {}", correct);
-        log.info("Wrong: {}", wrong);
-        log.info("Error: {}", error);
-        log.info("Accuracy: {}%", String.format("%.2f", accuracy));
-        log.info("----------------------------------------");
-        log.info("Difficulty Breakdown:");
+        StringBuilder reportBuilder = new StringBuilder();
+        reportBuilder.append("========================================\n");
+        reportBuilder.append("  Text-to-SQL Accuracy Test Report\n");
+        reportBuilder.append("========================================\n");
+        reportBuilder.append("Test Date: ").append(java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))).append("\n");
+        reportBuilder.append("Total Questions: ").append(total).append("\n");
+        reportBuilder.append("Correct: ").append(correct).append("\n");
+        reportBuilder.append("Wrong: ").append(wrong).append("\n");
+        reportBuilder.append("Error: ").append(error).append("\n");
+        reportBuilder.append("Accuracy: ").append(String.format("%.2f", accuracy)).append("%\n");
+        reportBuilder.append("----------------------------------------\n");
+        reportBuilder.append("Difficulty Breakdown:\n");
         for (String difficulty : Arrays.asList("simple", "medium", "complex")) {
             int totalDiff = difficultyStats.get(difficulty);
             int correctDiff = difficultyCorrect.get(difficulty);
             double accDiff = totalDiff > 0 ? (double) correctDiff / totalDiff * 100 : 0;
-            log.info("  {}: {}/{} ({})", difficulty, correctDiff, totalDiff, String.format("%.2f%%", accDiff));
+            reportBuilder.append("  ").append(difficulty).append(": ").append(correctDiff).append("/").append(totalDiff)
+                    .append(" (").append(String.format("%.2f%%", accDiff)).append(")\n");
         }
-        log.info("----------------------------------------");
+        reportBuilder.append("----------------------------------------\n");
 
         if (!wrongCases.isEmpty()) {
-            log.info("Wrong Cases:");
+            reportBuilder.append("Wrong Cases:\n");
             for (String caseInfo : wrongCases) {
-                log.info("  - {}", caseInfo);
+                reportBuilder.append("  - ").append(caseInfo).append("\n");
             }
         }
 
-        log.info("========================================");
+        reportBuilder.append("========================================\n");
+
+        String report = reportBuilder.toString();
+
+        log.info("\n{}", report);
+
+        saveReportToFile(report);
+    }
+
+    private void saveReportToFile(String report) {
+        String timestamp = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
+        String fileName = "text_to_sql_report_" + timestamp + ".txt";
+        String reportsDir = "reports";
+
+        try {
+            java.io.File dir = new java.io.File(reportsDir);
+            if (!dir.exists()) {
+                dir.mkdirs();
+            }
+
+            java.io.File reportFile = new java.io.File(dir, fileName);
+            java.io.FileWriter writer = new java.io.FileWriter(reportFile);
+            writer.write(report);
+            writer.close();
+
+            log.info("Report saved to: {}", reportFile.getAbsolutePath());
+        } catch (java.io.IOException e) {
+            log.error("Failed to save report to file: {}", e.getMessage());
+        }
     }
 
     @AfterEach

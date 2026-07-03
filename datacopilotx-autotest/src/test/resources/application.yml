@@ -8,7 +8,7 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
     username: ${MYSQL_USERNAME:test}
     password: ${MYSQL_PASSWORD:test}
-    url: jdbc:mysql://${MYSQL_URL:127.0.0.1}:3306/datacopilotx_autotest?characterEncoding=UTF-8&autoReconnect=true&serverTimezone=Asia/Shanghai&zeroDateTimeBehavior=convertToNull
+    url: jdbc:mysql://${MYSQL_URL:127.0.0.1}:3306/datacopilotx?characterEncoding=UTF-8&autoReconnect=true&serverTimezone=Asia/Shanghai&zeroDateTimeBehavior=convertToNull
     hikari:
       minimum-idle: 3
       maximum-pool-size: 10
