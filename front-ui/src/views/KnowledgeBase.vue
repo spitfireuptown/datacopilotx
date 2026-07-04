@@ -138,6 +138,23 @@
             rows={4}
           />
         </a-form-item>
+        
+        <!-- Score阈值 -->
+        <a-form-item
+          label="Score阈值"
+          name="score"
+        >
+          <a-input-number
+            v-model:value="formData.score"
+            :min="0"
+            :max="1"
+            :step="0.01"
+            :precision="2"
+            placeholder="默认0.7"
+            style="width: 100%"
+          />
+
+        </a-form-item>
       </a-form>
     </a-modal>
   </div>
@@ -164,6 +181,7 @@ interface FormData {
   modelId: string;
   datasetId: string;
   description: string;
+  score?: number;
   id?: string;
 }
 
@@ -199,13 +217,13 @@ const datasets = ref<Dataset[]>([]);
 
 // 创建包含模拟数据的知识库列表
 const knowledgeItemsWithMockData = computed(() => {
-  // 始终使用实际数据，不再返回模拟数据
   return knowledgeItems.value.map(item => ({
-    id: item.id, // 使用id作为docId
-    name: item.name, // 直接使用接口返回的name
-    description: item.description, // 直接使用接口返回的description
+    id: item.id,
+    name: item.name,
+    description: item.description,
     datasetId: item.datasetId,
-    modelId: item.modelId
+    modelId: item.modelId,
+    score: item.score != null ? item.score : 0.7
   }));
 });
 
@@ -289,6 +307,7 @@ const handleCreate = async () => {
     modelId: '',
     datasetId: '',
     description: '',
+    score: 0.7,
     id: undefined
   };
   
@@ -304,19 +323,17 @@ const handleEdit = async (record: any) => {
   isEdit.value = true;
   modalTitle.value = '编辑知识库条目';
   
-  // 加载模型和数据集（先加载，确保数据可用）
   await Promise.all([loadModels(), loadDatasets()]);
   console.log(record)
-  // 设置表单数据，回显模型和数据集
   formData.value = {
     name: record.name || '',
-    modelId: String(record.modelId || ''), // 使用记录中的modelId并转换为string
-    datasetId: String(record.datasetId || ''), // 使用记录中的datasetId并转换为string
+    modelId: String(record.modelId || ''),
+    datasetId: String(record.datasetId || ''),
     description: record.description || '',
+    score: record.score != null ? record.score : 0.7,
     id: record.id
   };
   
-  // 显示弹窗
   modalVisible.value = true;
 };
 
@@ -347,24 +364,25 @@ const handleModalSubmit = async () => {
     await formRef.value.validateFields();
     modalLoading.value = true;
     
-    const { name, modelId, datasetId, description, id } = formData.value;
+    const { name, modelId, datasetId, description, score, id } = formData.value;
+    const submitScore = score !== undefined && score !== null ? score : 0.7;
     
     if (isEdit.value && id) {
-      // 编辑模式且有id时调用updateKnowledge
       await updateKnowledge({
         id,
         modelId,
         datasetId,
         name,
-        description
+        description,
+        score: submitScore
       });
     } else {
-      // 创建模式调用createKnowledge
       await createKnowledge({
         modelId,
         datasetId,
         name,
-        description
+        description,
+        score: submitScore
       });
     }
     

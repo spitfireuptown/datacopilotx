@@ -21,6 +21,7 @@ public class KnowledgeLibVO {
         private String description;
         private String creator;
         private String creatorName;
+        private Float score;
     }
 
     @Data

@@ -337,6 +337,9 @@ const loadKnowledgeDetail = async () => {
     
     if (knowledgeBaseInfo) {
       knowledgeBaseName.value = knowledgeBaseInfo.name;
+      if (knowledgeBaseInfo.score !== undefined) {
+        scoreThreshold.value = knowledgeBaseInfo.score;
+      }
     }
     
     const response = await getKnowledgeItems(0, 20, docId, searchKeyword.value, filterStatus.value);

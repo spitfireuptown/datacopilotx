@@ -1,6 +1,7 @@
 package com.datacopilotx.ai.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.datacopilotx.ai.controller.form.KnowledgeLibForm;
 import com.datacopilotx.ai.domian.bean.DataSetBean;
 import com.datacopilotx.ai.domian.bean.KnowledgeLibBean;
@@ -53,7 +54,7 @@ public class KnowledgeLibService {
     public List<KnowledgeLibVO.List> list() {
         return knowledgeLibMapper.selectList(
                         new LambdaQueryWrapper<KnowledgeLibBean>()
-                                .select(KnowledgeLibBean::getId, KnowledgeLibBean::getName, KnowledgeLibBean::getDatasetId, KnowledgeLibBean::getModelId, KnowledgeLibBean::getDescription, KnowledgeLibBean::getCreator))
+                                .select(KnowledgeLibBean::getId, KnowledgeLibBean::getName, KnowledgeLibBean::getDatasetId, KnowledgeLibBean::getModelId, KnowledgeLibBean::getDescription, KnowledgeLibBean::getCreator, KnowledgeLibBean::getScore))
                 .stream()
                 .map(item -> {
                     String creatorName = "";
@@ -73,6 +74,7 @@ public class KnowledgeLibService {
                             .description(item.getDescription())
                             .creator(item.getCreator())
                             .creatorName(creatorName)
+                            .score(item.getScore())
                             .build();
                 })
                 .collect(Collectors.toList());
@@ -101,6 +103,7 @@ public class KnowledgeLibService {
         knowledgeLibBean.setModelId(createForm.getModelId());
         knowledgeLibBean.setDescription(createForm.getDescription());
         knowledgeLibBean.setCreator(SecurityUtil.getCurrentUserId());
+        knowledgeLibBean.setScore(createForm.getScore() != null ? createForm.getScore() : 0.7F);
         knowledgeLibMapper.insert(knowledgeLibBean);
 
         elasticSearchVectorStorage.initIndex(createForm.getName(), modelConfigBean.getDimension());
@@ -124,11 +127,19 @@ public class KnowledgeLibService {
             throw new DataCopilotXException(ResponseCode.KNOWLEDGE_LIB_CONFIG_ERROR, "知识库禁止修改嵌入模型");
         }
 
-        knowledgeLibBean.setName(updateForm.getName());
-        knowledgeLibBean.setDescription(updateForm.getDescription());
-        knowledgeLibBean.setDatasetId(updateForm.getDatasetId());
-        knowledgeLibMapper.updateById(knowledgeLibBean);
-        return knowledgeLibBean.getId();
+        LambdaUpdateWrapper<KnowledgeLibBean> updateWrapper = new LambdaUpdateWrapper<>();
+        updateWrapper.eq(KnowledgeLibBean::getId, updateForm.getId())
+                .set(KnowledgeLibBean::getName, updateForm.getName())
+                .set(KnowledgeLibBean::getDescription, updateForm.getDescription())
+                .set(KnowledgeLibBean::getDatasetId, updateForm.getDatasetId());
+
+        if (updateForm.getScore() != null) {
+            updateWrapper.set(KnowledgeLibBean::getScore, updateForm.getScore());
+        }
+
+        log.info("Updating knowledge lib id={}, score={}", updateForm.getId(), updateForm.getScore());
+        knowledgeLibMapper.update(null, updateWrapper);
+        return updateForm.getId();
     }
 
 
@@ -213,7 +224,8 @@ public class KnowledgeLibService {
             throw new DataCopilotXException(ResponseCode.VECTOR_EMBEDDING_FAILED);
         }
 
-        return elasticSearchVectorStorage.hybridRetrieval(knowledgeLibBean.getName(), embedding, retrievalForm.getQuestion(), retrievalForm.getTopK(), retrievalForm.getScore());
+        Float score = retrievalForm.getScore() != null ? retrievalForm.getScore() : knowledgeLibBean.getScore();
+        return elasticSearchVectorStorage.hybridRetrieval(knowledgeLibBean.getName(), embedding, retrievalForm.getQuestion(), retrievalForm.getTopK(), score);
     }
 
     @Transactional(rollbackFor = Exception.class)

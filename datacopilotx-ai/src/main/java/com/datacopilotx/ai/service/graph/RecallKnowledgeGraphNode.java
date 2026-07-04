@@ -51,11 +51,11 @@ public class RecallKnowledgeGraphNode implements NodeAction<WorkflowState> {
         List<String> result = new ArrayList<>();
         KnowledgeLibForm.RetrievalForm retrievalForm = new KnowledgeLibForm.RetrievalForm();
         retrievalForm.setQuestion(analysis);
-        retrievalForm.setScore(0.7F);
         retrievalForm.setTopK(5);
 
         for (KnowledgeLibBean knowledgeLibBean : knowledgeLibBeans) {
             retrievalForm.setKnowledgeLibId(knowledgeLibBean.getId());
+            retrievalForm.setScore(knowledgeLibBean.getScore() != null ? knowledgeLibBean.getScore() : 0.7F);
             List<OllamaResultDTO.CallBackResult> results = knowledgeLibService.retrieval(retrievalForm);
             result.addAll(results.stream().map(OllamaResultDTO.CallBackResult::getAnswer).collect(Collectors.toList()));
         }

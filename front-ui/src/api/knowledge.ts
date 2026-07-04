@@ -37,6 +37,7 @@ export interface KnowledgeCreateRequest {
   datasetId: string;
   name: string;
   description: string;
+  score?: number;
 }
 
 // 定义知识库更新请求参数接口
@@ -46,6 +47,7 @@ export interface KnowledgeUpdateRequest {
   datasetId: string;
   name: string;
   description: string;
+  score?: number;
 }
 
 // 定义知识库列表项类型接口（对应新的接口返回格式）
@@ -55,6 +57,7 @@ export interface KnowledgeListItem {
   datasetId: number;
   modelId: number;
   description: string;
+  score?: number;
 }
 
 // 定义知识库列表响应类型接口

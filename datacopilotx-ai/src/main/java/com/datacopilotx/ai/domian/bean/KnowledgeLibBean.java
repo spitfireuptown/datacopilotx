@@ -35,4 +35,7 @@ public class KnowledgeLibBean {
     
     @TableField("creator")
     private String creator;
+    
+    @TableField("score")
+    private Float score;
 }

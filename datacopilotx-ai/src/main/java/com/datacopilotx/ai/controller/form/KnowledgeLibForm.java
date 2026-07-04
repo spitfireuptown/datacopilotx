@@ -29,6 +29,7 @@ public class KnowledgeLibForm {
         private Long datasetId;
         private Long modelId;
         private String description;
+        private Float score;
     }
 
     @Data
@@ -40,6 +41,7 @@ public class KnowledgeLibForm {
         private Long datasetId;
         private Long modelId;
         private String description;
+        private Float score;
     }
 
 

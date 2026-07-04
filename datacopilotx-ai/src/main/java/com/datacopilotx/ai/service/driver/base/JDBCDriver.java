@@ -86,7 +86,7 @@ public abstract class JDBCDriver {
             throw new DataCopilotXException(errorMsg);
         } finally {
             closeResources(statement);
-            // 注意：不再关闭connection，因为它来自连接池，会自动归还
+            closeResources(connection);
         }
         return queryDTO;
     }
@@ -138,7 +138,7 @@ public abstract class JDBCDriver {
             throw new DataCopilotXException(errorMsg);
         } finally {
             closeResources(rs, columns);
-            // 注意：不再关闭connection，因为它来自连接池，会自动归还
+            closeResources(connection);
         }
     }
 
