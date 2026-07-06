@@ -18,13 +18,13 @@ public class DatasetRelationBean implements Serializable {
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
     
-    @TableField("from_dataset_id")
+    @TableField("from_datasource_id")
     private Long fromDatasetId;
     
     @TableField("from_field")
     private String fromField;
     
-    @TableField("to_dataset_id")
+    @TableField("to_datasource_id")
     private Long toDatasetId;
     
     @TableField("to_field")

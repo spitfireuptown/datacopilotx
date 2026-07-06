@@ -3,37 +3,31 @@ package com.datacopilotx.ai.domian.bean;
 import com.baomidou.mybatisplus.annotation.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
-import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
 import java.sql.Timestamp;
 
 @Data
-@TableName("DATA_SET")
+@TableName("DATA_TABLE")
 @AllArgsConstructor
 @NoArgsConstructor
-public class DataSetBean implements Serializable {
+public class DataTableBean implements Serializable {
     private static final long serialVersionUID = 1L;
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
-    private String host;
-    @TableField("ds_name")
-    private String dsName;
-    private String description;
-    private Long port;
-    @TableField("`username`")
-    private String username;
-    @TableField("`password`")
-    private String password;
-    @TableField("`database`")
-    private String database;
-    private String type;
+    @TableField("dataset_id")
+    private Long datasetId;
+    @TableField("`table`")
+    private String table;
+    private String fields;
+    @TableField("inject_prompt")
+    private String injectPrompt;
+    @TableField("embedding")
+    private String embedding;
     private Timestamp utime;
     private Timestamp ctime;
     @TableField("is_del")
     @TableLogic
     private Integer isDel;
-    @TableField("creator")
-    private String creator;
 }

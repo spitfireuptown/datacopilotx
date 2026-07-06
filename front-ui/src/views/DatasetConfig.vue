@@ -22,11 +22,20 @@
           <div class="dataset-list">
             <div class="list-header">
               <h3>已配置数据源</h3>
-              <a-button type="primary" @click="showForm">
-                新建
-              </a-button>
+              <div class="header-actions">
+                <a-button 
+                  v-if="selectedRowKeys.length > 0" 
+                  danger 
+                  @click="handleBatchDelete"
+                >
+                  批量删除 ({{ selectedRowKeys.length }})
+                </a-button>
+                <a-button type="primary" @click="showForm">
+                  新建
+                </a-button>
+              </div>
             </div>
-            <a-table :columns="columns" :data-source="datasets" row-key="id">
+            <a-table :columns="columns" :data-source="datasets" row-key="id" :row-selection="rowSelection">
               <template #action="{ record }">
                 <a-space size="small">
                   <a-button type="link" size="small" @click="handleEdit(record)">编辑</a-button>
@@ -146,7 +155,7 @@
 
 <script setup lang="ts">
 // 导入路由
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { message, Modal } from 'ant-design-vue';
 // 导入Spin组件用于loading效果
@@ -230,6 +239,17 @@ const columns = [
 const datasets = ref<Dataset[]>([]);
 // 添加loading状态
 const loading = ref(false);
+// 选中的行key
+const selectedRowKeys = ref<number[]>([]);
+
+// 表格行选择配置
+const rowSelection = {
+  selectedRowKeys,
+  onChange: (keys: number[]) => {
+    selectedRowKeys.value = keys;
+  }
+};
+
 // 关联模态框状态
 const showRelationModal = ref(false);
 // 当前选中的数据集
@@ -345,10 +365,34 @@ const handleDelete = (id: number) => {
       try {
         await deleteDataset(String(id));
         await loadDatasets();
+        selectedRowKeys.value = [];
         message.success('删除成功');
       } catch (error) {
         console.error('删除数据集失败:', error);
         message.error('删除数据集失败');
+      }
+    }
+  });
+};
+
+// 批量删除数据集
+const handleBatchDelete = () => {
+  Modal.confirm({
+    title: '确认批量删除',
+    content: `确定要删除选中的 ${selectedRowKeys.value.length} 个数据集吗？`,
+    okText: '确定',
+    cancelText: '取消',
+    onOk: async () => {
+      try {
+        for (const id of selectedRowKeys.value) {
+          await deleteDataset(String(id));
+        }
+        await loadDatasets();
+        selectedRowKeys.value = [];
+        message.success('批量删除成功');
+      } catch (error) {
+        console.error('批量删除数据集失败:', error);
+        message.error('批量删除数据集失败');
       }
     }
   });
@@ -502,6 +546,11 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 16px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 12px;
 }
 
 .list-header h3 {

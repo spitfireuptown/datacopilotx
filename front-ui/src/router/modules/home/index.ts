@@ -56,6 +56,15 @@ const homeRoutes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/dataset-table-config',
+    name: 'DatasetTableConfig',
+    component: () => import('@/views/DatasetTableConfig.vue'),
+    meta: {
+      title: '数据集表配置',
+      keepAlive: true
+    }
+  },
+  {
     path: '/knowledge',
     name: 'KnowledgeBase',
     component: () => import('@/views/KnowledgeBase.vue'),

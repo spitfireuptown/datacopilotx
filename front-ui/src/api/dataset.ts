@@ -1,6 +1,15 @@
 import { get, post, del, uploadFile as uploadFileRequest } from '../utils/request';
 
-// 定义数据集类型接口
+interface DatasetTableConfig {
+  table: string;
+  prompt: string;
+  fields: Array<{
+    fieldName: string;
+    fieldType: string;
+    description: string;
+  }>;
+}
+
 interface Dataset {
   id: number;
   name: string;
@@ -18,7 +27,6 @@ interface Dataset {
   }>;
 }
 
-// 定义数据集表单数据接口
 interface DatasetFormData {
   name: string;
   type: string;
@@ -44,6 +52,19 @@ interface DatasetFormData {
   }>;
 }
 
+interface DatasetCreateWithTablesData {
+  id?: number;
+  name: string;
+  type: string;
+  host: string;
+  port: number;
+  database: string;
+  username: string;
+  password: string;
+  description?: string;
+  tables: DatasetTableConfig[];
+}
+
 interface DatasetField {
     fieldName: string;
     fieldType: string;
@@ -65,6 +86,24 @@ export const getDatasetList = (): Promise<Dataset[]> => {
  */
 export const createDataset = (data: DatasetFormData): Promise<Dataset> => {
   return post('/dataset/create', data);
+};
+
+/**
+ * 创建新数据集（包含多表配置）
+ * @param data 数据集数据（包含表配置列表）
+ * @returns Promise<number> 返回数据集ID
+ */
+export const createDatasetWithTables = (data: DatasetCreateWithTablesData): Promise<number> => {
+  return post('/dataset/create-with-tables', data);
+};
+
+/**
+ * 更新数据集（包含多表配置）
+ * @param data 数据集数据（包含表配置列表）
+ * @returns Promise<number> 返回数据集ID
+ */
+export const updateDatasetWithTables = (data: DatasetCreateWithTablesData): Promise<number> => {
+  return post('/dataset/update-with-tables', data);
 };
 
 /**
@@ -161,6 +200,22 @@ export const testDatabaseConnection = (data: {
   name?: string;
 }): Promise<DatasetField[]> => {
   return post<DatasetField[]>('/dataset/table/info', data);
+};
+
+/**
+ * 获取数据库中的表列表
+ * @param data 连接信息
+ * @returns Promise<string[]> 表名列表
+ */
+export const getTables = (data: {
+  type: string;
+  host: string;
+  port: number;
+  username: string;
+  password?: string;
+  database: string;
+}): Promise<string[]> => {
+  return post<string[]>('/dataset/tables', data);
 };
 
 /**

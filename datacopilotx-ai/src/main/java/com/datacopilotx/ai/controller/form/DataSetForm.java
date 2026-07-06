@@ -29,9 +29,6 @@ public class DataSetForm {
         private String username;
         private String password;
         private String description;
-        private String prompt;
-        private List<DataSetDTO.SchemaInfo> fields;
-        private List<DataSetDTO.TableRelation> relations;
     }
 
     @Data
@@ -42,5 +39,30 @@ public class DataSetForm {
         private String name;
         private String description;
         private List<DataSetDTO.SchemaInfo> fields;
+    }
+
+    @Data
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static final class CreateWithTables {
+        private Long id;
+        private String name;
+        private String type;
+        private String host;
+        private Long port;
+        private String database;
+        private String username;
+        private String password;
+        private String description;
+        private List<TableInfo> tables;
+
+        @Data
+        @AllArgsConstructor
+        @NoArgsConstructor
+        public static final class TableInfo {
+            private String table;
+            private String prompt;
+            private List<DataSetDTO.SchemaInfo> fields;
+        }
     }
 }

@@ -92,6 +92,46 @@ public abstract class JDBCDriver {
     }
 
     /**
+     * 获取数据库中的所有表列表
+     * @param driverInfo 数据源信息
+     * @return 表名列表
+     * @throws Exception 异常
+     */
+    public List<String> fetchTables(DataSetDTO.DriverInfo driverInfo) throws Exception {
+        if (driverInfo == null || StringUtils.isEmpty(driverInfo.getDatabase())) {
+            throw new IllegalArgumentException("数据库名不能为空");
+        }
+
+        Connection connection = null;
+        ResultSet rs = null;
+        List<String> result = new ArrayList<>();
+
+        String schema = driverInfo.getDatabase();
+        String catalog = driverInfo.getDatabase();
+
+        try {
+            connection = this.getConnection(driverInfo);
+            rs = connection.getMetaData().getTables(catalog, schema, "%", new String[]{"TABLE"});
+            
+            while (rs.next()) {
+                String tableName = rs.getString("TABLE_NAME");
+                if (tableName != null && !tableName.isEmpty()) {
+                    result.add(tableName);
+                }
+            }
+            
+            return result;
+        } catch (SQLException e) {
+            String errorMsg = "获取表列表失败: " + e.getMessage();
+            log.error(errorMsg, e);
+            throw new DataCopilotXException(errorMsg);
+        } finally {
+            closeResources(rs);
+            closeResources(connection);
+        }
+    }
+
+    /**
      * 获取表结构信息
      * @param driverInfo 数据源信息
      * @return 表结构信息列表

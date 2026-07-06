@@ -11,18 +11,29 @@ CREATE TABLE `DATA_SET` (
     `port` int(11) NOT NULL DEFAULT '0' COMMENT '端口',
     `username` varchar(255) DEFAULT NULL COMMENT '数据集用户名',
     `database` char(255) DEFAULT NULL COMMENT '数据库',
-    `table` char(255) DEFAULT NULL COMMENT '数据表名',
     `type` varchar(255) NOT NULL DEFAULT '0' COMMENT '数据集类型',
-    `fields` longtext CHARACTER SET utf8 NOT NULL COMMENT '数据集元数据',
-    `relations` LONGTEXT NULL COMMENT '联表关系',
     `creator` VARCHAR(36) NOT NULL UNIQUE COMMENT '用户ID',
     `ctime` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    `utime` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP     ON UPDATE CURRENT_TIMESTAMP,
+    `utime` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     `is_del` int(11) DEFAULT '0',
     `description` varchar(255) DEFAULT NULL COMMENT '数据集描述',
-    `inject_prompt` longtext CHARACTER SET utf8 NOT NULL COMMENT '数据集注入prompt',
     PRIMARY KEY (`id`) USING BTREE
 ) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=utf8mb4 COMMENT='数据集信息';
+
+CREATE TABLE `DATA_TABLE` (
+    `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+    `dataset_id` int(10) unsigned NOT NULL COMMENT '数据集ID',
+    `table` char(255) DEFAULT NULL COMMENT '数据表名',
+    `fields` longtext CHARACTER SET utf8 COMMENT '表字段元数据（JSON）',
+    `inject_prompt` longtext CHARACTER SET utf8 COMMENT '表注入prompt',
+    `embedding` longtext CHARACTER SET utf8 COMMENT '表嵌入向量（JSON数组）',
+    `ctime` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `utime` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    `is_del` int(11) DEFAULT '0',
+    PRIMARY KEY (`id`) USING BTREE,
+    INDEX idx_dataset_id (`dataset_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='数据表信息';
+
 
 
 CREATE TABLE `MODEL_CONFIG` (
@@ -76,12 +87,10 @@ CREATE TABLE `KNOWLEDGE_LIB` (
 
 CREATE TABLE DATA_SET_RELATION (
        id BIGINT AUTO_INCREMENT PRIMARY KEY,
-       from_dataset_id BIGINT NOT NULL,
-       from_dataset_name VARCHAR(255),
+       from_datasource_id BIGINT NOT NULL,
        creator VARCHAR(36) NOT NULL UNIQUE COMMENT '用户ID',
        from_field VARCHAR(255),
-       to_dataset_id BIGINT NOT NULL,
-       to_dataset_name VARCHAR(255),
+       to_datasource_id BIGINT NOT NULL,
        to_field VARCHAR(255),
        relation_type VARCHAR(50),
        description VARCHAR(500),

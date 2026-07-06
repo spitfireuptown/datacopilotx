@@ -4,23 +4,28 @@ import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.datacopilotx.ai.controller.form.DataSetForm;
+import com.datacopilotx.ai.domian.bean.DataTableBean;
 import com.datacopilotx.ai.domian.bean.KnowledgeLibBean;
+import com.datacopilotx.ai.domian.bean.ModelConfigBean;
 import com.datacopilotx.ai.domian.dto.DataSetDTO;
 import com.datacopilotx.ai.domian.vo.DataSetVO;
 import com.datacopilotx.ai.domian.vo.UserInfoVo;
+import com.datacopilotx.ai.mapper.DataTableMapper;
 import com.datacopilotx.ai.mapper.KnowledgeLibMapper;
+import com.datacopilotx.ai.mapper.ModelConfigMapper;
 import com.datacopilotx.ai.mapper.QuestionLogMapper;
 import com.datacopilotx.ai.service.driver.DriverFactory;
 import com.datacopilotx.ai.service.driver.base.JDBCDriver;
 import com.datacopilotx.ai.service.driver.mysql.DefaultMySQLDriver;
 import com.datacopilotx.ai.util.ExcelAnalysisUtil;
+import com.datacopilotx.aigateway.domain.dto.ChatRequest;
+import com.datacopilotx.aigateway.service.chat.AIGatewayChatService;
 import com.datacopilotx.common.exception.DataCopilotXException;
 import com.datacopilotx.ai.domian.bean.DataSetBean;
 import com.datacopilotx.ai.domian.bean.QuestionLogBean;
 import com.datacopilotx.ai.mapper.DataSetMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Bean;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -43,6 +48,8 @@ public class DataSetService {
     @Autowired
     DataSetMapper dataSetMapper;
     @Autowired
+    DataTableMapper dataTableMapper;
+    @Autowired
     QuestionLogMapper questionLogMapper;
     @Autowired
     private KnowledgeLibMapper knowledgeLibMapper;
@@ -52,17 +59,30 @@ public class DataSetService {
     Map<String, List<List<String>>> dataSetCache;
     @Autowired
     AuthService authService;
+    @Autowired
+    AIGatewayChatService aiGatewayChatService;
+    @Autowired
+    ModelConfigMapper modelConfigMapper;
 
 
     public List<DataSetVO.ListVO> list() {
         return dataSetMapper.selectList(new QueryWrapper<>()).stream().map(dataSetBean -> {
             DataSetVO.ListVO list = new DataSetVO.ListVO();
             list.setId(dataSetBean.getId());
-            if ("excel".equalsIgnoreCase(dataSetBean.getType())) {
-                list.setTable(dataSetBean.getTable());
+            
+            List<DataTableBean> tables = dataTableMapper.selectList(new LambdaQueryWrapper<DataTableBean>()
+                    .eq(DataTableBean::getDatasetId, dataSetBean.getId())
+                    .eq(DataTableBean::getIsDel, 0));
+            if (!tables.isEmpty()) {
+                if (tables.size() == 1) {
+                    list.setTable(tables.get(0).getTable());
+                } else {
+                    list.setTable(tables.get(0).getTable() + " 等" + tables.size() + "张表");
+                }
             } else {
-                list.setTable(dataSetBean.getDatabase() + "." + dataSetBean.getTable());
+                list.setTable(dataSetBean.getDatabase());
             }
+            
             list.setName(dataSetBean.getDsName());
             list.setType(dataSetBean.getType());
             list.setCreateTime(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(dataSetBean.getCtime()));
@@ -83,21 +103,16 @@ public class DataSetService {
     public Long create(DataSetForm.Create createForm) {
         DataSetBean dataSetBean = new DataSetBean();
         dataSetBean.setDsName(createForm.getName());
-        dataSetBean.setFields(JSONUtil.toJsonStr(createForm.getFields()));
         dataSetBean.setType(createForm.getType());
         dataSetBean.setDescription(createForm.getDescription());
-        dataSetBean.setInjectPrompt(createForm.getPrompt());
-        dataSetBean.setTable(createForm.getTable());
         dataSetBean.setDatabase(createForm.getDatabase());
         dataSetBean.setHost(createForm.getHost());
         dataSetBean.setPort(createForm.getPort());
         dataSetBean.setUsername(createForm.getUsername());
         dataSetBean.setPassword(createForm.getPassword());
-        dataSetBean.setRelations(JSONUtil.toJsonStr(createForm.getRelations()));
         dataSetBean.setCreator(SecurityUtil.getCurrentUserId());
 
         if ("excel".equalsIgnoreCase(dataSetBean.getType())) {
-            this.syncExcelData(createForm.getName(), createForm.getFields());
             dataSetBean.setDatabase(defaultMySQLDriver.getDatabase());
             dataSetBean.setHost(defaultMySQLDriver.getHost());
             dataSetBean.setPort(defaultMySQLDriver.getPort());
@@ -109,21 +124,18 @@ public class DataSetService {
         return dataSetBean.getId();
     }
 
-
-    public Long update(DataSetForm.Create updateForm) {
+    @Transactional(rollbackFor = Exception.class)
+    public Long createWithTables(DataSetForm.CreateWithTables createForm) {
         DataSetBean dataSetBean = new DataSetBean();
-        dataSetBean.setDsName(updateForm.getName());
-        dataSetBean.setDatabase(updateForm.getDatabase());
-        dataSetBean.setHost(updateForm.getHost());
-        dataSetBean.setPort(updateForm.getPort());
-        dataSetBean.setTable(updateForm.getTable());
-        dataSetBean.setUsername(updateForm.getUsername());
-        dataSetBean.setPassword(updateForm.getPassword());
-        dataSetBean.setFields(JSONUtil.toJsonStr(updateForm.getFields()));
-        dataSetBean.setType(updateForm.getType());
-        dataSetBean.setInjectPrompt(updateForm.getPrompt());
-        dataSetBean.setDescription(updateForm.getDescription());
-        dataSetBean.setRelations(JSONUtil.toJsonStr(updateForm.getRelations()));
+        dataSetBean.setDsName(createForm.getName());
+        dataSetBean.setType(createForm.getType());
+        dataSetBean.setDescription(createForm.getDescription());
+        dataSetBean.setDatabase(createForm.getDatabase());
+        dataSetBean.setHost(createForm.getHost());
+        dataSetBean.setPort(createForm.getPort());
+        dataSetBean.setUsername(createForm.getUsername());
+        dataSetBean.setPassword(createForm.getPassword());
+        dataSetBean.setCreator(SecurityUtil.getCurrentUserId());
 
         if ("excel".equalsIgnoreCase(dataSetBean.getType())) {
             dataSetBean.setDatabase(defaultMySQLDriver.getDatabase());
@@ -133,7 +145,88 @@ public class DataSetService {
             dataSetBean.setPassword(defaultMySQLDriver.getPassword());
         }
 
-        dataSetMapper.update(dataSetBean, new LambdaQueryWrapper<DataSetBean>().eq(DataSetBean::getId, updateForm.getId()));
+        dataSetMapper.insert(dataSetBean);
+
+        if (createForm.getTables() != null && !createForm.getTables().isEmpty()) {
+            for (DataSetForm.CreateWithTables.TableInfo tableInfo : createForm.getTables()) {
+                DataTableBean dataTableBean = new DataTableBean();
+                dataTableBean.setDatasetId(dataSetBean.getId());
+                dataTableBean.setTable(tableInfo.getTable());
+                dataTableBean.setInjectPrompt(tableInfo.getPrompt());
+                dataTableBean.setFields(JSONUtil.toJsonStr(tableInfo.getFields()));
+                dataTableMapper.insert(dataTableBean);
+            }
+        }
+
+        batchCalculateTableEmbeddings(dataSetBean.getId());
+
+        return dataSetBean.getId();
+    }
+
+
+    @Transactional(rollbackFor = Exception.class)
+    public Long update(DataSetForm.Create updateForm) {
+        DataSetBean dataSetBean = new DataSetBean();
+        dataSetBean.setId(updateForm.getId());
+        dataSetBean.setDsName(updateForm.getName());
+        dataSetBean.setDatabase(updateForm.getDatabase());
+        dataSetBean.setHost(updateForm.getHost());
+        dataSetBean.setPort(updateForm.getPort());
+        dataSetBean.setUsername(updateForm.getUsername());
+        dataSetBean.setPassword(updateForm.getPassword());
+        dataSetBean.setType(updateForm.getType());
+        dataSetBean.setDescription(updateForm.getDescription());
+
+        if ("excel".equalsIgnoreCase(dataSetBean.getType())) {
+            dataSetBean.setDatabase(defaultMySQLDriver.getDatabase());
+            dataSetBean.setHost(defaultMySQLDriver.getHost());
+            dataSetBean.setPort(defaultMySQLDriver.getPort());
+            dataSetBean.setUsername(defaultMySQLDriver.getUsername());
+            dataSetBean.setPassword(defaultMySQLDriver.getPassword());
+        }
+
+        dataSetMapper.updateById(dataSetBean);
+        return updateForm.getId();
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public Long updateWithTables(DataSetForm.CreateWithTables updateForm) {
+        DataSetBean dataSetBean = new DataSetBean();
+        dataSetBean.setId(updateForm.getId());
+        dataSetBean.setDsName(updateForm.getName());
+        dataSetBean.setDatabase(updateForm.getDatabase());
+        dataSetBean.setHost(updateForm.getHost());
+        dataSetBean.setPort(updateForm.getPort());
+        dataSetBean.setUsername(updateForm.getUsername());
+        dataSetBean.setPassword(updateForm.getPassword());
+        dataSetBean.setType(updateForm.getType());
+        dataSetBean.setDescription(updateForm.getDescription());
+
+        if ("excel".equalsIgnoreCase(dataSetBean.getType())) {
+            dataSetBean.setDatabase(defaultMySQLDriver.getDatabase());
+            dataSetBean.setHost(defaultMySQLDriver.getHost());
+            dataSetBean.setPort(defaultMySQLDriver.getPort());
+            dataSetBean.setUsername(defaultMySQLDriver.getUsername());
+            dataSetBean.setPassword(defaultMySQLDriver.getPassword());
+        }
+
+        dataSetMapper.updateById(dataSetBean);
+
+        dataTableMapper.delete(new LambdaQueryWrapper<DataTableBean>().eq(DataTableBean::getDatasetId, updateForm.getId()));
+
+        if (updateForm.getTables() != null && !updateForm.getTables().isEmpty()) {
+            for (DataSetForm.CreateWithTables.TableInfo tableInfo : updateForm.getTables()) {
+                DataTableBean dataTableBean = new DataTableBean();
+                dataTableBean.setDatasetId(updateForm.getId());
+                dataTableBean.setTable(tableInfo.getTable());
+                dataTableBean.setInjectPrompt(tableInfo.getPrompt());
+                dataTableBean.setFields(JSONUtil.toJsonStr(tableInfo.getFields()));
+                dataTableMapper.insert(dataTableBean);
+            }
+        }
+
+        batchCalculateTableEmbeddings(updateForm.getId());
+
         return updateForm.getId();
     }
 
@@ -159,6 +252,26 @@ public class DataSetService {
         return result;
     }
 
+    public List<String> getTables(DataSetForm.Create createForm) {
+        List<String> result;
+        try {
+            DataSetDTO.DriverInfo driverInfo = DataSetDTO.DriverInfo
+                    .builder()
+                    .host(createForm.getHost())
+                    .port(createForm.getPort())
+                    .database(createForm.getDatabase())
+                    .username(createForm.getUsername())
+                    .password(createForm.getPassword())
+                    .type(createForm.getType())
+                    .build();
+            JDBCDriver driver = DriverFactory.getDriver(driverInfo);
+            result = driver.fetchTables(driverInfo);
+        } catch (Exception e) {
+            throw new DataCopilotXException(e.getMessage());
+        }
+        return result;
+    }
+
     @Transactional(rollbackFor = Exception.class)
     public void del(long id) {
         DataSetBean dataSetBean = dataSetMapper.selectById(id);
@@ -170,12 +283,12 @@ public class DataSetService {
                 .host(dataSetBean.getHost())
                 .port(dataSetBean.getPort())
                 .database(dataSetBean.getDatabase())
-                .table(dataSetBean.getTable())
                 .username(dataSetBean.getUsername())
                 .password(dataSetBean.getPassword())
                 .type(dataSetBean.getType())
                 .build();
         DriverFactory.removeDriver(driverInfo);
+        dataTableMapper.delete(new LambdaQueryWrapper<DataTableBean>().eq(DataTableBean::getDatasetId, id));
         dataSetMapper.deleteById(id);
         knowledgeLibMapper.delete(new LambdaQueryWrapper<KnowledgeLibBean>().eq(KnowledgeLibBean::getDatasetId, id));
         questionLogMapper.delete(new LambdaQueryWrapper<QuestionLogBean>().eq(QuestionLogBean::getDatasetId, id));
@@ -190,13 +303,21 @@ public class DataSetService {
         detailVO.setHost(dataSetBean.getHost());
         detailVO.setPort(dataSetBean.getPort());
         detailVO.setDatabase(dataSetBean.getDatabase());
-        detailVO.setTable(dataSetBean.getTable());
         detailVO.setUsername(dataSetBean.getUsername());
         detailVO.setPassword(dataSetBean.getPassword());
         detailVO.setDescription(dataSetBean.getDescription());
-        detailVO.setPrompt(dataSetBean.getInjectPrompt());
-        detailVO.setFields(JSONUtil.toList(dataSetBean.getFields(), DataSetDTO.SchemaInfo.class));
-        detailVO.setRelations(JSONUtil.toList(dataSetBean.getRelations(), DataSetDTO.TableRelation.class));
+        
+        List<DataTableBean> tables = dataTableMapper.selectList(new LambdaQueryWrapper<DataTableBean>()
+                .eq(DataTableBean::getDatasetId, id));
+        detailVO.setTables(tables.stream().map(table -> {
+            DataSetVO.TableVO tableVO = new DataSetVO.TableVO();
+            tableVO.setId(table.getId());
+            tableVO.setTable(table.getTable());
+            tableVO.setPrompt(table.getInjectPrompt());
+            tableVO.setFields(JSONUtil.toList(table.getFields(), DataSetDTO.SchemaInfo.class));
+            return tableVO;
+        }).collect(Collectors.toList()));
+        
         return detailVO;
     }
 
@@ -210,16 +331,11 @@ public class DataSetService {
                 .build()).collect(Collectors.toList());
     }
 
-    
-    // 完善 syncExcelData 方法
+
     private void syncExcelData(String tableName, List<DataSetDTO.SchemaInfo> fields) {
-        // 创建表SQL
         String createTableSQL = this.createTableSQL(tableName, fields);
-    
-        // 插入数据SQL
         String insertDataSQL = this.insertDataSQL(tableName, fields);
         
-        // 创建 DriverInfo 对象，使用系统数据库连接
         DataSetDTO.DriverInfo driverInfo = DataSetDTO.DriverInfo.builder()
                 .type("excel")
                 .database(defaultMySQLDriver.getDatabase())
@@ -229,24 +345,20 @@ public class DataSetService {
                 .build();
         
         try {
-            // 获取连接并创建 Statement
             Connection connection = defaultMySQLDriver.getConnection(driverInfo);
             Statement statement = connection.createStatement();
             
             try {
-                // 执行建表SQL
                 log.info("Executing create table SQL: {}", createTableSQL);
                 statement.execute(createTableSQL);
                 log.info("Table {} created successfully", tableName);
                 
-                // 执行插入数据SQL（如果有数据）
                 if (insertDataSQL != null && !insertDataSQL.isEmpty()) {
                     log.info("Executing insert data SQL");
                     int rowsAffected = statement.executeUpdate(insertDataSQL);
                     log.info("Data inserted successfully, affected rows: {}", rowsAffected);
                 }
             } finally {
-                // 关闭资源
                 defaultMySQLDriver.closeResources(statement);
             }
         } catch (Exception e) {
@@ -261,7 +373,6 @@ public class DataSetService {
         StringBuilder sqlBuilder = new StringBuilder();
         sqlBuilder.append("INSERT INTO `").append(tableName).append("` (");
         
-        // 从 fields 中添加列名
         for (int i = 0; i < fields.size(); i++) {
             sqlBuilder.append("`").append(fields.get(i).getFieldName()).append("`");
             if (i < fields.size() - 1) {
@@ -271,32 +382,26 @@ public class DataSetService {
         
         sqlBuilder.append(") VALUES ");
         
-        // 处理数据行
         for (int rowIndex = 0; rowIndex < data.size(); rowIndex++) {
             List<String> rowData = data.get(rowIndex);
             if (rowData == null || rowData.isEmpty()) {
-                continue; // 跳过空行
+                continue;
             }
             
             sqlBuilder.append("(");
             for (int colIndex = 0; colIndex < fields.size(); colIndex++) {
                 String value = "";
-                // 如果数据列足够，获取对应值；否则使用空字符串
                 if (colIndex < rowData.size()) {
                     value = rowData.get(colIndex);
                 }
                 
-                // 处理字符串值，添加引号和转义
                 if (value == null || value.trim().isEmpty()) {
                     sqlBuilder.append("NULL");
                 } else {
-                    // 获取字段类型
                     String fieldType = fields.get(colIndex).getFieldType();
-                    // 根据字段类型判断是否需要引号
                     if (isNumericType(fieldType) && isNumeric(value)) {
                         sqlBuilder.append(value);
                     } else {
-                        // 字符串类型，需要添加引号和转义单引号
                         sqlBuilder.append("'").append(value.replace("'", "\\'"))
                                 .append("'");
                     }
@@ -308,7 +413,6 @@ public class DataSetService {
             }
             sqlBuilder.append(")");
             
-            // 如果不是最后一行，添加逗号
             if (rowIndex < data.size() - 1) {
                 sqlBuilder.append(", ");
             }
@@ -320,11 +424,6 @@ public class DataSetService {
         return sqlBuilder.toString();
     }
     
-    /**
-     * 判断字段类型是否为数值类型
-     * @param fieldType 字段类型
-     * @return 是否为数值类型
-     */
     private boolean isNumericType(String fieldType) {
         if (fieldType == null) {
             return false;
@@ -335,7 +434,6 @@ public class DataSetService {
                type.contains("SMALLINT") || type.contains("TINYINT");
     }
     
-    // 简单判断字符串是否为数字
     private boolean isNumeric(String str) {
         if (str == null || str.isEmpty()) {
             return false;
@@ -352,23 +450,18 @@ public class DataSetService {
     private String createTableSQL(String tableName, List<DataSetDTO.SchemaInfo> fields) {
         List<List<String>> context = (List<List<String>>) dataSetCache.get(tableName);
         
-        // 生成建表语句
         StringBuilder createTableSQL = new StringBuilder();
         createTableSQL.append("CREATE TABLE IF NOT EXISTS `").append(tableName).append("` (\n");
         
-        // 添加字段定义
         List<String> columnDefinitions = new ArrayList<>();
         for (DataSetDTO.SchemaInfo field : fields) {
             StringBuilder columnDef = new StringBuilder();
             columnDef.append("  `").append(field.getFieldName()).append("` ");
             
-            // 处理字段类型
             String fieldType = field.getFieldType();
-            // 确保字段类型有效
             if (fieldType == null || fieldType.trim().isEmpty()) {
                 fieldType = "VARCHAR(255)";
             } else if (!fieldType.contains("(")) {
-                // 如果字段类型没有指定长度，为常见类型添加默认长度
                 switch (fieldType.toUpperCase()) {
                     case "VARCHAR":
                     case "TEXT":
@@ -386,14 +479,12 @@ public class DataSetService {
                         fieldType = "DECIMAL(18,2)";
                         break;
                     default:
-                        // 保留其他类型
                         break;
                 }
             }
             
             columnDef.append(fieldType);
             
-            // 字段描述
             if (field.getDescription() != null && !field.getDescription().trim().isEmpty()) {
                 columnDef.append(" COMMENT '").append(field.getDescription().replace("'", "\\'"))
                         .append("'");
@@ -402,10 +493,8 @@ public class DataSetService {
             columnDefinitions.add(columnDef.toString());
         }
         
-        // 添加列定义到SQL
         createTableSQL.append(String.join(",\n", columnDefinitions));
         
-        // 添加主键（如果是第一个字段，可以作为主键）
         createTableSQL.append(",\n  PRIMARY KEY (`")
                 .append(fields.get(0).getFieldName())
                 .append("`) USING BTREE");
@@ -414,5 +503,86 @@ public class DataSetService {
         
         log.info("Generated SQL for table {}: {}", tableName, createTableSQL.toString());
         return createTableSQL.toString();
+    }
+
+    private String buildTableSchemaText(String tableName, String injectPrompt, List<DataSetDTO.SchemaInfo> fields) {
+        StringBuilder schemaBuilder = new StringBuilder();
+        schemaBuilder.append("# Table: ").append(tableName);
+        if (injectPrompt != null && !injectPrompt.isEmpty()) {
+            schemaBuilder.append(", ").append(injectPrompt);
+        }
+        schemaBuilder.append("\n[\n");
+
+        List<String> fieldList = new ArrayList<>();
+        for (DataSetDTO.SchemaInfo field : fields) {
+            String fieldComment = field.getDescription() != null ? field.getDescription().strip() : "";
+            if (fieldComment.isEmpty()) {
+                fieldList.add("(" + field.getFieldName() + ":" + field.getFieldType() + ")");
+            } else {
+                fieldList.add("(" + field.getFieldName() + ":" + field.getFieldType() + ", " + fieldComment + ")");
+            }
+        }
+
+        schemaBuilder.append(String.join(",\n", fieldList));
+        schemaBuilder.append("\n]\n");
+
+        return schemaBuilder.toString();
+    }
+
+    private String calculateTableEmbedding(String tableSchemaText) {
+        ModelConfigBean embeddingModel = modelConfigMapper.selectOne(
+                new LambdaQueryWrapper<ModelConfigBean>()
+                        .eq(ModelConfigBean::getFunctionType, "embedding")
+                        .eq(ModelConfigBean::getIsDel, 0)
+                        .orderByDesc(ModelConfigBean::getId)
+                        .last("LIMIT 1")
+        );
+
+        if (embeddingModel == null) {
+            log.warn("No embedding model configured, skipping table embedding calculation");
+            return null;
+        }
+
+        try {
+            List<Float> embedding = aiGatewayChatService.embedding(
+                    ChatRequest.builder()
+                            .apiKey(embeddingModel.getApiKey())
+                            .baseUrl(embeddingModel.getBaseUrl())
+                            .model(embeddingModel.getModel())
+                            .type(embeddingModel.getType())
+                            .question(tableSchemaText)
+                            .dimensions(embeddingModel.getDimension())
+                            .build()
+            );
+
+            if (embedding == null || embedding.isEmpty()) {
+                log.warn("Failed to generate embedding for table schema");
+                return null;
+            }
+
+            return JSONUtil.toJsonStr(embedding);
+        } catch (Exception e) {
+            log.error("Error calculating table embedding: {}", e.getMessage(), e);
+            return null;
+        }
+    }
+
+    public void batchCalculateTableEmbeddings(Long datasetId) {
+        List<DataTableBean> tables = dataTableMapper.selectList(
+                new LambdaQueryWrapper<DataTableBean>()
+                        .eq(DataTableBean::getDatasetId, datasetId)
+                        .eq(DataTableBean::getIsDel, 0)
+        );
+
+        for (DataTableBean table : tables) {
+            List<DataSetDTO.SchemaInfo> fields = JSONUtil.toList(table.getFields(), DataSetDTO.SchemaInfo.class);
+            String schemaText = buildTableSchemaText(table.getTable(), table.getInjectPrompt(), fields);
+            String embedding = calculateTableEmbedding(schemaText);
+
+            if (embedding != null) {
+                table.setEmbedding(embedding);
+                dataTableMapper.updateById(table);
+            }
+        }
     }
 }

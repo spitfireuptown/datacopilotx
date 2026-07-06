@@ -45,7 +45,7 @@ public class IntentRecognitionGraphNode implements NodeAction<WorkflowState> {
                 PromptConstant.INTENT_RECOGNITION_PROMPT,
                 Map.of(
                         "${query}", beautifulQuestion,
-                        "${meta}", workflowServiceHelper.assembleDataSetInfo(dataSetBean)
+                        "${meta}", workflowServiceHelper.assembleDataSetInfo(dataSetBean, beautifulQuestion)
                 )
         );
 

@@ -28,12 +28,17 @@ public class DataSetVO {
         private String host;
         private Long port;
         private String database;
-        private String table;
         private String username;
         private String password;
         private String description;
+        private List<TableVO> tables;
+    }
+
+    @Data
+    public static final class TableVO {
+        private Long id;
+        private String table;
         private String prompt;
         private List<DataSetDTO.SchemaInfo> fields;
-        private List<DataSetDTO.TableRelation> relations;
     }
 }

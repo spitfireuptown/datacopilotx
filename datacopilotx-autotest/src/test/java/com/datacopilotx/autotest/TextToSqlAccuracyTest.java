@@ -718,6 +718,22 @@ public class TextToSqlAccuracyTest {
         deleteDatasetIfExists(salesDatasetId);
         deleteDatasetIfExists(productDatasetId);
         deleteDatasetIfExists(shopDatasetId);
+        dropTestTables();
+    }
+
+    private void dropTestTables() {
+        List<String> tables = Arrays.asList("facts_sales", "dims_product", "dims_shop");
+        try (Connection conn = DriverManager.getConnection(testDbUrl, testDbUsername, testDbPassword)) {
+            for (String table : tables) {
+                String dropSql = "DROP TABLE IF EXISTS `" + table + "`";
+                try (PreparedStatement stmt = conn.prepareStatement(dropSql)) {
+                    stmt.executeUpdate();
+                    log.info("Test table dropped: {}", table);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Failed to drop test tables: {}", e.getMessage());
+        }
     }
 
     private void deleteDatasetIfExists(Long datasetId) {

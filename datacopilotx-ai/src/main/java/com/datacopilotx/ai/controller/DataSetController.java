@@ -28,9 +28,19 @@ public class DataSetController {
         return WebResult.success(dataSetService.create(createForm));
     }
 
+    @PostMapping("/create-with-tables")
+    public WebResult<Long> createWithTables(@RequestBody DataSetForm.CreateWithTables createForm) {
+        return WebResult.success(dataSetService.createWithTables(createForm));
+    }
+
     @PostMapping("/update")
     public WebResult<Long> update(@RequestBody DataSetForm.Create updateForm) {
         return WebResult.success(dataSetService.update(updateForm));
+    }
+
+    @PostMapping("/update-with-tables")
+    public WebResult<Long> updateWithTables(@RequestBody DataSetForm.CreateWithTables updateForm) {
+        return WebResult.success(dataSetService.updateWithTables(updateForm));
     }
 
     @DeleteMapping("/delete/{id}")
@@ -46,6 +56,11 @@ public class DataSetController {
     @RequestMapping("/table/info")
     public WebResult<List<DataSetDTO.SchemaInfo>> tableSchemaInfo(@RequestBody DataSetForm.Create createForm) {
         return WebResult.success(dataSetService.tableSchemaInfo(createForm));
+    }
+
+    @PostMapping("/tables")
+    public WebResult<List<String>> getTables(@RequestBody DataSetForm.Create createForm) {
+        return WebResult.success(dataSetService.getTables(createForm));
     }
 
     @PostMapping("/file/upload")
