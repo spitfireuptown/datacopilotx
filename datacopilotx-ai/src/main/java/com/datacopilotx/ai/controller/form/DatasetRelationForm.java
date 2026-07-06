@@ -10,10 +10,11 @@ public class DatasetRelationForm {
     @Data
     public static class Create {
         private Long id;
-        private Long fromDatasetId;
-        private String fromField;
-        private Long toDatasetId;
-        private String toField;
+        private Long datasetId;
+        private String leftTable;
+        private String leftField;
+        private String rightTable;
+        private String rightField;
         private String relationType;
         private String description;
     }

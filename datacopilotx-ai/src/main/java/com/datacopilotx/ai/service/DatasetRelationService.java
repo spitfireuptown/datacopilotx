@@ -7,6 +7,7 @@ import com.datacopilotx.ai.domian.bean.DatasetRelationBean;
 import com.datacopilotx.ai.domian.vo.DatasetRelationVO;
 import com.datacopilotx.ai.mapper.DataSetMapper;
 import com.datacopilotx.ai.mapper.DatasetRelationMapper;
+import com.datacopilotx.ai.util.SecurityUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -16,7 +17,6 @@ import java.sql.Timestamp;
 import java.text.SimpleDateFormat;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -33,7 +33,7 @@ public class DatasetRelationService {
         List<DatasetRelationBean> relationList = datasetRelationMapper.selectList(new QueryWrapper<>());
         
         List<Long> allDatasetIds = relationList.stream()
-                .flatMap(r -> java.util.stream.Stream.of(r.getFromDatasetId(), r.getToDatasetId()))
+                .map(DatasetRelationBean::getDatasetId)
                 .distinct()
                 .collect(Collectors.toList());
         
@@ -46,12 +46,12 @@ public class DatasetRelationService {
         return relationList.stream().map(bean -> {
             DatasetRelationVO.ListVO list = new DatasetRelationVO.ListVO();
             list.setId(bean.getId());
-            list.setFromDatasetId(bean.getFromDatasetId());
-            list.setFromDatasetName(dataSetMap.get(bean.getFromDatasetId()));
-            list.setFromField(bean.getFromField());
-            list.setToDatasetId(bean.getToDatasetId());
-            list.setToDatasetName(dataSetMap.get(bean.getToDatasetId()));
-            list.setToField(bean.getToField());
+            list.setDatasetId(bean.getDatasetId());
+            list.setDatasetName(dataSetMap.get(bean.getDatasetId()));
+            list.setLeftTable(bean.getLeftTable());
+            list.setLeftField(bean.getLeftField());
+            list.setRightTable(bean.getRightTable());
+            list.setRightField(bean.getRightField());
             list.setRelationType(bean.getRelationType());
             list.setDescription(bean.getDescription());
             return list;
@@ -61,12 +61,14 @@ public class DatasetRelationService {
     @Transactional(rollbackFor = Exception.class)
     public Long create(DatasetRelationForm.Create createForm) {
         DatasetRelationBean bean = new DatasetRelationBean();
-        bean.setFromDatasetId(createForm.getFromDatasetId());
-        bean.setFromField(createForm.getFromField());
-        bean.setToDatasetId(createForm.getToDatasetId());
-        bean.setToField(createForm.getToField());
+        bean.setDatasetId(createForm.getDatasetId());
+        bean.setLeftTable(createForm.getLeftTable());
+        bean.setLeftField(createForm.getLeftField());
+        bean.setRightTable(createForm.getRightTable());
+        bean.setRightField(createForm.getRightField());
         bean.setRelationType(createForm.getRelationType());
         bean.setDescription(createForm.getDescription());
+        bean.setCreator(SecurityUtil.getCurrentUserId());
         bean.setCtime(new Timestamp(System.currentTimeMillis()));
         bean.setUtime(new Timestamp(System.currentTimeMillis()));
         bean.setIsDel(0);
@@ -82,10 +84,11 @@ public class DatasetRelationService {
             throw new RuntimeException("关联关系不存在");
         }
 
-        bean.setFromDatasetId(updateForm.getFromDatasetId());
-        bean.setFromField(updateForm.getFromField());
-        bean.setToDatasetId(updateForm.getToDatasetId());
-        bean.setToField(updateForm.getToField());
+        bean.setDatasetId(updateForm.getDatasetId());
+        bean.setLeftTable(updateForm.getLeftTable());
+        bean.setLeftField(updateForm.getLeftField());
+        bean.setRightTable(updateForm.getRightTable());
+        bean.setRightField(updateForm.getRightField());
         bean.setRelationType(updateForm.getRelationType());
         bean.setDescription(updateForm.getDescription());
         bean.setUtime(new Timestamp(System.currentTimeMillis()));
@@ -105,20 +108,16 @@ public class DatasetRelationService {
             return null;
         }
 
-        List<Long> datasetIds = java.util.Arrays.asList(bean.getFromDatasetId(), bean.getToDatasetId());
-        List<DataSetBean> dataSetList = dataSetMapper.selectBatchIds(datasetIds);
+        DataSetBean dataSet = dataSetMapper.selectById(bean.getDatasetId());
         
-        Map<Long, String> dataSetMap = dataSetList.stream()
-                .collect(Collectors.toMap(DataSetBean::getId, DataSetBean::getDsName, (v1, v2) -> v1));
-
         DatasetRelationVO.DetailVO detail = new DatasetRelationVO.DetailVO();
         detail.setId(bean.getId());
-        detail.setFromDatasetId(bean.getFromDatasetId());
-        detail.setFromDatasetName(dataSetMap.get(bean.getFromDatasetId()));
-        detail.setFromField(bean.getFromField());
-        detail.setToDatasetId(bean.getToDatasetId());
-        detail.setToDatasetName(dataSetMap.get(bean.getToDatasetId()));
-        detail.setToField(bean.getToField());
+        detail.setDatasetId(bean.getDatasetId());
+        detail.setDatasetName(dataSet != null ? dataSet.getDsName() : "");
+        detail.setLeftTable(bean.getLeftTable());
+        detail.setLeftField(bean.getLeftField());
+        detail.setRightTable(bean.getRightTable());
+        detail.setRightField(bean.getRightField());
         detail.setRelationType(bean.getRelationType());
         detail.setDescription(bean.getDescription());
         detail.setCtime(bean.getCtime());
@@ -129,26 +128,18 @@ public class DatasetRelationService {
     public List<DatasetRelationVO.ListVO> listByDatasetId(Long datasetId) {
         List<DatasetRelationBean> relationList = datasetRelationMapper.selectByDatasetId(datasetId);
         
-        List<Long> allDatasetIds = relationList.stream()
-                .flatMap(r -> java.util.stream.Stream.of(r.getFromDatasetId(), r.getToDatasetId()))
-                .distinct()
-                .collect(Collectors.toList());
-        
-        List<DataSetBean> dataSetList = allDatasetIds.isEmpty() ? java.util.Collections.emptyList() :
-                dataSetMapper.selectBatchIds(allDatasetIds);
-        
-        Map<Long, String> dataSetMap = dataSetList.stream()
-                .collect(Collectors.toMap(DataSetBean::getId, DataSetBean::getDsName, (v1, v2) -> v1));
+        DataSetBean dataSet = dataSetMapper.selectById(datasetId);
+        String datasetName = dataSet != null ? dataSet.getDsName() : "";
         
         return relationList.stream().map(bean -> {
             DatasetRelationVO.ListVO list = new DatasetRelationVO.ListVO();
             list.setId(bean.getId());
-            list.setFromDatasetId(bean.getFromDatasetId());
-            list.setFromDatasetName(dataSetMap.get(bean.getFromDatasetId()));
-            list.setFromField(bean.getFromField());
-            list.setToDatasetId(bean.getToDatasetId());
-            list.setToDatasetName(dataSetMap.get(bean.getToDatasetId()));
-            list.setToField(bean.getToField());
+            list.setDatasetId(bean.getDatasetId());
+            list.setDatasetName(datasetName);
+            list.setLeftTable(bean.getLeftTable());
+            list.setLeftField(bean.getLeftField());
+            list.setRightTable(bean.getRightTable());
+            list.setRightField(bean.getRightField());
             list.setRelationType(bean.getRelationType());
             list.setDescription(bean.getDescription());
             list.setCreateTime(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(bean.getCtime()));

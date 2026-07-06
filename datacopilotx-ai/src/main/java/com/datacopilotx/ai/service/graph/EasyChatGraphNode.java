@@ -29,8 +29,6 @@ public class EasyChatGraphNode implements NodeAction<WorkflowState> {
 
     @Override
     public Map<String, Object> apply(WorkflowState state) {
-        String questionId = state.questionId().orElseThrow(() -> new IllegalArgumentException("questionId is empty"));
-        String sessionId = state.sessionId().orElseThrow(() -> new IllegalArgumentException("sessionId is empty"));
         String beautifulQuestion = state.beautifulQuestion().orElseThrow(() -> new IllegalArgumentException("beautifulQuestion is empty"));
 
         Pair<String, String> promptPair = workflowServiceHelper.injectPrompt(

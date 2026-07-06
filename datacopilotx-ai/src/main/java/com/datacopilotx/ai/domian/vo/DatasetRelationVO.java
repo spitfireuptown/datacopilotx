@@ -9,12 +9,12 @@ public class DatasetRelationVO {
     @Data
     public static final class ListVO {
         private Long id;
-        private Long fromDatasetId;
-        private String fromDatasetName;
-        private String fromField;
-        private Long toDatasetId;
-        private String toDatasetName;
-        private String toField;
+        private Long datasetId;
+        private String datasetName;
+        private String leftTable;
+        private String leftField;
+        private String rightTable;
+        private String rightField;
         private String relationType;
         private String description;
         private String createTime;
@@ -23,12 +23,12 @@ public class DatasetRelationVO {
     @Data
     public static final class DetailVO {
         private Long id;
-        private Long fromDatasetId;
-        private String fromDatasetName;
-        private String fromField;
-        private Long toDatasetId;
-        private String toDatasetName;
-        private String toField;
+        private Long datasetId;
+        private String datasetName;
+        private String leftTable;
+        private String leftField;
+        private String rightTable;
+        private String rightField;
         private String relationType;
         private String description;
         private Timestamp ctime;

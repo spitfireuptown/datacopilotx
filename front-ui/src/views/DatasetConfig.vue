@@ -57,13 +57,6 @@
       width="700px"
     >
       <div v-if="selectedDataset">
-        <!-- 当前数据集信息 -->
-        <div class="current-dataset">
-          <h4>当前数据集</h4>
-          <p><strong>表名:</strong> {{ selectedDataset.table }}</p>
-          <p><strong>类型:</strong> {{ selectedDataset.type }}</p>
-        </div>
-
         <!-- 已关联的数据集列表 -->
         <div class="related-datasets">
           <h4>已关联的数据集</h4>
@@ -72,15 +65,15 @@
           </div>
           <a-list v-else :data-source="currentRelations" :locale="{ emptyText: '' }">
             <a-list-item v-for="(relation, index) in currentRelations" :key="index">
-              <a-list-item-meta :title="relation.toDatasetName">
-                <template #description>
-                  {{ relation.fromField }} {{ relation.relationType }} {{ relation.toField }}
-                </template>
-              </a-list-item-meta>
-              <a-button type="text" danger size="small" @click="handleRemoveRelation(relation)">
-                删除关联
-              </a-button>
-            </a-list-item>
+                <a-list-item-meta :title="relation.datasetName">
+                  <template #description>
+                    {{ relation.leftTable }}.{{ relation.leftField }} {{ relation.relationType }} {{ relation.rightTable }}.{{ relation.rightField }}
+                  </template>
+                </a-list-item-meta>
+                <a-button type="text" danger size="small" @click="handleRemoveRelation(relation)">
+                  删除关联
+                </a-button>
+              </a-list-item>
           </a-list>
         </div>
 
@@ -90,18 +83,28 @@
           <a-form layout="vertical">
             <a-row :gutter="16">
               <a-col :span="12">
-                <a-form-item label="关联数据集（同类型）">
-                  <a-select 
-                    v-model:value="relationForm.toDatasetId" 
-                    placeholder="请选择关联数据集"
-                    @change="onToDatasetChange"
-                  >
+                <a-form-item label="当前数据集左表">
+                  <a-select v-model:value="relationForm.leftTable" placeholder="请选择左表" @change="onLeftTableChange">
                     <a-select-option 
-                      v-for="dataset in sameTypeDatasets" 
-                      :key="dataset.id" 
-                      :value="dataset.id"
+                      v-for="table in currentDatasetTables" 
+                      :key="table.table" 
+                      :value="table.table"
                     >
-                      {{ dataset.name }} ({{ dataset.table }})
+                      {{ table.table }}
+                    </a-select-option>
+                  </a-select>
+                </a-form-item>
+              </a-col>
+              <a-col :span="12">
+                <a-form-item label="当前数据集右表">
+                  <a-select v-model:value="relationForm.rightTable" placeholder="请选择右表" @change="onRightTableChange">
+                    <a-select-option 
+                      v-for="table in currentDatasetTables" 
+                      :key="table.table" 
+                      :value="table.table"
+                      :disabled="relationForm.leftTable === table.table"
+                    >
+                      {{ table.table }}
                     </a-select-option>
                   </a-select>
                 </a-form-item>
@@ -109,27 +112,27 @@
             </a-row>
             <a-row :gutter="16">
               <a-col :span="12">
-                <a-form-item label="当前数据集字段">
-                  <a-select v-model:value="relationForm.fromField" placeholder="请选择字段">
+                <a-form-item label="当前数据集左表字段">
+                  <a-select v-model:value="relationForm.leftField" placeholder="请选择左表字段">
                     <a-select-option 
-                      v-for="field in currentDatasetFields" 
-                      :key="field" 
-                      :value="field"
+                      v-for="field in leftTableFields" 
+                      :key="field.fieldName" 
+                      :value="field.fieldName"
                     >
-                      {{ field }}
+                      {{ field.fieldName }} ({{ field.fieldType }})
                     </a-select-option>
                   </a-select>
                 </a-form-item>
               </a-col>
               <a-col :span="12">
-                <a-form-item label="关联数据集字段">
-                  <a-select v-model:value="relationForm.toField" placeholder="请选择字段">
+                <a-form-item label="当前数据集右表字段">
+                  <a-select v-model:value="relationForm.rightField" placeholder="请选择右表字段">
                     <a-select-option 
-                      v-for="field in relationDatasetFields" 
-                      :key="field" 
-                      :value="field"
+                      v-for="field in rightTableFields" 
+                      :key="field.fieldName" 
+                      :value="field.fieldName"
                     >
-                      {{ field }}
+                      {{ field.fieldName }} ({{ field.fieldType }})
                     </a-select-option>
                   </a-select>
                 </a-form-item>
@@ -165,12 +168,21 @@ import { Spin as ASpin } from 'ant-design-vue';
 import LeftSidebar from '../components/LeftSidebar.vue';
 
 // 导入数据集API
-import { getDatasetList, deleteDataset, getDatasetDetail, addDatasetRelation, deleteDatasetRelation, getDatasetRelations } from '../api/dataset';
+import { getDatasetList, deleteDataset, getDatasetDetail, addDatasetRelation, deleteDatasetRelation, getDatasetRelations, getTableFields } from '../api/dataset';
 
 // 创建路由实例
 const router = useRouter();
 
-// 定义数据集类型
+interface TableInfo {
+  table: string;
+  prompt: string;
+  fields?: Array<{
+    fieldName: string;
+    fieldType: string;
+    description: string;
+  }>;
+}
+
 interface Dataset {
   id: number;
   name: string;
@@ -182,22 +194,17 @@ interface Dataset {
   username: string;
   createTime: string;
   creatorName: string;
-  fields?: Array<{
-    fieldName: string;
-    fieldType: string;
-    description: string;
-  }>;
+  tables?: TableInfo[];
 }
 
-// 定义关联关系类型
 interface Relation {
   id: number;
-  fromDatasetId: number;
-  fromDatasetName: string;
-  fromField: string;
-  toDatasetId: number;
-  toDatasetName: string;
-  toField: string;
+  datasetId: number;
+  datasetName: string;
+  leftTable: string;
+  leftField: string;
+  rightTable: string;
+  rightField: string;
   relationType: string;
 }
 
@@ -257,16 +264,17 @@ const selectedDataset = ref<Dataset | null>(null);
 // 关联关系列表
 const relations = ref<Relation[]>([]);
 
-// 关联表单
 const relationForm = ref<{
-  toDatasetId: number | '';
-  fromField: string;
-  toField: string;
+  leftTable: string;
+  rightTable: string;
+  leftField: string;
+  rightField: string;
   relationType: string;
 }>({
-  toDatasetId: '',
-  fromField: '',
-  toField: '',
+  leftTable: '',
+  rightTable: '',
+  leftField: '',
+  rightField: '',
   relationType: 'INNER JOIN'
 });
 
@@ -279,22 +287,26 @@ const sameTypeDatasets = computed(() => {
   );
 });
 
-// 当前数据集的字段列表
-const currentDatasetFields = computed(() => {
-  return selectedDataset.value?.fields?.map(f => f.fieldName) || [];
+const currentDatasetTables = computed(() => {
+  return selectedDataset.value?.tables || [];
 });
 
-// 关联数据集的字段列表
-const relationDatasetFields = computed(() => {
-  if (!relationForm.value.toDatasetId) {return [];}
-  const dataset = datasets.value.find(d => d.id === relationForm.value.toDatasetId);
-  return dataset?.fields?.map(f => f.fieldName) || [];
+const leftTableFields = computed(() => {
+  if (!relationForm.value.leftTable) {return [];}
+  const table = selectedDataset.value?.tables?.find(t => t.table === relationForm.value.leftTable);
+  return table?.fields || [];
+});
+
+const rightTableFields = computed(() => {
+  if (!relationForm.value.rightTable) {return [];}
+  const table = selectedDataset.value?.tables?.find(t => t.table === relationForm.value.rightTable);
+  return table?.fields || [];
 });
 
 // 当前数据集的关联关系
 const currentRelations = computed(() => {
   if (!selectedDataset.value) {return [];}
-  return relations.value.filter(r => r.fromDatasetId === selectedDataset.value!.id);
+  return relations.value.filter(r => r.datasetId === selectedDataset.value!.id);
 });
 
 // 加载数据集列表
@@ -341,10 +353,10 @@ const handleEdit = (record: Dataset) => {
 // 关联管理
 const handleRelation = async (record: Dataset) => {
   try {
-    // 获取数据集详情（包括字段信息）
     const detail = await getDatasetDetail(String(record.id));
+    console.log('Dataset detail:', JSON.stringify(detail));
+    console.log('Tables:', JSON.stringify(detail.tables?.map(t => ({table: t.table, fieldCount: t.fields?.length}))));
     selectedDataset.value = detail;
-    // 加载关联关系
     await loadRelations(record.id);
     resetRelationForm();
     showRelationModal.value = true;
@@ -398,60 +410,86 @@ const handleBatchDelete = () => {
   });
 };
 
-// 关联数据集变化时获取其字段信息
-const onToDatasetChange = async () => {
-  relationForm.value.toField = '';
-  
-  if (!relationForm.value.toDatasetId) {return;}
-  
-  try {
-    const detail = await getDatasetDetail(String(relationForm.value.toDatasetId));
-    // 只更新该数据集的字段信息，不影响列表其他字段
-    const index = datasets.value.findIndex(d => d.id === relationForm.value.toDatasetId);
-    if (index !== -1) {
-      datasets.value[index] = { ...datasets.value[index], fields: detail.fields };
-    }
-  } catch (error) {
-    console.error('获取关联数据集详情失败:', error);
+const onLeftTableChange = () => {
+  relationForm.value.leftField = '';
+  if (relationForm.value.rightTable === relationForm.value.leftTable) {
+    relationForm.value.rightTable = '';
+    relationForm.value.rightField = '';
   }
 };
 
-// 重置关联表单
+const onRightTableChange = async () => {
+  relationForm.value.rightField = '';
+  
+  if (!relationForm.value.rightTable || !selectedDataset.value) {
+    return;
+  }
+  
+  const tableInfo = selectedDataset.value.tables?.find(t => t.table === relationForm.value.rightTable);
+  if (tableInfo && tableInfo.fields && tableInfo.fields.length > 0) {
+    return;
+  }
+  
+  try {
+    const fields = await getTableFields({
+      type: selectedDataset.value.type,
+      host: selectedDataset.value.host,
+      port: selectedDataset.value.port,
+      username: selectedDataset.value.username,
+      password: selectedDataset.value.password,
+      database: selectedDataset.value.database,
+      table: relationForm.value.rightTable
+    });
+    
+    if (selectedDataset.value.tables) {
+      const tableIndex = selectedDataset.value.tables.findIndex(t => t.table === relationForm.value.rightTable);
+      if (tableIndex !== -1) {
+        selectedDataset.value.tables[tableIndex].fields = fields;
+      }
+    }
+  } catch (error) {
+    console.error('获取表字段失败:', error);
+  }
+};
+
 const resetRelationForm = () => {
   relationForm.value = {
-    toDatasetId: '',
-    fromField: '',
-    toField: '',
+    leftTable: '',
+    rightTable: '',
+    leftField: '',
+    rightField: '',
     relationType: 'INNER JOIN'
   };
 };
 
-// 添加关联
 const handleAddRelation = async () => {
-  if (!selectedDataset.value || !relationForm.value.toDatasetId ||
-      !relationForm.value.fromField || !relationForm.value.toField) {
+  if (!selectedDataset.value || 
+      !relationForm.value.leftTable || !relationForm.value.rightTable ||
+      !relationForm.value.leftField || !relationForm.value.rightField) {
     message.error('请填写完整的关联信息');
     return;
   }
 
-  const toDataset = datasets.value.find(d => d.id === relationForm.value.toDatasetId);
-  
+  if (relationForm.value.leftTable === relationForm.value.rightTable) {
+    message.error('左表和右表不能相同');
+    return;
+  }
+
   const newRelation = {
-    fromDatasetId: selectedDataset.value.id,
-    fromDatasetName: selectedDataset.value.name,
-    fromField: relationForm.value.fromField,
-    toDatasetId: relationForm.value.toDatasetId,
-    toDatasetName: toDataset?.name || '',
-    toField: relationForm.value.toField,
+    datasetId: selectedDataset.value.id,
+    leftTable: relationForm.value.leftTable,
+    leftField: relationForm.value.leftField,
+    rightTable: relationForm.value.rightTable,
+    rightField: relationForm.value.rightField,
     relationType: relationForm.value.relationType
   };
 
-  // 检查是否已存在相同关联
   const exists = relations.value.some(r => 
-    r.fromDatasetId === newRelation.fromDatasetId &&
-    r.toDatasetId === newRelation.toDatasetId &&
-    r.fromField === newRelation.fromField &&
-    r.toField === newRelation.toField
+    r.datasetId === newRelation.datasetId &&
+    r.leftTable === newRelation.leftTable &&
+    r.leftField === newRelation.leftField &&
+    r.rightTable === newRelation.rightTable &&
+    r.rightField === newRelation.rightField
   );
 
   if (exists) {
@@ -461,7 +499,6 @@ const handleAddRelation = async () => {
 
   try {
     await addDatasetRelation(newRelation);
-    // 重新加载关联关系
     await loadRelations(selectedDataset.value.id);
     resetRelationForm();
     message.success('关联添加成功');

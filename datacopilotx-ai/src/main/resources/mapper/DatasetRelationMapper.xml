@@ -2,25 +2,15 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.datacopilotx.ai.mapper.DatasetRelationMapper">
     
-    <select id="selectByFromDatasetId" resultType="com.datacopilotx.ai.domian.bean.DatasetRelationBean">
-        SELECT * FROM DATA_SET_RELATION 
-        WHERE from_dataset_id = #{fromDatasetId} AND is_del = 0
-    </select>
-    
-    <select id="selectByToDatasetId" resultType="com.datacopilotx.ai.domian.bean.DatasetRelationBean">
-        SELECT * FROM DATA_SET_RELATION 
-        WHERE to_dataset_id = #{toDatasetId} AND is_del = 0
-    </select>
-    
     <select id="selectByDatasetId" resultType="com.datacopilotx.ai.domian.bean.DatasetRelationBean">
         SELECT * FROM DATA_SET_RELATION 
-        WHERE (from_dataset_id = #{datasetId} OR to_dataset_id = #{datasetId}) AND is_del = 0
+        WHERE dataset_id = #{datasetId} AND is_del = 0
     </select>
     
     <update id="deleteByDatasetId">
         UPDATE DATA_SET_RELATION 
         SET is_del = 1, utime = NOW() 
-        WHERE from_dataset_id = #{datasetId} OR to_dataset_id = #{datasetId}
+        WHERE dataset_id = #{datasetId}
     </update>
     
 </mapper>

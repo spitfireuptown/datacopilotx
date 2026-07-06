@@ -46,7 +46,7 @@ public class GenerateSqlGraphNode implements NodeAction<WorkflowState> {
         promptParams.put("${time}", workflowServiceHelper.getCurrentTime());
         promptParams.put("${query}", beautifulQuestion);
         promptParams.put("${engine}", modelConfigBean.getType());
-        promptParams.put("${innerPrompt}", ObjectUtils.isEmpty(dataSetBean.getInjectPrompt()) ? "" : dataSetBean.getInjectPrompt());
+        promptParams.put("${innerPrompt}", "");
         promptParams.put("${recall}", ObjectUtils.isEmpty(recall) ? "" : JSONUtil.toJsonStr(recall));
         promptParams.put("${meta}", workflowServiceHelper.assembleDataSetInfo(dataSetBean, beautifulQuestion));
         promptParams.put("${analysis}", intentAnalysis);

@@ -80,21 +80,12 @@ export const getDatasetList = (): Promise<Dataset[]> => {
 };
 
 /**
- * 创建新数据集
- * @param data 数据集数据
- * @returns Promise<Dataset>
- */
-export const createDataset = (data: DatasetFormData): Promise<Dataset> => {
-  return post('/dataset/create', data);
-};
-
-/**
  * 创建新数据集（包含多表配置）
  * @param data 数据集数据（包含表配置列表）
  * @returns Promise<number> 返回数据集ID
  */
 export const createDatasetWithTables = (data: DatasetCreateWithTablesData): Promise<number> => {
-  return post('/dataset/create-with-tables', data);
+  return post('/dataset/create', data);
 };
 
 /**
@@ -103,17 +94,7 @@ export const createDatasetWithTables = (data: DatasetCreateWithTablesData): Prom
  * @returns Promise<number> 返回数据集ID
  */
 export const updateDatasetWithTables = (data: DatasetCreateWithTablesData): Promise<number> => {
-  return post('/dataset/update-with-tables', data);
-};
-
-/**
- * 更新数据集
- * @param id 数据集ID
- * @param data 数据集数据
- * @returns Promise<Dataset>
- */
-export const updateDataset = (data: DatasetFormData): Promise<Dataset> => {
-  return post(`/dataset/update`, data);
+  return post('/dataset/update', data);
 };
 
 /**
@@ -140,12 +121,11 @@ export const getDatasetDetail = (id: string): Promise<Dataset> => {
  * @returns Promise<{ data: number }>
  */
 export const addDatasetRelation = (data: {
-  fromDatasetId: number;
-  fromDatasetName: string;
-  fromField: string;
-  toDatasetId: number;
-  toDatasetName: string;
-  toField: string;
+  datasetId: number;
+  leftTable: string;
+  leftField: string;
+  rightTable: string;
+  rightField: string;
   relationType: string;
   description?: string;
 }): Promise<{ data: number }> => {
@@ -168,12 +148,12 @@ export const deleteDatasetRelation = (id: string): Promise<any> => {
  */
 export const getDatasetRelations = (datasetId: string): Promise<Array<{
   id: number;
-  fromDatasetId: number;
-  fromDatasetName: string;
-  fromField: string;
-  toDatasetId: number;
-  toDatasetName: string;
-  toField: string;
+  datasetId: number;
+  datasetName: string;
+  leftTable: string;
+  leftField: string;
+  rightTable: string;
+  rightField: string;
   relationType: string;
   description?: string;
 }>> => {
@@ -181,14 +161,22 @@ export const getDatasetRelations = (datasetId: string): Promise<Array<{
 };
 
 /**
- * 测试数据库连接
- * @param data 连接信息
- * @returns Promise<{
- *   success: boolean;
- *   tables?: string[];
- *   message?: string;
- * }>
+ * 获取表字段信息
+ * @param data 连接信息和表名
+ * @returns Promise<DatasetField[]> 字段列表
  */
+export const getTableFields = (data: {
+  type: string;
+  host: string;
+  port: number;
+  username: string;
+  password?: string;
+  database: string;
+  table: string;
+}): Promise<DatasetField[]> => {
+  return post<DatasetField[]>('/dataset/table/info', data);
+};
+
 export const testDatabaseConnection = (data: {
   type: string;
   host: string;

@@ -18,17 +18,20 @@ public class DatasetRelationBean implements Serializable {
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
     
-    @TableField("from_datasource_id")
-    private Long fromDatasetId;
+    @TableField("dataset_id")
+    private Long datasetId;
     
-    @TableField("from_field")
-    private String fromField;
+    @TableField("left_table")
+    private String leftTable;
     
-    @TableField("to_datasource_id")
-    private Long toDatasetId;
+    @TableField("left_field")
+    private String leftField;
     
-    @TableField("to_field")
-    private String toField;
+    @TableField("right_table")
+    private String rightTable;
+    
+    @TableField("right_field")
+    private String rightField;
     
     @TableField("relation_type")
     private String relationType;

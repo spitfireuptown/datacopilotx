@@ -60,9 +60,6 @@ public class WorkflowServiceHelper {
         return new Pair<>(systemPrompt, userPrompt);
     }
 
-    public String assembleDataSetInfo(DataSetBean dataSetBean) {
-        return assembleDataSetInfo(dataSetBean, null);
-    }
 
     public String assembleDataSetInfo(DataSetBean dataSetBean, String question) {
         StringBuilder result = new StringBuilder();
@@ -116,18 +113,15 @@ public class WorkflowServiceHelper {
         List<DatasetRelationBean> dbRelations = datasetRelationMapper.selectByDatasetId(dataSetBean.getId());
         if (dbRelations != null && !dbRelations.isEmpty()) {
             for (DatasetRelationBean rel : dbRelations) {
-                Long relatedDatasetId = rel.getFromDatasetId().equals(dataSetBean.getId())
-                        ? rel.getToDatasetId() : rel.getFromDatasetId();
-                DataSetBean relatedDs = dataSetMapper.selectById(relatedDatasetId);
-                if (relatedDs != null && relatedDs.getIsDel() == 0) {
-                    relationMetas.add(new RelationMeta(
-                            relatedDs,
-                            rel.getFromField(),
-                            rel.getToField(),
-                            rel.getRelationType(),
-                            rel.getFromDatasetId().equals(dataSetBean.getId())
-                    ));
-                }
+                relationMetas.add(new RelationMeta(
+                        null,
+                        rel.getLeftTable(),
+                        rel.getLeftField(),
+                        rel.getRightTable(),
+                        rel.getRightField(),
+                        rel.getRelationType(),
+                        true
+                ));
             }
         }
 
@@ -135,32 +129,13 @@ public class WorkflowServiceHelper {
             result.append("\n**联表关系:**\n");
             for (RelationMeta rm : relationMetas) {
                 String joinType = rm.getJoinType() != null ? rm.getJoinType() : "INNER JOIN";
-                String relatedTableName = getTableName(rm.getRelatedDataset());
-                String mainTableName = getMainTableName(dataSetBean);
-                String fromTable = rm.isCurrentFrom() ? mainTableName : relatedTableName;
-                String fromField = rm.isCurrentFrom() ? rm.getFromField() : rm.getToField();
-                String toTable = rm.isCurrentFrom() ? relatedTableName : mainTableName;
-                String toField = rm.isCurrentFrom() ? rm.getToField() : rm.getFromField();
-
-                String fromTableRef = buildTableRef(dataSetBean, rm.isCurrentFrom() ? null : rm.getRelatedDataset(), fromTable);
-                String toTableRef = buildTableRef(dataSetBean, rm.isCurrentFrom() ? rm.getRelatedDataset() : null, toTable);
+                String fromTable = rm.getFromTable();
+                String fromField = rm.getFromField();
+                String toTable = rm.getToTable();
+                String toField = rm.getToField();
 
                 result.append(String.format("    %s %s ON %s.%s = %s.%s\n",
-                        joinType, toTableRef, fromTableRef, fromField, toTableRef, toField));
-
-                List<DataTableBean> relatedTables = dataTableMapper.selectList(new LambdaQueryWrapper<DataTableBean>()
-                        .eq(DataTableBean::getDatasetId, rm.getRelatedDataset().getId())
-                        .eq(DataTableBean::getIsDel, 0));
-                if (!relatedTables.isEmpty()) {
-                    DataTableBean relatedTable = relatedTables.get(0);
-                    List<DataSetDTO.SchemaInfo> relFields = JSONUtil.toList(relatedTable.getFields(), DataSetDTO.SchemaInfo.class);
-                    result.append(String.format("    **关联表 [%s] 字段:**\n", toTableRef));
-                    for (DataSetDTO.SchemaInfo field : relFields) {
-                        result.append(String.format("        - 字段名：%s | 类型：%s | 描述：%s\n",
-                                field.getFieldName(), field.getFieldType(),
-                                field.getDescription() != null ? field.getDescription() : ""));
-                    }
-                }
+                        joinType, toTable, fromTable, fromField, toTable, toField));
             }
         }
 
@@ -331,22 +306,28 @@ public class WorkflowServiceHelper {
 
     private static class RelationMeta {
         private final DataSetBean relatedDataset;
+        private final String fromTable;
         private final String fromField;
+        private final String toTable;
         private final String toField;
         private final String joinType;
         private final boolean currentFrom;
 
-        RelationMeta(DataSetBean relatedDataset, String fromField, String toField,
-                     String joinType, boolean currentFrom) {
+        RelationMeta(DataSetBean relatedDataset, String fromTable, String fromField,
+                     String toTable, String toField, String joinType, boolean currentFrom) {
             this.relatedDataset = relatedDataset;
+            this.fromTable = fromTable;
             this.fromField = fromField;
+            this.toTable = toTable;
             this.toField = toField;
             this.joinType = joinType;
             this.currentFrom = currentFrom;
         }
 
         DataSetBean getRelatedDataset() { return relatedDataset; }
+        String getFromTable() { return fromTable; }
         String getFromField() { return fromField; }
+        String getToTable() { return toTable; }
         String getToField() { return toField; }
         String getJoinType() { return joinType; }
         boolean isCurrentFrom() { return currentFrom; }

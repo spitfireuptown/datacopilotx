@@ -87,13 +87,14 @@ CREATE TABLE `KNOWLEDGE_LIB` (
 
 CREATE TABLE DATA_SET_RELATION (
        id BIGINT AUTO_INCREMENT PRIMARY KEY,
-       from_datasource_id BIGINT NOT NULL,
-       creator VARCHAR(36) NOT NULL UNIQUE COMMENT '用户ID',
-       from_field VARCHAR(255),
-       to_datasource_id BIGINT NOT NULL,
-       to_field VARCHAR(255),
+       dataset_id BIGINT NOT NULL,
+       left_table VARCHAR(255),
+       left_field VARCHAR(255),
+       right_table VARCHAR(255),
+       right_field VARCHAR(255),
        relation_type VARCHAR(50),
        description VARCHAR(500),
+       creator VARCHAR(36) NOT NULL UNIQUE COMMENT '用户ID',
        `ctime` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
        `utime` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
        is_del INT DEFAULT 0

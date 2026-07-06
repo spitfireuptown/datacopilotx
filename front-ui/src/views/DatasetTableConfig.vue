@@ -104,9 +104,10 @@ import { useRouter } from 'vue-router';
 import { message } from 'ant-design-vue';
 
 import LeftSidebar from '../components/LeftSidebar.vue';
-import { createDatasetWithTables, testDatabaseConnection } from '../api/dataset.js';
+import { createDatasetWithTables, updateDatasetWithTables, testDatabaseConnection } from '../api/dataset';
 
 interface FormData {
+  id: number | undefined;
   name: string;
   type: string;
   host: string;
@@ -126,6 +127,7 @@ interface TableField {
 const router = useRouter();
 
 const formData = reactive<FormData>({
+  id: undefined,
   name: '',
   type: '',
   host: '',
@@ -185,6 +187,7 @@ const loadDataFromStorage = () => {
   
   try {
     const data = JSON.parse(storedData);
+    formData.id = data.id;
     formData.name = data.name;
     formData.type = data.type;
     formData.host = data.host;
@@ -304,14 +307,18 @@ const handleSubmit = async () => {
       tables: tablesData
     };
     
-    await createDatasetWithTables(submitData);
+    if (formData.id) {
+      await updateDatasetWithTables({ ...submitData, id: formData.id });
+      message.success('成功更新数据集');
+    } else {
+      await createDatasetWithTables(submitData);
+      message.success('成功创建数据集');
+    }
     
     saving.value = false;
     isLoading.value = false;
     
     sessionStorage.removeItem('datasetTableConfig');
-    
-    message.success('成功创建数据集');
     
     router.push('/dataset-config');
   } catch (error) {

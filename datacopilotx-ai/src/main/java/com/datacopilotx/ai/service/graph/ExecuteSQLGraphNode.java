@@ -28,8 +28,6 @@ public class ExecuteSQLGraphNode implements NodeAction<WorkflowState> {
     @Override
     public Map<String, Object> apply(WorkflowState state) {
         DataSetBean dataSetBean = state.getDataSetBean();
-        String questionId = state.questionId().orElseThrow(() -> new IllegalArgumentException("questionId is empty"));
-        String sessionId = state.sessionId().orElseThrow(() -> new IllegalArgumentException("sessionId is empty"));
         String sql = state.sql().orElseThrow(() -> new IllegalArgumentException("sql is empty"));
 
         log.info("Executing SQL: {}", sql);
@@ -39,7 +37,6 @@ public class ExecuteSQLGraphNode implements NodeAction<WorkflowState> {
                 .host(dataSetBean.getHost())
                 .port(dataSetBean.getPort())
                 .database(dataSetBean.getDatabase())
-                .table(dataSetBean.getTable())
                 .username(dataSetBean.getUsername())
                 .password(dataSetBean.getPassword())
                 .type(dataSetBean.getType())

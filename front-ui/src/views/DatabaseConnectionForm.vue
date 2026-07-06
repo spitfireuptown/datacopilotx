@@ -112,6 +112,9 @@
                     <a-button type="primary" :loading="testing || isLoading" @click="handleGetTables">
                       获取表列表
                     </a-button>
+                    <a-button v-if="editMode" type="primary" @click="handleNextStep">
+                      下一步
+                    </a-button>
                     <a-button @click="handleReset">
                       重置
                     </a-button>
@@ -136,16 +139,26 @@
                 </a-space>
               </div>
               
+              <a-input-search
+                v-model:value="searchKeyword"
+                placeholder="请输入表名搜索"
+                allow-clear
+                style="margin-bottom: 16px; width: 280px;"
+              />
+              
               <a-table 
                 :columns="tableColumns" 
-                :data-source="tables.map(t => ({ key: t, name: t }))" 
+                :data-source="filteredTables" 
                 :row-selection="rowSelection"
                 row-key="key"
-                pagination="false"
+                :pagination="false"
               />
               
               <div v-if="tables.length === 0" class="no-tables">
                 未获取到表，请检查连接信息是否正确
+              </div>
+              <div v-else-if="filteredTables.length === 0" class="no-tables">
+                未找到匹配的表，请尝试其他关键词
               </div>
             </a-card>
           </div>
@@ -156,13 +169,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import type { FormInstance } from 'ant-design-vue';
 import { message } from 'ant-design-vue';
 
 import LeftSidebar from '../components/LeftSidebar.vue';
-import { getTables } from '../api/dataset.js';
+import { getTables, getDatasetDetail } from '../api/dataset';
 
 interface FormData {
   name: string;
@@ -200,6 +213,17 @@ const steps = [
 
 const tables = ref<string[]>([]);
 const selectedTables = ref<string[]>([]);
+const searchKeyword = ref<string>('');
+
+const filteredTables = computed(() => {
+  if (!searchKeyword.value) {
+    return tables.value.map(t => ({ key: t, name: t }));
+  }
+  const keyword = searchKeyword.value.toLowerCase();
+  return tables.value
+    .filter(t => t.toLowerCase().includes(keyword))
+    .map(t => ({ key: t, name: t }));
+});
 
 const testing = ref(false);
 const isLoading = ref(false);
@@ -219,7 +243,44 @@ const rowSelection = {
   }
 };
 
-onMounted(() => {
+onMounted(async () => {
+  const id = route.query.id;
+  if (id) {
+    editMode.value = true;
+    try {
+      isLoading.value = true;
+      const detail = await getDatasetDetail(String(id));
+      
+      formData.name = detail.name || '';
+      formData.type = detail.type || '';
+      formData.host = detail.host || '';
+      formData.port = detail.port || null;
+      formData.database = detail.database || '';
+      formData.username = detail.username || '';
+      formData.password = detail.password || '';
+      formData.description = detail.description || '';
+      
+      const savedTables = detail.tables ? detail.tables.map(t => t.table) : [];
+      selectedTables.value = savedTables;
+      
+      const connectionData = {
+        type: formData.type,
+        host: formData.host,
+        port: formData.port || 0,
+        username: formData.username,
+        password: formData.password,
+        database: formData.database
+      };
+      
+      const allTables = await getTables(connectionData);
+      tables.value = allTables;
+    } catch (error) {
+      console.error('获取数据集详情失败:', error);
+      message.error('获取数据集详情失败');
+    } finally {
+      isLoading.value = false;
+    }
+  }
 });
 
 const handleGetTables = async () => {
@@ -269,12 +330,18 @@ const handlePrevStep = () => {
 };
 
 const handleNextStep = () => {
+  if (currentStep.value === 1) {
+    currentStep.value = 2;
+    return;
+  }
+  
   if (selectedTables.value.length === 0) {
     message.warning('请至少选择一张表');
     return;
   }
   
   const configData = {
+    id: route.query.id ? Number(route.query.id) : undefined,
     name: formData.name,
     type: formData.type,
     host: formData.host,

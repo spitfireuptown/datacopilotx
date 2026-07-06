@@ -30,8 +30,6 @@ public class IntentRecognitionGraphNode implements NodeAction<WorkflowState> {
     @Resource
     private WorkflowServiceHelper workflowServiceHelper;
 
-    @Resource
-    private QuestionLogMapper questionLogMapper;
 
     @Override
     public Map<String, Object> apply(WorkflowState state) {
@@ -65,9 +63,7 @@ public class IntentRecognitionGraphNode implements NodeAction<WorkflowState> {
         workflowServiceHelper.streamPrint(sink, PromptConstant.INTENT_RECOGNITION_NODE, "\n", serializableSink, state);
 
         aiGatewayChatService.streamChatCompletions(chatRequest)
-                .doOnNext(chunk -> {
-                    resultBuilder.append(chunk);
-                })
+                .doOnNext(resultBuilder::append)
                 .doOnComplete(latch::countDown)
                 .doOnError(e -> {
                     log.error("流式输出异常: {}", e.getMessage());

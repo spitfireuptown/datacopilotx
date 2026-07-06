@@ -184,7 +184,7 @@ import { LoadingOutlined, DeleteOutlined, ArrowLeftOutlined } from '@ant-design/
 import LeftSidebar from '../components/LeftSidebar.vue';
 import type { UploadProps, ColumnsType } from 'ant-design-vue';
 // 导入上传文件接口
-import { uploadFile, createDataset, updateDataset, getDatasetDetail } from '../api/dataset';
+import { uploadFile, createDatasetWithTables, updateDatasetWithTables, getDatasetDetail } from '../api/dataset';
 
 const router = useRouter();
 const route = useRoute();
@@ -404,30 +404,36 @@ const saveDataset = async () => {
   isLoading.value = true;
 
   try {
-    // 构造数据集对象
-    const dataset = {
-      name: name.value.trim(),
-      description: description.value.trim(),
-      type: 'excel',
-      table: selectedFile.value ? selectedFile.value.name : editModeFileName.value, // 去除文件扩展名
+    const tableName = selectedFile.value ? selectedFile.value.name : editModeFileName.value;
+    
+    const tablesData = [{
+      table: tableName,
       prompt: innerPrompt.value.trim(),
       fields: tableData.value.map(item => ({
         fieldName: item.fieldName,
         fieldType: item.fieldType,
         description: item.description || ''
       }))
+    }];
+
+    const dataset = {
+      name: name.value.trim(),
+      description: description.value.trim(),
+      type: 'excel',
+      host: '',
+      port: 0,
+      database: '',
+      username: '',
+      password: '',
+      tables: tablesData
     };
 
     if (editMode.value) {
-      // 编辑模式下更新数据集
-      const id = route.query.id as string;
-      // 将ID添加到dataset对象中
-      const datasetWithId = { ...dataset, id };
-      await updateDataset(datasetWithId);
+      const id = Number(route.query.id);
+      await updateDatasetWithTables({ ...dataset, id });
       message.success('数据集更新成功');
     } else {
-      // 新建模式下调用创建数据集接口
-      await createDataset(dataset);
+      await createDatasetWithTables(dataset);
       message.success('数据集保存成功');
     }
     

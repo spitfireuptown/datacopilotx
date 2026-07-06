@@ -121,34 +121,9 @@ public class DataSetService {
         }
 
         dataSetMapper.insert(dataSetBean);
-        return dataSetBean.getId();
-    }
-
-    @Transactional(rollbackFor = Exception.class)
-    public Long createWithTables(DataSetForm.CreateWithTables createForm) {
-        DataSetBean dataSetBean = new DataSetBean();
-        dataSetBean.setDsName(createForm.getName());
-        dataSetBean.setType(createForm.getType());
-        dataSetBean.setDescription(createForm.getDescription());
-        dataSetBean.setDatabase(createForm.getDatabase());
-        dataSetBean.setHost(createForm.getHost());
-        dataSetBean.setPort(createForm.getPort());
-        dataSetBean.setUsername(createForm.getUsername());
-        dataSetBean.setPassword(createForm.getPassword());
-        dataSetBean.setCreator(SecurityUtil.getCurrentUserId());
-
-        if ("excel".equalsIgnoreCase(dataSetBean.getType())) {
-            dataSetBean.setDatabase(defaultMySQLDriver.getDatabase());
-            dataSetBean.setHost(defaultMySQLDriver.getHost());
-            dataSetBean.setPort(defaultMySQLDriver.getPort());
-            dataSetBean.setUsername(defaultMySQLDriver.getUsername());
-            dataSetBean.setPassword(defaultMySQLDriver.getPassword());
-        }
-
-        dataSetMapper.insert(dataSetBean);
 
         if (createForm.getTables() != null && !createForm.getTables().isEmpty()) {
-            for (DataSetForm.CreateWithTables.TableInfo tableInfo : createForm.getTables()) {
+            for (DataSetForm.Create.TableInfo tableInfo : createForm.getTables()) {
                 DataTableBean dataTableBean = new DataTableBean();
                 dataTableBean.setDatasetId(dataSetBean.getId());
                 dataTableBean.setTable(tableInfo.getTable());
@@ -186,36 +161,11 @@ public class DataSetService {
         }
 
         dataSetMapper.updateById(dataSetBean);
-        return updateForm.getId();
-    }
-
-    @Transactional(rollbackFor = Exception.class)
-    public Long updateWithTables(DataSetForm.CreateWithTables updateForm) {
-        DataSetBean dataSetBean = new DataSetBean();
-        dataSetBean.setId(updateForm.getId());
-        dataSetBean.setDsName(updateForm.getName());
-        dataSetBean.setDatabase(updateForm.getDatabase());
-        dataSetBean.setHost(updateForm.getHost());
-        dataSetBean.setPort(updateForm.getPort());
-        dataSetBean.setUsername(updateForm.getUsername());
-        dataSetBean.setPassword(updateForm.getPassword());
-        dataSetBean.setType(updateForm.getType());
-        dataSetBean.setDescription(updateForm.getDescription());
-
-        if ("excel".equalsIgnoreCase(dataSetBean.getType())) {
-            dataSetBean.setDatabase(defaultMySQLDriver.getDatabase());
-            dataSetBean.setHost(defaultMySQLDriver.getHost());
-            dataSetBean.setPort(defaultMySQLDriver.getPort());
-            dataSetBean.setUsername(defaultMySQLDriver.getUsername());
-            dataSetBean.setPassword(defaultMySQLDriver.getPassword());
-        }
-
-        dataSetMapper.updateById(dataSetBean);
 
         dataTableMapper.delete(new LambdaQueryWrapper<DataTableBean>().eq(DataTableBean::getDatasetId, updateForm.getId()));
 
         if (updateForm.getTables() != null && !updateForm.getTables().isEmpty()) {
-            for (DataSetForm.CreateWithTables.TableInfo tableInfo : updateForm.getTables()) {
+            for (DataSetForm.Create.TableInfo tableInfo : updateForm.getTables()) {
                 DataTableBean dataTableBean = new DataTableBean();
                 dataTableBean.setDatasetId(updateForm.getId());
                 dataTableBean.setTable(tableInfo.getTable());

@@ -18,22 +18,6 @@ public class DataSetForm {
     @Data
     @AllArgsConstructor
     @NoArgsConstructor
-    public static final class Create {
-        private Long id;
-        private String name;
-        private String type;
-        private String host;
-        private Long port;
-        private String database;
-        private String table;
-        private String username;
-        private String password;
-        private String description;
-    }
-
-    @Data
-    @AllArgsConstructor
-    @NoArgsConstructor
     public static final class FileCreate {
         private Long id;
         private String name;
@@ -44,13 +28,14 @@ public class DataSetForm {
     @Data
     @AllArgsConstructor
     @NoArgsConstructor
-    public static final class CreateWithTables {
+    public static final class Create {
         private Long id;
         private String name;
         private String type;
         private String host;
         private Long port;
         private String database;
+        private String table;
         private String username;
         private String password;
         private String description;
