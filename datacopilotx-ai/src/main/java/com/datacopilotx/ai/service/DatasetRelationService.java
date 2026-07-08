@@ -68,7 +68,7 @@ public class DatasetRelationService {
         bean.setRightField(createForm.getRightField());
         bean.setRelationType(createForm.getRelationType());
         bean.setDescription(createForm.getDescription());
-        bean.setCreator(SecurityUtil.getCurrentUserId());
+        bean.setCreator("test");
         bean.setCtime(new Timestamp(System.currentTimeMillis()));
         bean.setUtime(new Timestamp(System.currentTimeMillis()));
         bean.setIsDel(0);

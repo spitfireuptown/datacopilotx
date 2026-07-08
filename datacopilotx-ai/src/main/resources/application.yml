@@ -48,3 +48,11 @@ mybatis-plus:
 jwt:
   secret: datacopilotx-secret-key-2024-very-long-secret-key-for-jwt-token-generation
   expiration: 86400000  # 24小时，单位毫秒
+
+# AI网关重试配置
+ai:
+  gateway:
+    retry:
+      max-attempts: 3      # 最大重试次数
+      min-backoff: 1000    # 最小退避时间（毫秒）
+      max-backoff: 5000    # 最大退避时间（毫秒）
