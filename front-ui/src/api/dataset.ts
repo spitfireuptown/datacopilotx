@@ -21,9 +21,20 @@ interface Dataset {
   username: string;
   password?: string;
   createTime: string;
+  description?: string;
   fields?: Array<{
     fieldName: string;
     fieldType: string;
+  }>;
+  tables?: Array<{
+    id: number;
+    table: string;
+    prompt: string;
+    fields: Array<{
+      fieldName: string;
+      fieldType: string;
+      description: string;
+    }>;
   }>;
 }
 

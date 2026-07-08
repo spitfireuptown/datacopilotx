@@ -104,7 +104,7 @@ import { useRouter } from 'vue-router';
 import { message } from 'ant-design-vue';
 
 import LeftSidebar from '../components/LeftSidebar.vue';
-import { createDatasetWithTables, updateDatasetWithTables, testDatabaseConnection } from '../api/dataset';
+import { createDatasetWithTables, updateDatasetWithTables, testDatabaseConnection, getDatasetDetail } from '../api/dataset';
 
 interface FormData {
   id: number | undefined;
@@ -235,6 +235,17 @@ const loadTableSchema = async (tableName: string) => {
       fieldType: field.fieldType,
       description: field.description || ''
     })));
+    
+    if (formData.id) {
+      const detail = await getDatasetDetail(formData.id.toString());
+      if (detail.tables) {
+        const tableConfig = detail.tables.find(t => t.table === tableName);
+        if (tableConfig && tableConfig.prompt) {
+          tablePrompts[tableName] = tableConfig.prompt;
+          return;
+        }
+      }
+    }
     
     if (!tablePrompts[tableName]) {
       tablePrompts[tableName] = '';

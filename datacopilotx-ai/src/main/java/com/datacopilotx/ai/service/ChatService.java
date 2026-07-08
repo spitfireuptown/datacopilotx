@@ -145,6 +145,8 @@ public class ChatService {
                         .answer(collectedData)
                         .sql(finalState.sql().orElse(null))
                         .result(finalState.result().orElse(null))
+                        .costToken(finalState.token().map(Long::valueOf).orElse(null))
+                        .costTime(finalState.timeCost().map(String::valueOf).orElse(null))
                         .build();
                 questionLogMapper.update(updateLogBean, 
                         new LambdaQueryWrapper<QuestionLogBean>()

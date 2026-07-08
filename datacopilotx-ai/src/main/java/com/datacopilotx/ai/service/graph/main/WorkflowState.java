@@ -25,7 +25,8 @@ public class WorkflowState extends AgentState {
             Map.entry("model_id", Channels.base(null, null)),
             Map.entry("question", Channels.base(null, null)),
             Map.entry("beautiful_question", Channels.base(null, null)),
-            Map.entry("token", Channels.base(null, null)),
+            Map.entry("token", Channels.base((current, update) -> ((Number) current).intValue() + ((Number) update).intValue(), () -> 0)),
+            Map.entry("time_cost", Channels.base((current, update) -> ((Number) current).longValue() + ((Number) update).longValue(), () -> 0L)),
             Map.entry("answer", Channels.base(null, null)),
             Map.entry("sql", Channels.base(null, null)),
             Map.entry("result", Channels.base(null, null)),
@@ -73,6 +74,10 @@ public class WorkflowState extends AgentState {
 
     public Optional<Integer> token() {
         return this.value("token");
+    }
+
+    public Optional<Long> timeCost() {
+        return this.value("time_cost");
     }
 
     public Optional<String> answer() {

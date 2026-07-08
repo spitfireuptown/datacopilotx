@@ -174,21 +174,28 @@ public class TextToSqlAccuracyTest {
                 new DataSetDTO.SchemaInfo("total_amount", "decimal(10,2)", "最终实付总金额")
         );
 
+        DataSetForm.Create.TableInfo shopTableInfo = new DataSetForm.Create.TableInfo();
+        shopTableInfo.setTable("dims_shop");
+        shopTableInfo.setPrompt("门店维度表，存储门店基础信息，包括门店ID、名称、所在城市和区域");
+        shopTableInfo.setFields(shopFields);
+
         DataSetForm.Create shopForm = new DataSetForm.Create();
         shopForm.setName("门店维度表");
         shopForm.setType("mysql");
         shopForm.setHost(host);
         shopForm.setPort(port);
         shopForm.setDatabase(dbName);
-        shopForm.setTable("dims_shop");
         shopForm.setUsername(testDbUsername);
         shopForm.setPassword(testDbPassword);
         shopForm.setDescription("门店维度表 - Text-to-SQL测试");
-        shopForm.setPrompt("");
-        shopForm.setFields(shopFields);
-        shopForm.setRelations(new ArrayList<>());
+        shopForm.setTables(Arrays.asList(shopTableInfo));
         shopDatasetId = dataSetService.create(shopForm);
         log.info("Shop dataset registered with id: {}", shopDatasetId);
+
+        DataSetForm.Create.TableInfo productTableInfo = new DataSetForm.Create.TableInfo();
+        productTableInfo.setTable("dims_product");
+        productTableInfo.setPrompt("商品维度表，存储商品基础信息，包括商品ID、名称、类别和品牌");
+        productTableInfo.setFields(productFields);
 
         DataSetForm.Create productForm = new DataSetForm.Create();
         productForm.setName("商品维度表");
@@ -196,15 +203,17 @@ public class TextToSqlAccuracyTest {
         productForm.setHost(host);
         productForm.setPort(port);
         productForm.setDatabase(dbName);
-        productForm.setTable("dims_product");
         productForm.setUsername(testDbUsername);
         productForm.setPassword(testDbPassword);
         productForm.setDescription("商品维度表 - Text-to-SQL测试");
-        productForm.setPrompt("");
-        productForm.setFields(productFields);
-        productForm.setRelations(new ArrayList<>());
+        productForm.setTables(Arrays.asList(productTableInfo));
         productDatasetId = dataSetService.create(productForm);
         log.info("Product dataset registered with id: {}", productDatasetId);
+
+        DataSetForm.Create.TableInfo salesTableInfo = new DataSetForm.Create.TableInfo();
+        salesTableInfo.setTable("facts_sales");
+        salesTableInfo.setPrompt("销售事实表，存储销售交易记录，包括门店ID、商品ID、销售时间、数量和金额");
+        salesTableInfo.setFields(salesFields);
 
         DataSetForm.Create salesForm = new DataSetForm.Create();
         salesForm.setName("销售事实表");
@@ -212,13 +221,10 @@ public class TextToSqlAccuracyTest {
         salesForm.setHost(host);
         salesForm.setPort(port);
         salesForm.setDatabase(dbName);
-        salesForm.setTable("facts_sales");
         salesForm.setUsername(testDbUsername);
         salesForm.setPassword(testDbPassword);
         salesForm.setDescription("销售事实表 - Text-to-SQL测试");
-        salesForm.setPrompt("");
-        salesForm.setFields(salesFields);
-        salesForm.setRelations(new ArrayList<>());
+        salesForm.setTables(Arrays.asList(salesTableInfo));
         salesDatasetId = dataSetService.create(salesForm);
         log.info("Sales dataset registered with id: {}", salesDatasetId);
 
@@ -227,20 +233,22 @@ public class TextToSqlAccuracyTest {
 
     private void registerDataSetRelations() {
         DatasetRelationForm.Create shopRelation = new DatasetRelationForm.Create();
-        shopRelation.setFromDatasetId(salesDatasetId);
-        shopRelation.setFromField("shop_id");
-        shopRelation.setToDatasetId(shopDatasetId);
-        shopRelation.setToField("shop_id");
+        shopRelation.setDatasetId(salesDatasetId);
+        shopRelation.setLeftTable("facts_sales");
+        shopRelation.setLeftField("shop_id");
+        shopRelation.setRightTable("dims_shop");
+        shopRelation.setRightField("shop_id");
         shopRelation.setRelationType("JOIN");
         shopRelation.setDescription("销售表与门店表关联");
         datasetRelationService.create(shopRelation);
         log.info("Registered relation: facts_sales.shop_id -> dims_shop.shop_id");
 
         DatasetRelationForm.Create productRelation = new DatasetRelationForm.Create();
-        productRelation.setFromDatasetId(salesDatasetId);
-        productRelation.setFromField("product_id");
-        productRelation.setToDatasetId(productDatasetId);
-        productRelation.setToField("product_id");
+        productRelation.setDatasetId(salesDatasetId);
+        productRelation.setLeftTable("facts_sales");
+        productRelation.setLeftField("product_id");
+        productRelation.setRightTable("dims_product");
+        productRelation.setRightField("product_id");
         productRelation.setRelationType("JOIN");
         productRelation.setDescription("销售表与商品表关联");
         datasetRelationService.create(productRelation);

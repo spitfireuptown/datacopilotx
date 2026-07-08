@@ -85,7 +85,8 @@ public class GracefulQuestionGraphNode implements NodeAction<WorkflowState> {
         return Map.of(
                 "beautiful_question", result,
                 "answer", result,
-                "token", chatRequest.getTokenUsage()
+                "token", chatRequest.getTokenUsage(),
+                "time_cost", chatRequest.getTimeCost()
         );
     }
 

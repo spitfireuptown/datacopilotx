@@ -77,7 +77,8 @@ public class EasyChatGraphNode implements NodeAction<WorkflowState> {
         return Map.of(
                 "easy_chat_answer", answer,
                 "answer", answer,
-                "token", chatRequest.getTokenUsage()
+                "token", chatRequest.getTokenUsage(),
+                "time_cost", chatRequest.getTimeCost()
         );
     }
 }

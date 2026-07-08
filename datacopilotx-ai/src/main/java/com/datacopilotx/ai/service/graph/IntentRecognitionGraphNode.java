@@ -99,7 +99,8 @@ public class IntentRecognitionGraphNode implements NodeAction<WorkflowState> {
                 "intent_score", score,
                 "intent_analysis", analysis,
                 "answer", analysis,
-                "token", chatRequest.getTokenUsage()
+                "token", chatRequest.getTokenUsage(),
+                "time_cost", chatRequest.getTimeCost()
         );
     }
 }

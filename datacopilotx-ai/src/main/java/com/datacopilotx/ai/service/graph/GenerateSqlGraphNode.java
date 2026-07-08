@@ -7,6 +7,7 @@ import com.datacopilotx.ai.domian.bean.ModelConfigBean;
 import com.datacopilotx.ai.service.graph.main.WorkflowServiceHelper;
 import com.datacopilotx.ai.service.graph.main.SerializableSink;
 import com.datacopilotx.ai.service.graph.main.WorkflowState;
+import com.datacopilotx.ai.util.ExceptionUtil;
 import com.datacopilotx.aigateway.domain.dto.ChatRequest;
 import com.datacopilotx.aigateway.service.chat.AIGatewayChatService;
 import com.datacopilotx.common.constant.PromptConstant;
@@ -105,6 +106,7 @@ public class GenerateSqlGraphNode implements NodeAction<WorkflowState> {
             return Map.of(
                     "sql", sql,
                     "token", chatRequest.getTokenUsage(),
+                    "time_cost", chatRequest.getTimeCost(),
                     "sql_error", ""
             );
         } catch (Exception e) {
@@ -114,7 +116,7 @@ public class GenerateSqlGraphNode implements NodeAction<WorkflowState> {
             workflowServiceHelper.streamPrint(sink, PromptConstant.SQL_GENERATION_NODE,
                     "\nSQL生成失败，正在重试...\n", serializableSink, state);
 
-            String newSqlError = "SQL生成失败: " + e.getMessage() + "\n请根据错误信息修复并重新生成SQL。";
+            String newSqlError = "SQL生成失败: " + ExceptionUtil.getFullStackTrace(e) + "\n请根据错误信息修复并重新生成SQL。";
             if (!sqlError.isEmpty()) {
                 newSqlError = sqlError + "\n" + newSqlError;
             }

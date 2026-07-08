@@ -6,6 +6,7 @@ import com.datacopilotx.ai.domian.dto.DataSetDTO;
 import com.datacopilotx.ai.domian.dto.QueryDTO;
 import com.datacopilotx.ai.service.driver.DriverFactory;
 import com.datacopilotx.ai.service.driver.base.JDBCDriver;
+import com.datacopilotx.ai.util.ExceptionUtil;
 import com.datacopilotx.ai.service.graph.main.WorkflowServiceHelper;
 import com.datacopilotx.ai.service.graph.main.SerializableSink;
 import com.datacopilotx.ai.service.graph.main.WorkflowState;
@@ -67,7 +68,7 @@ public class ExecuteSQLGraphNode implements NodeAction<WorkflowState> {
             workflowServiceHelper.streamPrint(sink, PromptConstant.SQL_EXECUTION_NODE,
                     "\nSQL执行失败，正在重试...\n", serializableSink, state);
 
-            String sqlError = "上一次生成的SQL: " + sql + "\n执行报错: " + e.getMessage() + "\n请根据错误信息修复SQL并重新生成。";
+            String sqlError = "上一次生成的SQL: " + sql + "\n执行报错: " + ExceptionUtil.getFullStackTrace(e) + "\n请根据错误信息修复SQL并重新生成。";
             return Map.of(
                 "sql_error", sqlError,
                 "retry_count", retryCount

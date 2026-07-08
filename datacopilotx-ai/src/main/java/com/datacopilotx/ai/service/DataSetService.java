@@ -258,7 +258,8 @@ public class DataSetService {
         detailVO.setDescription(dataSetBean.getDescription());
         
         List<DataTableBean> tables = dataTableMapper.selectList(new LambdaQueryWrapper<DataTableBean>()
-                .eq(DataTableBean::getDatasetId, id));
+                .eq(DataTableBean::getDatasetId, id)
+                .eq(DataTableBean::getIsDel, 0));
         detailVO.setTables(tables.stream().map(table -> {
             DataSetVO.TableVO tableVO = new DataSetVO.TableVO();
             tableVO.setId(table.getId());
