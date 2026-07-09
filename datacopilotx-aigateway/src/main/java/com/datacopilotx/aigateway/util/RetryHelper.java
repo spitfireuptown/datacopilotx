@@ -39,7 +39,10 @@ public class RetryHelper {
         if (message != null && (message.contains("Connection reset")
                 || message.contains("Connection refused")
                 || message.contains("broken pipe")
-                || message.contains("reset by peer"))) {
+                || message.contains("reset by peer")
+                || message.contains("GOAWAY")
+                || message.contains("RST_STREAM")
+                || message.contains("java.io.IOException"))) {
             log.warn("Connection error: {}, will retry", message);
             return true;
         }

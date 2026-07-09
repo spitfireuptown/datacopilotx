@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
 @Component
@@ -42,6 +43,17 @@ public class GenerateSqlGraphNode implements NodeAction<WorkflowState> {
         List<String> recall = state.recall();
         String sqlError = state.sqlError().orElse("");
         String intentAnalysis = state.intentAnalysis().orElse("");
+        int currentRetryCount = state.retryCount().orElse(0);
+
+        if (currentRetryCount >= 3) {
+            log.error("SQL生成已达到最大重试次数: 3");
+            return Map.of(
+                    "sql", "",
+                    "token", 0,
+                    "time_cost", 0,
+                    "sql_error", "SQL生成失败，已达到最大重试次数"
+            );
+        }
 
         HashMap<String, String> promptParams = new HashMap<>();
         promptParams.put("${time}", workflowServiceHelper.getCurrentTime());
@@ -49,7 +61,7 @@ public class GenerateSqlGraphNode implements NodeAction<WorkflowState> {
         promptParams.put("${engine}", modelConfigBean.getType());
         promptParams.put("${innerPrompt}", "");
         promptParams.put("${recall}", ObjectUtils.isEmpty(recall) ? "" : JSONUtil.toJsonStr(recall));
-        promptParams.put("${meta}", workflowServiceHelper.assembleDataSetInfo(dataSetBean, beautifulQuestion));
+        promptParams.put("${meta}", workflowServiceHelper.assembleDataSetInfo(dataSetBean, beautifulQuestion, state));
         promptParams.put("${analysis}", intentAnalysis);
         promptParams.put("${sql_error}", sqlError);
 
@@ -66,6 +78,7 @@ public class GenerateSqlGraphNode implements NodeAction<WorkflowState> {
         CountDownLatch latch = new CountDownLatch(1);
         Sinks.Many<org.springframework.http.codec.ServerSentEvent<com.datacopilotx.common.result.WebResult<String>>> sink = state.getSink();
         SerializableSink serializableSink = state.getSerializableSink();
+        AtomicReference<Throwable> streamError = new AtomicReference<>();
 
         workflowServiceHelper.streamPrint(sink, PromptConstant.SQL_GENERATION_NODE, "\n", serializableSink, state);
         workflowServiceHelper.streamPrint(sink, PromptConstant.SQL_GENERATION_NODE, "\n", serializableSink, state);
@@ -80,6 +93,7 @@ public class GenerateSqlGraphNode implements NodeAction<WorkflowState> {
                 .doOnComplete(latch::countDown)
                 .doOnError(e -> {
                     log.error("流式输出异常: {}", e.getMessage());
+                    streamError.set(e);
                     latch.countDown();
                 })
                 .subscribe();
@@ -92,7 +106,16 @@ public class GenerateSqlGraphNode implements NodeAction<WorkflowState> {
         }
 
         try {
+            if (streamError.get() != null) {
+                throw new RuntimeException("流式输出异常: " + streamError.get().getMessage(), streamError.get());
+            }
+            
             String generateSqlResult = WorkflowUtil.cleanJsonStr(resultBuilder.toString());
+            
+            if (generateSqlResult == null || generateSqlResult.trim().isEmpty()) {
+                throw new RuntimeException("流式输出结果为空");
+            }
+            
             Map<String, Object> generateSqlResultMap = JSONUtil.toBean(generateSqlResult, Map.class);
             String sql = (String) generateSqlResultMap.get("sql");
 
@@ -105,16 +128,16 @@ public class GenerateSqlGraphNode implements NodeAction<WorkflowState> {
             log.info("Generated SQL: {}", sql);
             return Map.of(
                     "sql", sql,
-                    "token", chatRequest.getTokenUsage(),
-                    "time_cost", chatRequest.getTimeCost(),
+                    "token", chatRequest.getTokenUsage() != null ? chatRequest.getTokenUsage() : 0,
+                    "time_cost", chatRequest.getTimeCost() != null ? chatRequest.getTimeCost() : 0,
                     "sql_error", ""
             );
         } catch (Exception e) {
             log.error("SQL生成失败: {}", e.getMessage(), e);
-            int retryCount = state.retryCount().orElse(0) + 1;
+            int retryCount = currentRetryCount + 1;
 
             workflowServiceHelper.streamPrint(sink, PromptConstant.SQL_GENERATION_NODE,
-                    "\nSQL生成失败，正在重试...\n", serializableSink, state);
+                    "\nSQL生成失败，正在重试 " + retryCount + "/3...\n", serializableSink, state);
 
             String newSqlError = "SQL生成失败: " + ExceptionUtil.getFullStackTrace(e) + "\n请根据错误信息修复并重新生成SQL。";
             if (!sqlError.isEmpty()) {

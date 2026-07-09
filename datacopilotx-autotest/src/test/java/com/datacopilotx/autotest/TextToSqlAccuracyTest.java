@@ -442,6 +442,8 @@ public class TextToSqlAccuracyTest {
                 - The predicted SQL may return MORE fields than the gold SQL - this is acceptable as long as all fields from the gold SQL are included.
                 - The predicted SQL may return fields with different names (aliases) - what matters is that the actual data values are present.
                 - If the gold SQL returns a subset of what the predicted SQL returns, they can still be equivalent.
+                - Wildcard selection in gold SQL should be interpreted flexibly - any explicit column listing that covers all necessary data is equivalent.
+                - Explicit column enumeration is considered a valid implementation of wildcard selection, including cases where additional columns are introduced through joins.
                 
                 ### 2. Filtering Conditions (过滤条件)
                 - Be strict about filter **values** - if the filter value is wrong (e.g., '华东区' vs '华东'), the query may return empty or wrong results.

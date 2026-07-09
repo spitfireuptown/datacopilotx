@@ -27,6 +27,7 @@ node_modules
 #build
 logs
 log
+reports
 out
 target
 

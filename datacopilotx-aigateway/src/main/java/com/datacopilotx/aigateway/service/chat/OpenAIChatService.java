@@ -96,7 +96,9 @@ public class OpenAIChatService implements AIChatService {
 
                 @Override
                 public void onCompleteResponse(ChatResponse completeResponse) {
-                    chatRequest.setTokenUsage(completeResponse.tokenUsage().totalTokenCount());
+                    if (completeResponse != null && completeResponse.tokenUsage() != null) {
+                        chatRequest.setTokenUsage(completeResponse.tokenUsage().totalTokenCount());
+                    }
                     chatRequest.setTimeCost(System.currentTimeMillis() - startTime);
                     sink.complete();
                 }

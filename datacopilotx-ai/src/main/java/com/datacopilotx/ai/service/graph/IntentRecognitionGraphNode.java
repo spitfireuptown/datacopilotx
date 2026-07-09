@@ -43,7 +43,7 @@ public class IntentRecognitionGraphNode implements NodeAction<WorkflowState> {
                 PromptConstant.INTENT_RECOGNITION_PROMPT,
                 Map.of(
                         "${query}", beautifulQuestion,
-                        "${meta}", workflowServiceHelper.assembleDataSetInfo(dataSetBean, beautifulQuestion)
+                        "${meta}", workflowServiceHelper.assembleDataSetInfo(dataSetBean, beautifulQuestion, state)
                 )
         );
 
@@ -99,8 +99,8 @@ public class IntentRecognitionGraphNode implements NodeAction<WorkflowState> {
                 "intent_score", score,
                 "intent_analysis", analysis,
                 "answer", analysis,
-                "token", chatRequest.getTokenUsage(),
-                "time_cost", chatRequest.getTimeCost()
+                "token", chatRequest.getTokenUsage() != null ? chatRequest.getTokenUsage() : 0,
+                "time_cost", chatRequest.getTimeCost() != null ? chatRequest.getTimeCost() : 0
         );
     }
 }

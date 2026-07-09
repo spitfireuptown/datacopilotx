@@ -155,6 +155,7 @@ public class WorkflowState extends AgentState {
     private transient ModelConfigBean modelConfigBean;
     private transient DataSetBean dataSetBean;
     private transient SerializableSink serializableSink;
+    private transient String cachedDataSetInfo;
 
     public ModelConfigBean getModelConfigBean() {
         return modelConfigBean;
@@ -170,6 +171,14 @@ public class WorkflowState extends AgentState {
     
     public SerializableSink getSerializableSink() {
         return serializableSink;
+    }
+
+    public String getCachedDataSetInfo() {
+        return cachedDataSetInfo;
+    }
+
+    public void setCachedDataSetInfo(String cachedDataSetInfo) {
+        this.cachedDataSetInfo = cachedDataSetInfo;
     }
 
     public ChatRequest buildLLMRequest(String question) {

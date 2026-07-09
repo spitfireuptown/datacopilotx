@@ -61,6 +61,21 @@ public class WorkflowServiceHelper {
     }
 
 
+    public String assembleDataSetInfo(DataSetBean dataSetBean, String question, WorkflowState state) {
+        if (state != null && state.getCachedDataSetInfo() != null) {
+            log.debug("Using cached dataset info");
+            return state.getCachedDataSetInfo();
+        }
+
+        String result = assembleDataSetInfo(dataSetBean, question);
+        
+        if (state != null) {
+            state.setCachedDataSetInfo(result);
+        }
+        
+        return result;
+    }
+
     public String assembleDataSetInfo(DataSetBean dataSetBean, String question) {
         StringBuilder result = new StringBuilder();
 
@@ -192,7 +207,9 @@ public class WorkflowServiceHelper {
             try {
                 List<Float> tableEmbedding = JSONUtil.toList(table.getEmbedding(), Float.class);
                 double similarity = calculateCosineSimilarity(questionEmbedding, tableEmbedding);
-                tableSimilarities.add(new AbstractMap.SimpleEntry<>(table, similarity));
+                
+                double boostedSimilarity = applyTableTypeBoost(table.getTable(), question, similarity);
+                tableSimilarities.add(new AbstractMap.SimpleEntry<>(table, boostedSimilarity));
             } catch (Exception e) {
                 log.warn("Failed to parse embedding for table {}: {}", table.getTable(), e.getMessage());
             }
@@ -216,6 +233,33 @@ public class WorkflowServiceHelper {
                 selectedTables.stream().map(DataTableBean::getTable).collect(Collectors.toList()));
 
         return selectedTables;
+    }
+
+    private double applyTableTypeBoost(String tableName, String question, double similarity) {
+        boolean isDimensionTable = tableName.startsWith("dims_");
+        boolean isFactTable = tableName.startsWith("facts_");
+        
+        String lowerQuestion = question.toLowerCase();
+        
+        String[] dimensionKeywords = {"有哪些", "所有", "列表", "品类", "名称", "价格", "成本", "店长", "门店数量", "商品种类"};
+        String[] factKeywords = {"销售", "订单", "金额", "记录", "数量", "折扣"};
+        
+        boolean needsDimensionTable = Arrays.stream(dimensionKeywords).anyMatch(lowerQuestion::contains);
+        boolean needsFactTable = Arrays.stream(factKeywords).anyMatch(lowerQuestion::contains);
+        
+        if (needsDimensionTable && isDimensionTable) {
+            return similarity + 0.15;
+        }
+        
+        if (needsFactTable && isFactTable) {
+            return similarity + 0.10;
+        }
+        
+        if (needsDimensionTable && isFactTable && similarity < 0.6) {
+            return similarity - 0.10;
+        }
+        
+        return similarity;
     }
 
     private double calculateCosineSimilarity(List<Float> vector1, List<Float> vector2) {
