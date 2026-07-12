@@ -7,6 +7,7 @@ import com.datacopilotx.ai.mapper.QuestionLogMapper;
 import com.datacopilotx.ai.service.graph.main.WorkflowServiceHelper;
 import com.datacopilotx.ai.service.graph.main.SerializableSink;
 import com.datacopilotx.ai.service.graph.main.WorkflowState;
+import com.datacopilotx.ai.util.ExceptionUtil;
 import com.datacopilotx.aigateway.domain.dto.ChatRequest;
 import com.datacopilotx.aigateway.service.chat.AIGatewayChatService;
 import com.datacopilotx.common.constant.PromptConstant;
@@ -38,6 +39,8 @@ public class IntentRecognitionGraphNode implements NodeAction<WorkflowState> {
         DataSetBean dataSetBean = state.getDataSetBean();
         String beautifulQuestion = state.beautifulQuestion().orElseThrow(() -> new IllegalArgumentException("beautifulQuestion is empty"));
 
+        int currentRetryCount = state.retryCount().orElse(0);
+        String intentError = state.intentAnalysis().orElse("");
 
         Pair<String, String> promptPair = workflowServiceHelper.injectPrompt(
                 PromptConstant.INTENT_RECOGNITION_PROMPT,
@@ -50,6 +53,11 @@ public class IntentRecognitionGraphNode implements NodeAction<WorkflowState> {
         ChatRequest chatRequest = state.buildLLMRequest();
         chatRequest.setSystemPrompt(promptPair.getKey());
         chatRequest.setUserPrompt(promptPair.getValue());
+
+        // 如果有上一次的错误信息，追加到user prompt中，让LLM知道需要修正
+        if (!intentError.isEmpty()) {
+            chatRequest.setUserPrompt(promptPair.getValue() + "\n\n【上一次输出错误，请修正】\n" + intentError);
+        }
 
         StringBuilder resultBuilder = new StringBuilder();
         CountDownLatch latch = new CountDownLatch(1);
@@ -78,29 +86,55 @@ public class IntentRecognitionGraphNode implements NodeAction<WorkflowState> {
             throw new RuntimeException("等待流式输出完成被中断", e);
         }
 
-        String relationAnalysisResult = WorkflowUtil.cleanJsonStr(resultBuilder.toString());
-        Map<String, Object> relationAnalysisResultMap = JSONUtil.toBean(relationAnalysisResult, Map.class);
-        Integer score = (Integer) relationAnalysisResultMap.get("score");
-        String analysis = (String) relationAnalysisResultMap.get("analysis");
+        try {
+            String relationAnalysisResult = WorkflowUtil.cleanJsonStr(resultBuilder.toString());
+            if (relationAnalysisResult == null || relationAnalysisResult.trim().isEmpty()) {
+                throw new RuntimeException("意图识别结果为空");
+            }
 
-        workflowServiceHelper.streamPrint(sink, PromptConstant.INTENT_RECOGNITION_NODE, "\n", serializableSink, state);
+            Map<String, Object> relationAnalysisResultMap = JSONUtil.toBean(relationAnalysisResult, Map.class);
+            Integer score = (Integer) relationAnalysisResultMap.get("score");
+            String analysis = (String) relationAnalysisResultMap.get("analysis");
 
-        List<String> reasonSpilt = WorkflowUtil.splitString(analysis, 1);
-        for (String subReason : reasonSpilt) {
-            workflowServiceHelper.streamPrint(sink, PromptConstant.INTENT_RECOGNITION_NODE, subReason, serializableSink, state);
+            if (score == null) {
+                throw new RuntimeException("意图识别结果中缺少score字段");
+            }
+
+            workflowServiceHelper.streamPrint(sink, PromptConstant.INTENT_RECOGNITION_NODE, "\n", serializableSink, state);
+
+            if (analysis != null) {
+                List<String> reasonSpilt = WorkflowUtil.splitString(analysis, 1);
+                for (String subReason : reasonSpilt) {
+                    workflowServiceHelper.streamPrint(sink, PromptConstant.INTENT_RECOGNITION_NODE, subReason, serializableSink, state);
+                }
+                state.appendCollectedData(analysis);
+            }
+
+            return Map.of(
+                    "intent_score", score,
+                    "intent_analysis", analysis != null ? analysis : "",
+                    "answer", analysis != null ? analysis : "",
+                    "token", chatRequest.getTokenUsage() != null ? chatRequest.getTokenUsage() : 0,
+                    "time_cost", chatRequest.getTimeCost() != null ? chatRequest.getTimeCost() : 0
+            );
+        } catch (Exception e) {
+            log.error("意图识别失败: {}", e.getMessage(), e);
+            int retryCount = currentRetryCount + 1;
+
+            workflowServiceHelper.streamPrint(sink, PromptConstant.INTENT_RECOGNITION_NODE,
+                    "\n模型繁忙，正在重试 " + retryCount + "/3...\n", serializableSink, state);
+
+            String newIntentError = "意图识别失败: " + ExceptionUtil.getFullStackTrace(e) + "\n请确保输出标准的JSON格式，包含score和analysis字段。";
+            if (!intentError.isEmpty()) {
+                newIntentError = intentError + "\n" + newIntentError;
+            }
+
+            return Map.of(
+                    "intent_analysis", newIntentError,
+                    "retry_count", retryCount,
+                    "intent_score", -1,
+                    "answer", ""
+            );
         }
-
-        // 将分析结果追加到WorkflowState
-        if (analysis != null) {
-            state.appendCollectedData(analysis);
-        }
-
-        return Map.of(
-                "intent_score", score,
-                "intent_analysis", analysis,
-                "answer", analysis,
-                "token", chatRequest.getTokenUsage() != null ? chatRequest.getTokenUsage() : 0,
-                "time_cost", chatRequest.getTimeCost() != null ? chatRequest.getTimeCost() : 0
-        );
     }
 }

@@ -47,11 +47,11 @@ public class WorkflowGraph {
                         edge_async(state -> {
                             String sql = state.sql().orElse("");
                             int retryCount = state.retryCount().orElse(0);
-                            if ((sql == null || sql.trim().isEmpty()) && retryCount < MAX_RETRY) {
+                            if (sql.trim().isEmpty() && retryCount < MAX_RETRY) {
                                 return "generate_sql";
                             }
                             // 根据用户角色判断是否需要权限注入
-                            Integer userRole = state.userRole().orElse(2);
+                            int userRole = state.userRole().orElse(2);
                             if (userRole == 0 || userRole == 1) {
                                 // 超级管理员和管理员跳过权限注入
                                 return "execute_sql";
@@ -64,14 +64,18 @@ public class WorkflowGraph {
                 .addConditionalEdges(
                         "intent_recognition",
                         edge_async(state -> {
-                            Integer intentScore = state.intentScore().orElse(0);
+                            int intentScore = state.intentScore().orElse(0);
+                            int retryCount = state.retryCount().orElse(0);
+                            if (intentScore == -1 && retryCount < MAX_RETRY) {
+                                return "intent_recognition";
+                            }
                             if (intentScore == 1) {
                                 return "recall_knowledge";
                             } else {
                                 return "easy_chat";
                             }
                         }),
-                        Map.of("recall_knowledge", "recall_knowledge", "easy_chat", "easy_chat")
+                        Map.of("intent_recognition", "intent_recognition", "recall_knowledge", "recall_knowledge", "easy_chat", "easy_chat")
                 )
                 .addConditionalEdges(
                         "execute_sql",
