@@ -22,8 +22,6 @@ import reactor.core.publisher.Sinks;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
 @Component
@@ -75,41 +73,23 @@ public class GenerateSqlGraphNode implements NodeAction<WorkflowState> {
         chatRequest.setUserPrompt(promptPair.getValue());
 
         StringBuilder resultBuilder = new StringBuilder();
-        CountDownLatch latch = new CountDownLatch(1);
         Sinks.Many<org.springframework.http.codec.ServerSentEvent<com.datacopilotx.common.result.WebResult<String>>> sink = state.getSink();
         SerializableSink serializableSink = state.getSerializableSink();
-        AtomicReference<Throwable> streamError = new AtomicReference<>();
 
         workflowServiceHelper.streamPrint(sink, PromptConstant.SQL_GENERATION_NODE, "\n", serializableSink, state);
         workflowServiceHelper.streamPrint(sink, PromptConstant.SQL_GENERATION_NODE, "\n", serializableSink, state);
         workflowServiceHelper.streamPrint(sink, PromptConstant.SQL_GENERATION_NODE, "#### SQL: ", serializableSink, state);
         workflowServiceHelper.streamPrint(sink, PromptConstant.SQL_GENERATION_NODE, "\n", serializableSink, state);
 
-        aiGatewayChatService.streamChatCompletions(chatRequest)
-                .doOnNext(chunk -> {
-                    resultBuilder.append(chunk);
-                    workflowServiceHelper.streamPrint(sink, PromptConstant.SQL_GENERATION_NODE, chunk, serializableSink, state);
-                })
-                .doOnComplete(latch::countDown)
-                .doOnError(e -> {
-                    log.error("流式输出异常: {}", e.getMessage());
-                    streamError.set(e);
-                    latch.countDown();
-                })
-                .subscribe();
-
         try {
-            latch.await();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException("等待流式输出完成被中断", e);
-        }
+            aiGatewayChatService.streamChatCompletions(chatRequest)
+                    .doOnNext(chunk -> {
+                        resultBuilder.append(chunk);
+                        workflowServiceHelper.streamPrint(sink, PromptConstant.SQL_GENERATION_NODE, chunk, serializableSink, state);
+                    })
+                    .doOnError(e -> log.error("流式输出异常: {}", e.getMessage()))
+                    .blockLast();
 
-        try {
-            if (streamError.get() != null) {
-                throw new RuntimeException("流式输出异常: " + streamError.get().getMessage(), streamError.get());
-            }
-            
             String generateSqlResult = WorkflowUtil.cleanJsonStr(resultBuilder.toString());
             
             if (generateSqlResult == null || generateSqlResult.trim().isEmpty()) {
@@ -123,15 +103,16 @@ public class GenerateSqlGraphNode implements NodeAction<WorkflowState> {
                 throw new RuntimeException("生成的SQL为空，请重新生成");
             }
 
-            state.appendCollectedData(sql);
+            Map<String, Object> collectedDataUpdate = state.appendCollectedData(sql);
             
             log.info("Generated SQL: {}", sql);
-            return Map.of(
-                    "sql", sql,
-                    "token", chatRequest.getTokenUsage() != null ? chatRequest.getTokenUsage() : 0,
-                    "time_cost", chatRequest.getTimeCost() != null ? chatRequest.getTimeCost() : 0,
-                    "sql_error", ""
-            );
+            Map<String, Object> result = new HashMap<>();
+            result.put("sql", sql);
+            result.put("token", chatRequest.getTokenUsage() != null ? chatRequest.getTokenUsage() : 0);
+            result.put("time_cost", chatRequest.getTimeCost() != null ? chatRequest.getTimeCost() : 0);
+            result.put("sql_error", "");
+            result.putAll(collectedDataUpdate);
+            return result;
         } catch (Exception e) {
             log.error("SQL生成失败: {}", e.getMessage(), e);
             int retryCount = currentRetryCount + 1;

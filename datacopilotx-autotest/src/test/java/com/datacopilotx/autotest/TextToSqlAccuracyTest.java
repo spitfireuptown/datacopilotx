@@ -206,7 +206,7 @@ public class TextToSqlAccuracyTest {
         productForm.setUsername(testDbUsername);
         productForm.setPassword(testDbPassword);
         productForm.setDescription("商品维度表 - Text-to-SQL测试");
-        productForm.setTables(Arrays.asList(productTableInfo));
+        productForm.setTables(List.of(productTableInfo));
         productDatasetId = dataSetService.create(productForm);
         log.info("Product dataset registered with id: {}", productDatasetId);
 
@@ -375,8 +375,6 @@ public class TextToSqlAccuracyTest {
         RunnableConfig runnableConfig = RunnableConfig.builder()
                 .threadId(sessionId)
                 .build();
-
-        WorkflowState.initCollectedData();
 
         StateGraph<WorkflowState> workflow = workflowGraph.createResearchGraph();
         CompiledGraph<WorkflowState> compiledGraph = workflow.compile();

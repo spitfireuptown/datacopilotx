@@ -21,6 +21,7 @@ import reactor.core.publisher.FluxSink;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 import static dev.langchain4j.data.message.SystemMessage.systemMessage;
@@ -31,15 +32,49 @@ import static java.util.Arrays.asList;
 @Service
 public class OpenAIChatService implements AIChatService {
 
-    @Override
-    public String chatCompletions(ChatRequest chatRequest) {
-        OpenAiChatModel chatModel = OpenAiChatModel.builder()
+    private static final Map<String, OpenAiChatModel> chatModelCache = new ConcurrentHashMap<>();
+    private static final Map<String, OpenAiStreamingChatModel> streamingChatModelCache = new ConcurrentHashMap<>();
+    private static final Map<String, OpenAiEmbeddingModel> embeddingModelCache = new ConcurrentHashMap<>();
+
+    private String buildModelKey(String apiKey, String model, String baseUrl) {
+        return String.format("%s_%s_%s", apiKey, model, baseUrl);
+    }
+
+    private OpenAiChatModel getChatModel(ChatRequest chatRequest) {
+        String key = buildModelKey(chatRequest.getApiKey(), chatRequest.getModel(), chatRequest.getBaseUrl());
+        return chatModelCache.computeIfAbsent(key, k -> OpenAiChatModel.builder()
                 .apiKey(chatRequest.getApiKey())
                 .modelName(chatRequest.getModel())
                 .baseUrl(chatRequest.getBaseUrl())
                 .temperature(0.0)
                 .topP(1.0)
-                .build();
+                .build());
+    }
+
+    private OpenAiStreamingChatModel getStreamingChatModel(ChatRequest chatRequest) {
+        String key = buildModelKey(chatRequest.getApiKey(), chatRequest.getModel(), chatRequest.getBaseUrl());
+        return streamingChatModelCache.computeIfAbsent(key, k -> OpenAiStreamingChatModel.builder()
+                .apiKey(chatRequest.getApiKey())
+                .modelName(chatRequest.getModel())
+                .baseUrl(chatRequest.getBaseUrl())
+                .temperature(0.0)
+                .topP(1.0)
+                .build());
+    }
+
+    private OpenAiEmbeddingModel getEmbeddingModel(ChatRequest chatRequest) {
+        String key = buildModelKey(chatRequest.getApiKey(), chatRequest.getModel(), chatRequest.getBaseUrl());
+        return embeddingModelCache.computeIfAbsent(key, k -> OpenAiEmbeddingModel.builder()
+                .apiKey(chatRequest.getApiKey())
+                .modelName(chatRequest.getModel())
+                .baseUrl(chatRequest.getBaseUrl())
+                .dimensions(chatRequest.getDimensions())
+                .build());
+    }
+
+    @Override
+    public String chatCompletions(ChatRequest chatRequest) {
+        OpenAiChatModel chatModel = getChatModel(chatRequest);
         String userMessageContent = chatRequest.getUserPrompt();
         if (userMessageContent == null || userMessageContent.trim().isEmpty()) {
             userMessageContent = chatRequest.getQuestion();
@@ -61,13 +96,7 @@ public class OpenAIChatService implements AIChatService {
 
     @Override
     public Flux<String> streamChatCompletions(ChatRequest chatRequest) {
-        OpenAiStreamingChatModel streamingChatModel = OpenAiStreamingChatModel.builder()
-                .apiKey(chatRequest.getApiKey())
-                .modelName(chatRequest.getModel())
-                .baseUrl(chatRequest.getBaseUrl())
-                .temperature(0.0)
-                .topP(1.0)
-                .build();
+        OpenAiStreamingChatModel streamingChatModel = getStreamingChatModel(chatRequest);
 
         String userMessageContent = chatRequest.getUserPrompt();
         if (userMessageContent == null || userMessageContent.trim().isEmpty()) {
@@ -112,20 +141,12 @@ public class OpenAIChatService implements AIChatService {
         }, FluxSink.OverflowStrategy.BUFFER);
     }
 
-
-
     @Override
     public List<Float> embedding(ChatRequest chatRequest) {
-        OpenAiEmbeddingModel embeddingModel = OpenAiEmbeddingModel.builder()
-                .apiKey(chatRequest.getApiKey())
-                .modelName(chatRequest.getModel())
-                .baseUrl(chatRequest.getBaseUrl())
-                .dimensions(chatRequest.getDimensions())
-                .build();
-
+        OpenAiEmbeddingModel embeddingModel = getEmbeddingModel(chatRequest);
 
         TextSegment segment = TextSegment.from(chatRequest.getQuestion());
-            Embedding embedding = embeddingModel.embed(segment).content();
+        Embedding embedding = embeddingModel.embed(segment).content();
         return Floats.asList(embedding.vector());
     }
 }

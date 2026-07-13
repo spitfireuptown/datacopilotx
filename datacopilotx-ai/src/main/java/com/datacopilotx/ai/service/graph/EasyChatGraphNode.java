@@ -14,8 +14,8 @@ import org.bsc.langgraph4j.action.NodeAction;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Sinks;
 
+import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
 
 @Slf4j
 @Component
@@ -41,7 +41,6 @@ public class EasyChatGraphNode implements NodeAction<WorkflowState> {
         chatRequest.setUserPrompt(promptPair.getValue());
 
         StringBuilder resultBuilder = new StringBuilder();
-        CountDownLatch latch = new CountDownLatch(1);
         Sinks.Many<org.springframework.http.codec.ServerSentEvent<com.datacopilotx.common.result.WebResult<String>>> sink = state.getSink();
         SerializableSink serializableSink = state.getSerializableSink();
 
@@ -55,30 +54,19 @@ public class EasyChatGraphNode implements NodeAction<WorkflowState> {
                     resultBuilder.append(chunk);
                     workflowServiceHelper.streamPrint(sink, PromptConstant.EASY_CHAT_NODE, chunk, serializableSink, state);
                 })
-                .doOnComplete(latch::countDown)
-                .doOnError(e -> {
-                    log.error("流式输出异常: {}", e.getMessage());
-                    latch.countDown();
-                })
-                .subscribe();
-
-        try {
-            latch.await();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException("等待流式输出完成被中断", e);
-        }
+                .doOnError(e -> log.error("流式输出异常: {}", e.getMessage()))
+                .blockLast();
 
         String answer = resultBuilder.toString();
 
-        // 将收集到的流式数据追加到WorkflowState
-        state.appendCollectedData(answer);
+        Map<String, Object> collectedDataUpdate = state.appendCollectedData(answer);
 
-        return Map.of(
-                "easy_chat_answer", answer,
-                "answer", answer,
-                "token", chatRequest.getTokenUsage(),
-                "time_cost", chatRequest.getTimeCost()
-        );
+        Map<String, Object> returnMap = new HashMap<>();
+        returnMap.put("easy_chat_answer", answer);
+        returnMap.put("answer", answer);
+        returnMap.put("token", chatRequest.getTokenUsage());
+        returnMap.put("time_cost", chatRequest.getTimeCost());
+        returnMap.putAll(collectedDataUpdate);
+        return returnMap;
     }
 }

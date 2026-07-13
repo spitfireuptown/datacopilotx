@@ -12,6 +12,9 @@ import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 数据库连接池管理器 - 管理不同数据源的连接池
@@ -20,59 +23,57 @@ import java.util.concurrent.ConcurrentHashMap;
 @Slf4j
 public class ConnectionPoolManager {
 
-    // 存储不同数据源的连接池
-    private static final Map<String, HikariDataSource> dataSourceMap = new ConcurrentHashMap<>();
+    private static final Map<String, DataSourceEntry> dataSourceMap = new ConcurrentHashMap<>();
+    private static final ScheduledExecutorService CLEANUP_SCHEDULER = Executors.newSingleThreadScheduledExecutor(r -> {
+        Thread t = new Thread(r, "connection-pool-cleanup");
+        t.setDaemon(true);
+        return t;
+    });
 
-    /**
-     * 获取数据库连接
-     * @param driverInfo 数据源信息
-     * @return 数据库连接
-     * @throws SQLException SQL异常
-     */
+    private static final long IDLE_TIMEOUT_MS = 30 * 60 * 1000L;
+    private static final long CLEANUP_INTERVAL_MS = 5 * 60 * 1000L;
+
+    static {
+        CLEANUP_SCHEDULER.scheduleAtFixedRate(ConnectionPoolManager::cleanupIdleDataSources,
+                CLEANUP_INTERVAL_MS, CLEANUP_INTERVAL_MS, TimeUnit.MILLISECONDS);
+        Runtime.getRuntime().addShutdownHook(new Thread(ConnectionPoolManager::closeAllDataSources));
+    }
+
     public static Connection getConnection(DataSetDTO.DriverInfo driverInfo, JDBCDriver jdbcDriver) throws SQLException {
         String dataSourceKey = generateDataSourceKey(driverInfo);
-        HikariDataSource dataSource = dataSourceMap.get(dataSourceKey);
+        DataSourceEntry entry = dataSourceMap.get(dataSourceKey);
 
-        // 如果连接池不存在，则创建新的连接池
-        if (dataSource == null) {
+        if (entry == null) {
             synchronized (ConnectionPoolManager.class) {
-                // 双重检查锁定，避免并发创建
                 if (dataSourceMap.get(dataSourceKey) == null) {
-                    dataSource = createDataSource(driverInfo, jdbcDriver);
-                    dataSourceMap.put(dataSourceKey, dataSource);
+                    HikariDataSource dataSource = createDataSource(driverInfo, jdbcDriver);
+                    entry = new DataSourceEntry(dataSource);
+                    dataSourceMap.put(dataSourceKey, entry);
                     log.info("为数据源 {} 创建了新的连接池", dataSourceKey);
                 } else {
-                    dataSource = dataSourceMap.get(dataSourceKey);
+                    entry = dataSourceMap.get(dataSourceKey);
                 }
             }
         }
 
-        return dataSource.getConnection();
+        entry.touch();
+        return entry.getDataSource().getConnection();
     }
 
-    /**
-     * 创建数据源连接池
-     * @param driverInfo 数据源信息
-     * @param jdbcDriver JDBC驱动
-     * @return Hikari数据源
-     */
     private static HikariDataSource createDataSource(DataSetDTO.DriverInfo driverInfo, JDBCDriver jdbcDriver) {
         HikariConfig config = new HikariConfig();
         config.setJdbcUrl(jdbcDriver.jdbcUrl());
         config.setDriverClassName(jdbcDriver.driverClass());
         
-        // 对于excel类型，使用DefaultMySQLDriver中的用户名和密码
         config.setUsername(driverInfo.getUsername());
         config.setPassword(driverInfo.getPassword());
         
-        // 设置连接池参数
         config.setMinimumIdle(3);
         config.setMaximumPoolSize(10);
-        config.setMaxLifetime(1800000); // 30分钟
-        config.setConnectionTimeout(30000); // 30秒
-        config.setValidationTimeout(5000); // 5秒
+        config.setMaxLifetime(1800000);
+        config.setConnectionTimeout(30000);
+        config.setValidationTimeout(5000);
         
-        // 根据数据库类型设置合适的测试查询
         if (Arrays.asList("mysql", "excel").contains(driverInfo.getType())) {
             config.setConnectionTestQuery("SELECT 1");
         } else if ("clickhouse".equals(driverInfo.getType())) {
@@ -82,11 +83,31 @@ public class ConnectionPoolManager {
         return new HikariDataSource(config);
     }
 
-    /**
-     * 生成数据源唯一标识
-     * @param driverInfo 数据源信息
-     * @return 数据源唯一标识
-     */
+    private static void cleanupIdleDataSources() {
+        long now = System.currentTimeMillis();
+        int cleanedCount = 0;
+        
+        for (Map.Entry<String, DataSourceEntry> entry : dataSourceMap.entrySet()) {
+            if (now - entry.getValue().getLastUsedTime() > IDLE_TIMEOUT_MS) {
+                String key = entry.getKey();
+                DataSourceEntry dsEntry = dataSourceMap.remove(key);
+                if (dsEntry != null) {
+                    try {
+                        dsEntry.getDataSource().close();
+                        cleanedCount++;
+                        log.info("清理空闲数据源 {} 的连接池（{} 毫秒未使用）", key, now - dsEntry.getLastUsedTime());
+                    } catch (Exception e) {
+                        log.error("关闭数据源 {} 的连接池失败", key, e);
+                    }
+                }
+            }
+        }
+        
+        if (cleanedCount > 0) {
+            log.info("本次清理完成，共清理 {} 个空闲连接池", cleanedCount);
+        }
+    }
+
     private static String generateDataSourceKey(DataSetDTO.DriverInfo driverInfo) {
         return String.format("%s_%s_%s_%s_%s",
                 driverInfo.getType(),
@@ -96,31 +117,52 @@ public class ConnectionPoolManager {
                 driverInfo.getUsername());
     }
 
-    /**
-     * 关闭指定数据源的连接池
-     * @param driverInfo 数据源信息
-     */
     public static void closeDataSource(DataSetDTO.DriverInfo driverInfo) {
         String dataSourceKey = generateDataSourceKey(driverInfo);
-        HikariDataSource dataSource = dataSourceMap.remove(dataSourceKey);
-        if (dataSource != null) {
-            dataSource.close();
-            log.info("关闭数据源 {} 的连接池", dataSourceKey);
+        DataSourceEntry entry = dataSourceMap.remove(dataSourceKey);
+        if (entry != null) {
+            try {
+                entry.getDataSource().close();
+                log.info("关闭数据源 {} 的连接池", dataSourceKey);
+            } catch (Exception e) {
+                log.error("关闭数据源 {} 的连接池失败", dataSourceKey, e);
+            }
         }
     }
 
-    /**
-     * 关闭所有连接池
-     */
     public static void closeAllDataSources() {
-        for (Map.Entry<String, HikariDataSource> entry : dataSourceMap.entrySet()) {
+        CLEANUP_SCHEDULER.shutdown();
+        
+        for (Map.Entry<String, DataSourceEntry> entry : dataSourceMap.entrySet()) {
             try {
-                entry.getValue().close();
+                entry.getValue().getDataSource().close();
                 log.info("关闭数据源 {} 的连接池", entry.getKey());
             } catch (Exception e) {
                 log.error("关闭数据源 {} 的连接池失败", entry.getKey(), e);
             }
         }
         dataSourceMap.clear();
+    }
+
+    private static class DataSourceEntry {
+        private final HikariDataSource dataSource;
+        private volatile long lastUsedTime;
+
+        public DataSourceEntry(HikariDataSource dataSource) {
+            this.dataSource = dataSource;
+            this.lastUsedTime = System.currentTimeMillis();
+        }
+
+        public HikariDataSource getDataSource() {
+            return dataSource;
+        }
+
+        public long getLastUsedTime() {
+            return lastUsedTime;
+        }
+
+        public void touch() {
+            this.lastUsedTime = System.currentTimeMillis();
+        }
     }
 }

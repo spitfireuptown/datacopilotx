@@ -33,6 +33,7 @@ public class WorkflowState extends AgentState {
             Map.entry("intent_score", Channels.base(null, null)),
             Map.entry("intent_analysis", Channels.base(null, null)),
             Map.entry("recall", Channels.appender(List::of)),
+            Map.entry("collected_data", Channels.appender(List::of)),
             Map.entry("sql_error", Channels.base(null, null)),
             Map.entry("retry_count", Channels.base(null, null)),
             Map.entry("user_id", Channels.base(null, null)),
@@ -129,27 +130,20 @@ public class WorkflowState extends AgentState {
         return this.value("is_piaoyitong_user");
     }
     
-    // 使用 ThreadLocal 存储收集的数据，避免序列化问题
-    private static final ThreadLocal<StringBuilder> collectedDataHolder = new ThreadLocal<>();
-    
-    public static void initCollectedData() {
-        collectedDataHolder.set(new StringBuilder());
+    public Optional<List<String>> collectedData() {
+        return this.value("collected_data");
     }
     
-    public void appendCollectedData(String data) {
-        StringBuilder sb = collectedDataHolder.get();
-        if (sb != null && data != null) {
-            sb.append(data);
-        }
+    public Map<String, Object> appendCollectedData(String data) {
+        return data != null ? Map.of("collected_data", data) : Map.of();
     }
     
     public String getCollectedData() {
-        StringBuilder sb = collectedDataHolder.get();
-        return sb != null ? sb.toString() : "";
+        List<String> dataList = this.collectedData().orElse(List.of());
+        return String.join("", dataList);
     }
     
     public void clearCollectedData() {
-        collectedDataHolder.remove();
     }
 
     private transient ModelConfigBean modelConfigBean;

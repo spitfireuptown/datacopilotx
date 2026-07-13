@@ -10,31 +10,29 @@ import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
 
-import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Service
 public class OllamaAIChatService implements AIChatService {
 
-    public WebClient.Builder webClient;
+    private final Map<String, WebClient> webClientCache = new ConcurrentHashMap<>();
 
-    @PostConstruct
-    public void init() {
-        this.webClient = WebClient.builder();
+    private WebClient getWebClient() {
+        return webClientCache.computeIfAbsent("ollama", k -> WebClient.builder().build());
     }
 
     @Override
     public String chatCompletions(ChatRequest chatRequest) {
-        Map<String, Object> bodyJson = new HashMap<>();
-        bodyJson.put("model", chatRequest.getModel());
-        bodyJson.put("prompt", chatRequest.getQuestion());
-        bodyJson.put("stream", false);
+        Map<String, Object> bodyJson = Map.of(
+                "model", chatRequest.getModel(),
+                "prompt", chatRequest.getQuestion(),
+                "stream", false
+        );
 
-
-        return webClient.build()
+        return getWebClient()
                 .post()
                 .uri(chatRequest.getBaseUrl())
                 .body(BodyInserters.fromValue(bodyJson))
@@ -48,46 +46,42 @@ public class OllamaAIChatService implements AIChatService {
 
     @Override
     public Flux<String> streamChatCompletions(ChatRequest chatRequest) {
-        Map<String, Object> bodyJson = new HashMap<>();
         long startTime = System.currentTimeMillis();
 
-        bodyJson.put("model", chatRequest.getModel());
-        bodyJson.put("messages",
-                List.of(
-                    Map.of(
-                    "role", "user",
-                    "content", chatRequest.getSystemPrompt() + "\n" + chatRequest.getUserPrompt()
-                    )
-                )
+        Map<String, Object> bodyJson = Map.of(
+                "model", chatRequest.getModel(),
+                "messages", List.of(Map.of(
+                        "role", "user",
+                        "content", chatRequest.getSystemPrompt() + "\n" + chatRequest.getUserPrompt()
+                )),
+                "stream", true,
+                "think", false
         );
-        bodyJson.put("stream", true);
-        bodyJson.put("think", false);
 
-        // ollama通常使用本地模型，暂不统计token消耗
         chatRequest.setTokenUsage(0);
 
-        return webClient.build()
+        return getWebClient()
                 .post()
                 .uri(chatRequest.getBaseUrl())
                 .body(BodyInserters.fromValue(bodyJson))
                 .retrieve()
                 .bodyToFlux(String.class)
-                .flatMap((data) -> {
+                .flatMap(data -> {
                     OllamaResultDTO ollamaResultDTO = JSONUtil.toBean(data, OllamaResultDTO.class);
                     return Flux.just(ollamaResultDTO.getMessage().getContent());
                 })
-                .doOnError((error) -> log.error(error.getMessage(), error))
+                .doOnError(error -> log.error(error.getMessage(), error))
                 .doOnComplete(() -> chatRequest.setTimeCost(System.currentTimeMillis() - startTime));
     }
 
-
     @Override
     public List<Float> embedding(ChatRequest chatRequest) {
-        Map<String, Object> bodyJson = new HashMap<>();
-        bodyJson.put("model", chatRequest.getModel());
-        bodyJson.put("input", chatRequest.getQuestion());
-        bodyJson.put("prompt", chatRequest.getQuestion());
-        return webClient.build()
+        Map<String, Object> bodyJson = Map.of(
+                "model", chatRequest.getModel(),
+                "input", chatRequest.getQuestion(),
+                "prompt", chatRequest.getQuestion()
+        );
+        return getWebClient()
                 .post()
                 .uri(chatRequest.getBaseUrl())
                 .body(BodyInserters.fromValue(bodyJson))

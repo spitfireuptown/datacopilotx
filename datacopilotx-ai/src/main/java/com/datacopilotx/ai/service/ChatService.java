@@ -120,9 +120,6 @@ public class ChatService {
 
                 log.info("Starting workflow execution, initial state keys: {}", initialData.keySet());
 
-                // 初始化收集数据的ThreadLocal
-                WorkflowState.initCollectedData();
-
                 WorkflowState finalState = null;
                 int nodeCount = 0;
 

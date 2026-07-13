@@ -14,9 +14,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.bsc.langgraph4j.action.NodeAction;
 import org.springframework.stereotype.Component;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
 
 @Slf4j
 @Component
@@ -52,7 +52,6 @@ public class GracefulQuestionGraphNode implements NodeAction<WorkflowState> {
         chatRequest.setUserPrompt(promptPair.getValue());
 
         StringBuilder resultBuilder = new StringBuilder();
-        CountDownLatch latch = new CountDownLatch(1);
         var sink = state.getSink();
         var serializableSink = state.getSerializableSink();
 
@@ -64,30 +63,20 @@ public class GracefulQuestionGraphNode implements NodeAction<WorkflowState> {
                     resultBuilder.append(chunk);
                     workflowServiceHelper.streamPrint(sink, PromptConstant.BEAUTIFUL_NODE, chunk, serializableSink, state);
                 })
-                .doOnComplete(latch::countDown)
-                .doOnError(e -> {
-                    log.error("流式输出异常: {}", e.getMessage());
-                    latch.countDown();
-                })
-                .subscribe();
-
-        try {
-            latch.await();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException("等待流式输出完成被中断", e);
-        }
+                .doOnError(e -> log.error("流式输出异常: {}", e.getMessage()))
+                .blockLast();
 
         String result = resultBuilder.toString();
         
-        state.appendCollectedData(result);
+        Map<String, Object> collectedDataUpdate = state.appendCollectedData(result);
 
-        return Map.of(
-                "beautiful_question", result,
-                "answer", result,
-                "token", chatRequest.getTokenUsage(),
-                "time_cost", chatRequest.getTimeCost()
-        );
+        Map<String, Object> returnMap = new HashMap<>();
+        returnMap.put("beautiful_question", result);
+        returnMap.put("answer", result);
+        returnMap.put("token", chatRequest.getTokenUsage());
+        returnMap.put("time_cost", chatRequest.getTimeCost());
+        returnMap.putAll(collectedDataUpdate);
+        return returnMap;
     }
 
     private String buildHistoryContext(String sessionId, String currentQuestionId) {

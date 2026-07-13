@@ -18,9 +18,9 @@ import org.bsc.langgraph4j.action.NodeAction;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Sinks;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
 
 @Slf4j
 @Component
@@ -60,7 +60,6 @@ public class IntentRecognitionGraphNode implements NodeAction<WorkflowState> {
         }
 
         StringBuilder resultBuilder = new StringBuilder();
-        CountDownLatch latch = new CountDownLatch(1);
         Sinks.Many<org.springframework.http.codec.ServerSentEvent<com.datacopilotx.common.result.WebResult<String>>> sink = state.getSink();
         SerializableSink serializableSink = state.getSerializableSink();
 
@@ -72,19 +71,8 @@ public class IntentRecognitionGraphNode implements NodeAction<WorkflowState> {
 
         aiGatewayChatService.streamChatCompletions(chatRequest)
                 .doOnNext(resultBuilder::append)
-                .doOnComplete(latch::countDown)
-                .doOnError(e -> {
-                    log.error("流式输出异常: {}", e.getMessage());
-                    latch.countDown();
-                })
-                .subscribe();
-
-        try {
-            latch.await();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException("等待流式输出完成被中断", e);
-        }
+                .doOnError(e -> log.error("流式输出异常: {}", e.getMessage()))
+                .blockLast();
 
         try {
             String relationAnalysisResult = WorkflowUtil.cleanJsonStr(resultBuilder.toString());
@@ -102,21 +90,23 @@ public class IntentRecognitionGraphNode implements NodeAction<WorkflowState> {
 
             workflowServiceHelper.streamPrint(sink, PromptConstant.INTENT_RECOGNITION_NODE, "\n", serializableSink, state);
 
+            Map<String, Object> collectedDataUpdate = Map.of();
             if (analysis != null) {
                 List<String> reasonSpilt = WorkflowUtil.splitString(analysis, 1);
                 for (String subReason : reasonSpilt) {
                     workflowServiceHelper.streamPrint(sink, PromptConstant.INTENT_RECOGNITION_NODE, subReason, serializableSink, state);
                 }
-                state.appendCollectedData(analysis);
+                collectedDataUpdate = state.appendCollectedData(analysis);
             }
 
-            return Map.of(
-                    "intent_score", score,
-                    "intent_analysis", analysis != null ? analysis : "",
-                    "answer", analysis != null ? analysis : "",
-                    "token", chatRequest.getTokenUsage() != null ? chatRequest.getTokenUsage() : 0,
-                    "time_cost", chatRequest.getTimeCost() != null ? chatRequest.getTimeCost() : 0
-            );
+            Map<String, Object> result = new HashMap<>();
+            result.put("intent_score", score);
+            result.put("intent_analysis", analysis != null ? analysis : "");
+            result.put("answer", analysis != null ? analysis : "");
+            result.put("token", chatRequest.getTokenUsage() != null ? chatRequest.getTokenUsage() : 0);
+            result.put("time_cost", chatRequest.getTimeCost() != null ? chatRequest.getTimeCost() : 0);
+            result.putAll(collectedDataUpdate);
+            return result;
         } catch (Exception e) {
             log.error("意图识别失败: {}", e.getMessage(), e);
             int retryCount = currentRetryCount + 1;
