@@ -28,8 +28,9 @@ public class ModelController {
     }
 
     @PostMapping("/test-connection/{id}")
-    public void testConnection(@PathVariable long id) {
+    public WebResult testConnection(@PathVariable long id) {
         modelConfigService.testConnection(id);
+        return WebResult.success();
     }
 
     @PostMapping("/modify")

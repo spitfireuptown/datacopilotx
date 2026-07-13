@@ -338,20 +338,15 @@ const handleCancel = () => {
 
 // 测试连接
 const handleTestConnection = async (id: string) => {
+  const loadingInstance = message.loading('正在测试连接...', 0);
   try {
-    message.loading('正在测试连接...');
     await testModelConnection(id);
-    message.destroy();
+    loadingInstance();
     message.success('连接测试成功');
   } catch (error: any) {
-    message.destroy();
-    // 检查错误对象中是否包含code字段，并且code为200的情况
-    if (error.response && error.response.data && error.response.data.code === 200) {
-      message.success('连接测试成功');
-    } else {
-      message.error('连接测试失败');
-      console.error('测试连接失败:', error);
-    }
+    loadingInstance();
+    message.error(error.message || '连接测试失败');
+    console.error('测试连接失败:', error);
   }
 };
 

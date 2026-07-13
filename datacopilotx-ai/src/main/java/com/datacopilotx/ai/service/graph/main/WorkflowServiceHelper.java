@@ -7,14 +7,10 @@ import com.datacopilotx.ai.controller.form.QuestionForm;
 import com.datacopilotx.ai.domian.bean.DataSetBean;
 import com.datacopilotx.ai.domian.bean.DataTableBean;
 import com.datacopilotx.ai.domian.bean.DatasetRelationBean;
-import com.datacopilotx.ai.domian.bean.ModelConfigBean;
 import com.datacopilotx.ai.domian.dto.DataSetDTO;
 import com.datacopilotx.ai.mapper.DataSetMapper;
 import com.datacopilotx.ai.mapper.DataTableMapper;
 import com.datacopilotx.ai.mapper.DatasetRelationMapper;
-import com.datacopilotx.ai.mapper.ModelConfigMapper;
-import com.datacopilotx.aigateway.domain.dto.ChatRequest;
-import com.datacopilotx.aigateway.service.chat.AIGatewayChatService;
 import com.datacopilotx.common.result.WebResult;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -40,14 +36,6 @@ public class WorkflowServiceHelper {
 
     @Resource
     private DatasetRelationMapper datasetRelationMapper;
-
-    @Resource
-    private AIGatewayChatService aiGatewayChatService;
-
-    @Resource
-    private ModelConfigMapper modelConfigMapper;
-
-    private static final int DEFAULT_TOP_K = 5;
     
     public Pair<String, String> injectPrompt(Pair<String, String> promptPair, Map<String, String> params) {
         String systemPrompt = promptPair.getKey();
@@ -94,10 +82,8 @@ public class WorkflowServiceHelper {
             return result.toString();
         }
 
-        List<DataTableBean> selectedTables = selectTablesByEmbedding(allTables, question);
-
-        for (int i = 0; i < selectedTables.size(); i++) {
-            DataTableBean tableBean = selectedTables.get(i);
+        for (int i = 0; i < allTables.size(); i++) {
+            DataTableBean tableBean = allTables.get(i);
             List<DataSetDTO.SchemaInfo> schemaInfos = JSONUtil.toList(tableBean.getFields(), DataSetDTO.SchemaInfo.class);
             String tableName = tableBean.getTable();
 
@@ -157,181 +143,7 @@ public class WorkflowServiceHelper {
         return result.toString();
     }
 
-    private List<DataTableBean> selectTablesByEmbedding(List<DataTableBean> tables, String question) {
-        if (question == null || question.isBlank()) {
-            return tables;
-        }
-
-        ModelConfigBean embeddingModel = modelConfigMapper.selectOne(
-                new LambdaQueryWrapper<ModelConfigBean>()
-                        .eq(ModelConfigBean::getFunctionType, "embedding")
-                        .eq(ModelConfigBean::getIsDel, 0)
-                        .orderByDesc(ModelConfigBean::getId)
-                        .last("LIMIT 1")
-        );
-
-        if (embeddingModel == null) {
-            log.warn("No embedding model configured, using all tables");
-            return tables;
-        }
-
-        List<Float> questionEmbedding;
-        try {
-            questionEmbedding = aiGatewayChatService.embedding(
-                    ChatRequest.builder()
-                            .apiKey(embeddingModel.getApiKey())
-                            .baseUrl(embeddingModel.getBaseUrl())
-                            .model(embeddingModel.getModel())
-                            .type(embeddingModel.getType())
-                            .question(question)
-                            .dimensions(embeddingModel.getDimension())
-                            .build()
-            );
-        } catch (Exception e) {
-            log.error("Failed to generate question embedding: {}", e.getMessage());
-            return tables;
-        }
-
-        if (questionEmbedding == null || questionEmbedding.isEmpty()) {
-            log.warn("Failed to generate question embedding, using all tables");
-            return tables;
-        }
-
-        List<Map.Entry<DataTableBean, Double>> tableSimilarities = new ArrayList<>();
-
-        for (DataTableBean table : tables) {
-            if (table.getEmbedding() == null || table.getEmbedding().isEmpty()) {
-                continue;
-            }
-
-            try {
-                List<Float> tableEmbedding = JSONUtil.toList(table.getEmbedding(), Float.class);
-                double similarity = calculateCosineSimilarity(questionEmbedding, tableEmbedding);
-                
-                double boostedSimilarity = applyTableTypeBoost(table.getTable(), question, similarity);
-                tableSimilarities.add(new AbstractMap.SimpleEntry<>(table, boostedSimilarity));
-            } catch (Exception e) {
-                log.warn("Failed to parse embedding for table {}: {}", table.getTable(), e.getMessage());
-            }
-        }
-
-        if (tableSimilarities.isEmpty()) {
-            log.warn("No tables have embeddings, using all tables");
-            return tables;
-        }
-
-        tableSimilarities.sort((a, b) -> Double.compare(b.getValue(), a.getValue()));
-
-        int topK = Math.min(DEFAULT_TOP_K, tableSimilarities.size());
-        List<DataTableBean> selectedTables = tableSimilarities.stream()
-                .limit(topK)
-                .map(Map.Entry::getKey)
-                .collect(Collectors.toList());
-
-        log.info("Selected {} tables based on embedding similarity: {}", 
-                selectedTables.size(), 
-                selectedTables.stream().map(DataTableBean::getTable).collect(Collectors.toList()));
-
-        return selectedTables;
-    }
-
-    private double applyTableTypeBoost(String tableName, String question, double similarity) {
-        boolean isDimensionTable = tableName.startsWith("dims_");
-        boolean isFactTable = tableName.startsWith("facts_");
-        
-        String lowerQuestion = question.toLowerCase();
-        
-        String[] dimensionKeywords = {"有哪些", "所有", "列表", "品类", "名称", "价格", "成本", "店长", "门店数量", "商品种类"};
-        String[] factKeywords = {"销售", "订单", "金额", "记录", "数量", "折扣"};
-        
-        boolean needsDimensionTable = Arrays.stream(dimensionKeywords).anyMatch(lowerQuestion::contains);
-        boolean needsFactTable = Arrays.stream(factKeywords).anyMatch(lowerQuestion::contains);
-        
-        if (needsDimensionTable && isDimensionTable) {
-            return similarity + 0.15;
-        }
-        
-        if (needsFactTable && isFactTable) {
-            return similarity + 0.10;
-        }
-        
-        if (needsDimensionTable && isFactTable && similarity < 0.6) {
-            return similarity - 0.10;
-        }
-        
-        return similarity;
-    }
-
-    private double calculateCosineSimilarity(List<Float> vector1, List<Float> vector2) {
-        if (vector1 == null || vector2 == null || vector1.isEmpty() || vector2.isEmpty()) {
-            return 0.0;
-        }
-
-        double dotProduct = 0.0;
-        double norm1 = 0.0;
-        double norm2 = 0.0;
-
-        int minLength = Math.min(vector1.size(), vector2.size());
-        for (int i = 0; i < minLength; i++) {
-            dotProduct += vector1.get(i) * vector2.get(i);
-            norm1 += vector1.get(i) * vector1.get(i);
-            norm2 += vector2.get(i) * vector2.get(i);
-        }
-
-        if (norm1 == 0.0 || norm2 == 0.0) {
-            return 0.0;
-        }
-
-        return dotProduct / (Math.sqrt(norm1) * Math.sqrt(norm2));
-    }
-
-    private String getMainTableName(DataSetBean ds) {
-        if ("excel".equalsIgnoreCase(ds.getType())) {
-            return ds.getDsName();
-        }
-        List<DataTableBean> tables = dataTableMapper.selectList(new LambdaQueryWrapper<DataTableBean>()
-                .eq(DataTableBean::getDatasetId, ds.getId()));
-        return tables.isEmpty() ? ds.getDatabase() : tables.get(0).getTable();
-    }
-
-    private DataSetBean findDataSetByTable(String tableName) {
-        if (tableName == null || tableName.isBlank()) {
-            return null;
-        }
-        List<DataTableBean> tables = dataTableMapper.selectList(
-                new LambdaQueryWrapper<DataTableBean>()
-                        .eq(DataTableBean::getTable, tableName)
-        );
-        if (tables.isEmpty()) {
-            return null;
-        }
-        return dataSetMapper.selectById(tables.get(0).getDatasetId());
-    }
-
-    private String getTableName(DataSetBean ds) {
-        if ("excel".equalsIgnoreCase(ds.getType())) {
-            return ds.getDsName();
-        }
-        List<DataTableBean> tables = dataTableMapper.selectList(new LambdaQueryWrapper<DataTableBean>()
-                .eq(DataTableBean::getDatasetId, ds.getId()));
-        return tables.isEmpty() ? ds.getDatabase() : tables.get(0).getTable();
-    }
-
-    private String buildTableRef(DataSetBean currentDs, DataSetBean relatedDs, String tableName) {
-        if (relatedDs == null) {
-            return tableName;
-        }
-        boolean sameDb = isSameDatabase(currentDs, relatedDs);
-        if (sameDb) {
-            return tableName;
-        }
-        String dbName = relatedDs.getDatabase();
-        if (dbName != null && !dbName.isBlank()) {
-            return dbName + "." + tableName;
-        }
-        return tableName;
-    }
-
+    
     private boolean isSameDatabase(DataSetBean ds1, DataSetBean ds2) {
         if (ds1 == null || ds2 == null) {
             return true;

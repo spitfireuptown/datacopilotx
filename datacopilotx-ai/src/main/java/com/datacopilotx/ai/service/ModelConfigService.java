@@ -162,7 +162,7 @@ public class ModelConfigService {
             }
         } catch (Exception e) {
             log.error(e.getMessage(), e);
-            throw new DataCopilotXException(ResponseCode.MODEL_CONNECTION_FAILED);
+            throw new DataCopilotXException(ResponseCode.MODEL_CONNECTION_FAILED, e.getMessage());
         }
     }
 

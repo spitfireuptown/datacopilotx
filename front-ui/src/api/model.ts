@@ -66,5 +66,5 @@ export const deleteModel = (id: string): Promise<void> => {
  * @returns Promise<boolean>
  */
 export const testModelConnection = (id: string): Promise<void> => {
-  return postVoid(`/model/test-connection/${id}`);
+  return post(`/model/test-connection/${id}`, undefined, { noError: true, timeout: 120000 });
 };
