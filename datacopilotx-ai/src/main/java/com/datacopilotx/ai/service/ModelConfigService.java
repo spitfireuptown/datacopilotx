@@ -112,6 +112,7 @@ public class ModelConfigService {
         this.testModelConn(
                 ModelForm.Create.builder()
                         .model(modelConfigBean.getModel())
+                        .functionType(modelConfigBean.getFunctionType())
                         .apiKey(modelConfigBean.getApiKey())
                         .platform(modelConfigBean.getPlatform())
                         .type(modelConfigBean.getType())
