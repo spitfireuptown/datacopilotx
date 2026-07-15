@@ -26,9 +26,10 @@ public class OllamaAIChatService implements AIChatService {
 
     @Override
     public String chatCompletions(ChatRequest chatRequest) {
+        String question = chatRequest.getQuestion() != null ? chatRequest.getQuestion().trim() : "";
         Map<String, Object> bodyJson = Map.of(
                 "model", chatRequest.getModel(),
-                "prompt", chatRequest.getQuestion(),
+                "prompt", question,
                 "stream", false
         );
 
@@ -48,11 +49,13 @@ public class OllamaAIChatService implements AIChatService {
     public Flux<String> streamChatCompletions(ChatRequest chatRequest) {
         long startTime = System.currentTimeMillis();
 
+        String systemPrompt = chatRequest.getSystemPrompt() != null ? chatRequest.getSystemPrompt().trim() : "";
+        String userPrompt = chatRequest.getUserPrompt() != null ? chatRequest.getUserPrompt().trim() : "";
         Map<String, Object> bodyJson = Map.of(
                 "model", chatRequest.getModel(),
                 "messages", List.of(Map.of(
                         "role", "user",
-                        "content", chatRequest.getSystemPrompt() + "\n" + chatRequest.getUserPrompt()
+                        "content", systemPrompt + "\n" + userPrompt
                 )),
                 "stream", true,
                 "think", false
@@ -76,10 +79,11 @@ public class OllamaAIChatService implements AIChatService {
 
     @Override
     public List<Float> embedding(ChatRequest chatRequest) {
+        String question = chatRequest.getQuestion() != null ? chatRequest.getQuestion().trim() : "";
         Map<String, Object> bodyJson = Map.of(
                 "model", chatRequest.getModel(),
-                "input", chatRequest.getQuestion(),
-                "prompt", chatRequest.getQuestion()
+                "input", question,
+                "prompt", question
         );
         return getWebClient()
                 .post()

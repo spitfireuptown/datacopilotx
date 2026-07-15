@@ -28,7 +28,7 @@ public interface PromptConstant {
     // 意图识别与DSL生成
     Pair<String, String> INTENT_RECOGNITION_PROMPT = new Pair<>(
             """
-            你是一个自然语言分析高手，判断用户问题"${query}"的意图，特别擅长分析多表联表查询场景。
+            你是一个自然语言分析高手，判断用户问题"${query}"的意图，擅长分析单表查询和多表联表查询场景。
             """,
 
             """
@@ -37,9 +37,15 @@ public interface PromptConstant {
             如果是，则解析出完整的查询DSL结构。
             
             **重要：如果问题涉及多个表的字段（如订单表+明细表、用户表+订单表），你必须使用joins进行联表查询！**
+            
+            **重要：如果问题仅涉及单个维度表的信息（如查询门店名称、商品名称等），不要生成joins字段！**
 
             ## 数据集Schema
             ${meta}
+
+            ## 查询类型判断规则
+            - **单表查询**：当问题仅涉及单个维度表的信息时（如查询门店名称、商品名称、商品价格等），不要生成joins字段，只在tables中包含该维度表
+            - **联表查询**：当问题涉及多个表的字段时，必须使用joins字段指定联表关系
 
             ## 联表查询规则
             - 当用户问题涉及多个表的字段时，必须使用joins字段指定联表关系
@@ -59,7 +65,7 @@ public interface PromptConstant {
                 - operator: 比较运算符 (=, >, <, >=, <=, LIKE, IN等)
                 - value: 条件值
                 - logical: 逻辑运算符 (AND, OR)，默认AND
-            - joins: 关联查询信息（多表关联时需要）
+            - joins: 关联查询信息（多表关联时需要，单表查询时不要生成此字段）
                 - join_type: 连接类型 (INNER JOIN, LEFT JOIN, RIGHT JOIN等)
                 - from_table: 左表名
                 - from_field: 左表关联字段
@@ -97,13 +103,14 @@ public interface PromptConstant {
             ```
             - 当score=1时，analysis为简要说明，dsl包含完整结构
             - 当score=0时，dsl为null
+            - 当为单表查询时，joins字段可以省略或设为null
             """
     );
 
     // 生成SQL
     Pair<String, String> SQL_GENERATION_PROMPT = new Pair<>(
 
-            "你是一个高级数据专家擅长构造SQL，根据用户的问题和数据集，生成SQL，特别擅长多表联表查询",
+            "你是一个高级数据专家，根据用户的问题和数据集生成正确的SQL。你擅长判断何时使用单表查询，何时使用多表联表查询。",
 
             """
             ## 当前时间
@@ -111,6 +118,11 @@ public interface PromptConstant {
             
             ## 任务
             你是一个自然语言分析高手，根据用户的问题"${query}"、数据集元数据："${meta}"、意图分析结果："${analysis}"，生成SQL。
+            
+            ## 查询策略判断
+            - **单表查询场景**：当问题仅涉及维度信息（如门店名称、商品信息、员工信息等）时，直接查询对应的维度表，无需关联事实表
+            - **联表查询场景**：当问题涉及业务指标（如销售额、订单量等）且需要关联维度信息时，才使用JOIN操作
+            - **重要原则**：永远不要为了查询维度信息而关联事实表，这会排除没有业务记录的维度数据
             
             ## 规则
             - 生成的SQL为"${engine}" 语法SQL!!!
@@ -124,6 +136,10 @@ public interface PromptConstant {
             - JOIN的ON条件必须使用数据集元数据中"联表关系"指定的字段
             - 多表查询时，所有字段前面加表名前缀（如 table.column）
             - 联表SQL示例：SELECT a.字段1, b.字段2 FROM 主表 a INNER JOIN 关联表 b ON a.关联字段 = b.关联字段 WHERE ...
+          
+            ## 时间处理规则
+            - 当用户未指定年份时，使用当前年份（${time}）
+            - 日期格式必须使用完整格式：YYYY-MM-DD
             
             ## 规则
             ${innerPrompt}
@@ -162,7 +178,7 @@ public interface PromptConstant {
         ${query}
         ## 任务
         你是一个智能聊天机器人，根据用户的问题作出合理回答，要符合问题本身的意图，不要发散超出问题的范围。
-        """
+        """ 
     );
 
     String START_NODE = "start_node";

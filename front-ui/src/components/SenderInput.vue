@@ -365,7 +365,7 @@ watch(
 );
 
 const changeValue = (val: string) => {
-  question.value = val;
+  question.value = val.trim();
 };
 
 // 数据集相关状态

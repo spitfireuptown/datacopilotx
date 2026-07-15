@@ -79,6 +79,7 @@ public class OpenAIChatService implements AIChatService {
         if (userMessageContent == null || userMessageContent.trim().isEmpty()) {
             userMessageContent = chatRequest.getQuestion();
         }
+        userMessageContent = userMessageContent != null ? userMessageContent.trim() : "";
 
         String systemMessageContent = chatRequest.getSystemPrompt();
 
@@ -102,6 +103,7 @@ public class OpenAIChatService implements AIChatService {
         if (userMessageContent == null || userMessageContent.trim().isEmpty()) {
             userMessageContent = chatRequest.getQuestion();
         }
+        userMessageContent = userMessageContent != null ? userMessageContent.trim() : "";
 
         String systemMessageContent = chatRequest.getSystemPrompt();
 
@@ -145,7 +147,8 @@ public class OpenAIChatService implements AIChatService {
     public List<Float> embedding(ChatRequest chatRequest) {
         OpenAiEmbeddingModel embeddingModel = getEmbeddingModel(chatRequest);
 
-        TextSegment segment = TextSegment.from(chatRequest.getQuestion());
+        String question = chatRequest.getQuestion() != null ? chatRequest.getQuestion().trim() : "";
+        TextSegment segment = TextSegment.from(question);
         Embedding embedding = embeddingModel.embed(segment).content();
         return Floats.asList(embedding.vector());
     }
