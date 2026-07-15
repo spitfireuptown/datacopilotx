@@ -95,7 +95,8 @@ public class WorkflowGraph {
         return workflow;
     }
 
-    public Map<String, Object> createInitialState(String sessionId, String questionId, Long datasetId, Long modelId, String question) {
-        return WorkflowState.createInitialState(sessionId, questionId, datasetId, modelId, question);
+    public Map<String, Object> createInitialState(String sessionId, String questionId, Long datasetId, Long modelId, String question,
+                                                  String userId, Integer userRole, boolean isAdmin) {
+        return WorkflowState.createInitialState(sessionId, questionId, datasetId, modelId, question, userId, userRole, isAdmin);
     }
 }

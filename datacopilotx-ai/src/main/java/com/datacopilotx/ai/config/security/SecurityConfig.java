@@ -1,5 +1,6 @@
 package com.datacopilotx.ai.config.security;
 
+import jakarta.servlet.DispatcherType;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
@@ -57,6 +58,7 @@ public class SecurityConfig {
                 .accessDeniedHandler(jwtAccessDeniedHandler)
                 .and()
                 .authorizeHttpRequests(auth -> auth
+                        .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()
                         .requestMatchers(
                                 "/auth/login",
                                 "/auth/register"

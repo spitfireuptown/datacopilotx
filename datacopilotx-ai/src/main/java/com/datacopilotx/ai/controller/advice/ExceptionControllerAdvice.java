@@ -63,12 +63,20 @@ public class ExceptionControllerAdvice {
      */
     @ExceptionHandler({RuntimeException.class})
     @ResponseBody
-    public ResponseEntity<?> runtimeExceptionHandler(RuntimeException runtimeException) {
+    public ResponseEntity<?> runtimeExceptionHandler(RuntimeException runtimeException, HttpServletRequest request) {
+        if (isSseEndpoint(request)) {
+            log.error("Exception occurred in SSE endpoint, request URI: {}", request.getRequestURI(), runtimeException);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
         Throwable r = getRootCause(runtimeException);
         WebResult result = WebResult.error(r);
         return ResponseEntity
                 .status(HttpStatus.INTERNAL_SERVER_ERROR.value())
                 .body(result);
+    }
+
+    private boolean isSseEndpoint(HttpServletRequest request) {
+        return "/chat/completions".equals(request.getRequestURI());
     }
 
 

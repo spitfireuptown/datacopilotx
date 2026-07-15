@@ -2,7 +2,6 @@ package com.datacopilotx.ai.service.graph.main;
 
 import com.datacopilotx.ai.domian.bean.DataSetBean;
 import com.datacopilotx.ai.domian.bean.ModelConfigBean;
-import com.datacopilotx.ai.util.SecurityUtil;
 import com.datacopilotx.aigateway.domain.dto.ChatRequest;
 import com.datacopilotx.common.exception.DataCopilotXException;
 import com.datacopilotx.common.result.WebResult;
@@ -201,10 +200,10 @@ public class WorkflowState extends AgentState {
             String questionId,
             Long datasetId,
             Long modelId,
-            String question) {
-        String userId = SecurityUtil.getCurrentUserId();
-        Integer userRole = SecurityUtil.getCurrentUserRole();
-        boolean isAdmin = SecurityUtil.isAdmin();
+            String question,
+            String userId,
+            Integer userRole,
+            boolean isAdmin) {
         boolean isPiaoyitongUser = userId != null && !isAdmin;
 
         return Map.of(
