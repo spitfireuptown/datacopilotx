@@ -102,7 +102,7 @@
             placeholder="请选择模型"
             style="width: 100%"
           >
-            <a-select-option v-for="model in models" :key="model.id" :value="model.id">
+            <a-select-option v-for="model in models" :key="model.id" :value="String(model.id)">
               {{ model.platform + '/' + model.model }}
             </a-select-option>
           </a-select>
@@ -119,7 +119,7 @@
             placeholder="请选择数据集"
             style="width: 100%"
           >
-            <a-select-option v-for="dataset in datasets" :key="dataset.id" :value="dataset.id">
+            <a-select-option v-for="dataset in datasets" :key="dataset.name" :value="String(dataset.id)">
               {{ dataset.name }}
             </a-select-option>
           </a-select>
@@ -221,8 +221,8 @@ const knowledgeItemsWithMockData = computed(() => {
     id: item.id,
     name: item.name,
     description: item.description,
-    datasetId: item.datasetId,
-    modelId: item.modelId,
+    datasetId: String(item.datasetId),
+    modelId: String(item.modelId),
     score: item.score != null ? item.score : 0.7
   }));
 });

@@ -43,10 +43,4 @@ public class DataTableController {
     public WebResult<DataTableBean> detail(@PathVariable Long id) {
         return WebResult.success(dataTableService.detail(id));
     }
-
-    @PostMapping("/embedding/{datasetId}")
-    public WebResult<Void> refreshEmbeddings(@PathVariable Long datasetId) {
-        dataSetService.batchCalculateTableEmbeddings(datasetId);
-        return WebResult.success();
-    }
 }

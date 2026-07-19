@@ -23,8 +23,6 @@ public class DataTableBean implements Serializable {
     private String fields;
     @TableField("inject_prompt")
     private String injectPrompt;
-    @TableField("embedding")
-    private String embedding;
     private Timestamp utime;
     private Timestamp ctime;
     @TableField("is_del")

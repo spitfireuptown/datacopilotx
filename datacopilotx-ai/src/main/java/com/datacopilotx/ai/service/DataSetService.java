@@ -132,9 +132,6 @@ public class DataSetService {
                 dataTableMapper.insert(dataTableBean);
             }
         }
-
-        batchCalculateTableEmbeddings(dataSetBean.getId());
-
         return dataSetBean.getId();
     }
 
@@ -174,8 +171,6 @@ public class DataSetService {
                 dataTableMapper.insert(dataTableBean);
             }
         }
-
-        batchCalculateTableEmbeddings(updateForm.getId());
 
         return updateForm.getId();
     }
@@ -399,8 +394,6 @@ public class DataSetService {
 
 
     private String createTableSQL(String tableName, List<DataSetDTO.SchemaInfo> fields) {
-        List<List<String>> context = (List<List<String>>) dataSetCache.get(tableName);
-        
         StringBuilder createTableSQL = new StringBuilder();
         createTableSQL.append("CREATE TABLE IF NOT EXISTS `").append(tableName).append("` (\n");
         
@@ -454,86 +447,5 @@ public class DataSetService {
         
         log.info("Generated SQL for table {}: {}", tableName, createTableSQL.toString());
         return createTableSQL.toString();
-    }
-
-    private String buildTableSchemaText(String tableName, String injectPrompt, List<DataSetDTO.SchemaInfo> fields) {
-        StringBuilder schemaBuilder = new StringBuilder();
-        schemaBuilder.append("# Table: ").append(tableName);
-        if (injectPrompt != null && !injectPrompt.isEmpty()) {
-            schemaBuilder.append(", ").append(injectPrompt);
-        }
-        schemaBuilder.append("\n[\n");
-
-        List<String> fieldList = new ArrayList<>();
-        for (DataSetDTO.SchemaInfo field : fields) {
-            String fieldComment = field.getDescription() != null ? field.getDescription().strip() : "";
-            if (fieldComment.isEmpty()) {
-                fieldList.add("(" + field.getFieldName() + ":" + field.getFieldType() + ")");
-            } else {
-                fieldList.add("(" + field.getFieldName() + ":" + field.getFieldType() + ", " + fieldComment + ")");
-            }
-        }
-
-        schemaBuilder.append(String.join(",\n", fieldList));
-        schemaBuilder.append("\n]\n");
-
-        return schemaBuilder.toString();
-    }
-
-    private String calculateTableEmbedding(String tableSchemaText) {
-        ModelConfigBean embeddingModel = modelConfigMapper.selectOne(
-                new LambdaQueryWrapper<ModelConfigBean>()
-                        .eq(ModelConfigBean::getFunctionType, "embedding")
-                        .eq(ModelConfigBean::getIsDel, 0)
-                        .orderByDesc(ModelConfigBean::getId)
-                        .last("LIMIT 1")
-        );
-
-        if (embeddingModel == null) {
-            log.warn("No embedding model configured, skipping table embedding calculation");
-            return null;
-        }
-
-        try {
-            List<Float> embedding = aiGatewayChatService.embedding(
-                    ChatRequest.builder()
-                            .apiKey(embeddingModel.getApiKey())
-                            .baseUrl(embeddingModel.getBaseUrl())
-                            .model(embeddingModel.getModel())
-                            .type(embeddingModel.getType())
-                            .question(tableSchemaText)
-                            .dimensions(embeddingModel.getDimension())
-                            .build()
-            );
-
-            if (embedding == null || embedding.isEmpty()) {
-                log.warn("Failed to generate embedding for table schema");
-                return null;
-            }
-
-            return JSONUtil.toJsonStr(embedding);
-        } catch (Exception e) {
-            log.error("Error calculating table embedding: {}", e.getMessage(), e);
-            return null;
-        }
-    }
-
-    public void batchCalculateTableEmbeddings(Long datasetId) {
-        List<DataTableBean> tables = dataTableMapper.selectList(
-                new LambdaQueryWrapper<DataTableBean>()
-                        .eq(DataTableBean::getDatasetId, datasetId)
-                        .eq(DataTableBean::getIsDel, 0)
-        );
-
-        for (DataTableBean table : tables) {
-            List<DataSetDTO.SchemaInfo> fields = JSONUtil.toList(table.getFields(), DataSetDTO.SchemaInfo.class);
-            String schemaText = buildTableSchemaText(table.getTable(), table.getInjectPrompt(), fields);
-            String embedding = calculateTableEmbedding(schemaText);
-
-            if (embedding != null) {
-                table.setEmbedding(embedding);
-                dataTableMapper.updateById(table);
-            }
-        }
     }
 }

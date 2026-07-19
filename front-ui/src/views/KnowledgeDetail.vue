@@ -210,6 +210,23 @@
         :model="editFormData"
         layout="vertical"
       >
+        <!-- 数据集选择 -->
+        <a-form-item
+          label="选择数据集"
+          name="datasetId"
+          :rules="[{ required: true, message: '请选择数据集' }]"
+        >
+          <a-select
+            v-model:value="editFormData.datasetId"
+            placeholder="请选择数据集"
+            style="width: 100%"
+          >
+            <a-select-option v-for="dataset in datasets" :key="dataset.id" :value="String(dataset.id)">
+              {{ dataset.name }}
+            </a-select-option>
+          </a-select>
+        </a-form-item>
+        
         <!-- 问题输入框 -->
         <a-form-item
           label="问题"
@@ -256,11 +273,13 @@ import LeftSidebar from '../components/LeftSidebar.vue';
 // 导入API
 import { type KnowledgeItem, saveKnowledgeItem, deleteKnowledgeItem, modifyKnowledgeItem, getKnowledgeRetrieval, type KnowledgeRetrievalItem } from '../api/knowledge';
 import { getKnowledgeList } from '../api/knowledge';
+import { getDatasetList, type Dataset } from '../api/dataset';
 
 // 扩展KnowledgeItem接口，添加启用状态和标题
 interface KnowledgeItemWithState extends KnowledgeItem {
   enabled: boolean;
   title?: string;
+  datasetId?: string;
 }
 
 // 命中测试结果接口
@@ -311,8 +330,25 @@ const topK = ref(3);
 const testLoading = ref(false);
 const testResults = ref<HitTestResult[]>([]);
 
+// 数据集列表
+const datasets = ref<Dataset[]>([]);
+
 // 导入获取知识库条目列表的函数
 import { getKnowledgeItems } from '../api/knowledge';
+
+// 加载数据集列表
+const loadDatasets = async () => {
+  try {
+    const data = await getDatasetList();
+    datasets.value = data.map(dataset => {
+      dataset.id = String(dataset.id);
+      return dataset;
+    });
+  } catch (error) {
+    console.error('获取数据集列表失败:', error);
+    message.error('获取数据集列表失败');
+  }
+};
 
 // 在script setup部分添加handleFilterChange方法的实现
 // 处理过滤状态变化
@@ -350,7 +386,8 @@ const loadKnowledgeDetail = async () => {
       question: item.question,
       answer: item.answer,
       createTime: item.createTime,
-      enabled: item.enable !== undefined ? item.enable : true, // 使用接口返回的enable字段
+      enabled: item.enable !== undefined ? item.enable : true,
+      datasetId: item.datasetId != null ? String(item.datasetId) : '',
       title: item.title || item.question.substring(0, 20) + '...'
     }));
     
@@ -390,12 +427,13 @@ const handleToggleEnabled = async (id: string, checked: boolean) => {
 };
 
 // 处理编辑操作
-const handleEdit = (item: KnowledgeItemWithState) => {
+const handleEdit = async (item: KnowledgeItemWithState) => {
   currentEditItem.value = item;
+  await loadDatasets();
   // 设置编辑表单数据
   editFormData.value = {
-    modelId: '', // 实际项目中可能需要根据记录获取对应的modelId
-    datasetId: '', // 实际项目中可能需要根据记录获取对应的datasetId
+    modelId: '',
+    datasetId: item.datasetId || '',
     question: item.question,
     answer: item.answer,
     docId: item.docId
@@ -414,11 +452,11 @@ const handleEditSubmit = async () => {
     editModalLoading.value = true;
     
     // 判断是创建还是编辑操作
-    const { question, answer } = editFormData.value;
+    const { question, answer, datasetId } = editFormData.value;
     if (currentEditItem.value) {
       // 编辑操作：调用修改接口
       await modifyKnowledgeItem({
-        knowledgeLibId: docId, // 使用docId作为knowledgeLibId的值
+        knowledgeLibId: docId,
         docId: currentEditItem.value.docId,
         question,
         answer,
@@ -428,7 +466,7 @@ const handleEditSubmit = async () => {
     } else {
       // 新建操作：调用保存接口
       await saveKnowledgeItem({
-        knowledgeLibId: docId, // 使用docId作为knowledgeLibId的值
+        knowledgeLibId: docId,
         question,
         answer
       });
@@ -468,8 +506,9 @@ const handleDelete = async (id: string) => {
 };
 
 // 处理新建操作
-const handleCreate = () => {
+const handleCreate = async () => {
   currentEditItem.value = null;
+  await loadDatasets();
   // 清空表单数据
   editFormData.value = {
     modelId: '',
