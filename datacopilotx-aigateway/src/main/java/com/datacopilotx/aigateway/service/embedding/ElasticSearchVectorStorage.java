@@ -46,7 +46,7 @@ public class ElasticSearchVectorStorage {
     private static final double BM25_WEIGHT = 0.3;
 
 
-    public void initIndex(String indexName, int dim) {
+    public void initIndex(String indexName, int dim)  {
         indexName = WorkflowUtil.innerIndexName(indexName);
         try {
             GetIndexRequest getIndexRequest = new GetIndexRequest.Builder().index(indexName).build();

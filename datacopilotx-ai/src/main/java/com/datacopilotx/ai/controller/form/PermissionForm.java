@@ -21,6 +21,10 @@ public class PermissionForm {
 
     private Long dsId;
 
+    private Long tableId;
+
+    private String tableName;
+
     private String name;
 
     private ExpressionTree expressionTree;

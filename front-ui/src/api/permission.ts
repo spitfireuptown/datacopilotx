@@ -26,6 +26,8 @@ export interface Permission {
   enable: number;
   type: string;
   dsId: number;
+  tableId?: number;
+  tableName?: string;
   name: string;
   expressionTree?: ExpressionTree;
   permissions?: ColumnPermission[];

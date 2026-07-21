@@ -203,6 +203,24 @@
               </a-select-option>
             </a-select>
           </a-form-item>
+          <a-form-item label="数据表">
+            <a-select
+              v-model:value="columnForm.tableId"
+              placeholder="请选择数据表"
+              style="width: 100%"
+              size="large"
+              :disabled="!columnForm.dsId"
+              @change="handleTableIdChange"
+            >
+              <a-select-option
+                v-for="item in tableListOptions"
+                :key="item.id"
+                :value="item.id"
+              >
+                {{ item.table }}
+              </a-select-option>
+            </a-select>
+          </a-form-item>
         </a-form>
 
         <a-divider orientation="left">
@@ -296,6 +314,7 @@ import {
   batchCreatePermissions,
   updatePermission,
 } from '@/api/permission'
+import { message } from 'ant-design-vue'
 
 const keywords = ref('')
 const activeStep = ref(0)
@@ -324,6 +343,7 @@ const defaultForm = {
   dsId: '',
   type: 'row',
   dsName: '',
+  tableId: '',
   tableName: '',
   permissions: [] as any[],
   expression_tree: {},
@@ -332,6 +352,8 @@ const columnForm = reactive(JSON.parse(JSON.stringify(defaultForm)))
 const selectPermissionRef = ref()
 const fieldListOptions = ref<any[]>([])
 const dsListOptions = ref<any[]>([])
+const tableListOptions = ref<any[]>([])
+const datasetDetail = ref<any>(null)
 
 const columns = [
   { title: '规则名称', dataIndex: 'name', key: 'name' },
@@ -356,6 +378,7 @@ const permissionColumns = [
   { title: '规则名称', dataIndex: 'name' },
   { title: '类型', dataIndex: 'type', key: 'type' },
   { title: '数据集', dataIndex: 'dsName' },
+  { title: '数据表', dataIndex: 'tableName' },
   { title: '操作', key: 'action', width: 120 },
 ]
 
@@ -401,7 +424,7 @@ const handleAddPermission = (val: any) => {
 
 const saveAuthTree = (val: any) => {
   columnForm.expression_tree = val ? JSON.parse(JSON.stringify(val)) : {}
-  const { expression_tree, dsId, type, name, dsName } = columnForm
+  const { expression_tree, dsId, type, name, dsName, tableId, tableName } = columnForm
   if (columnForm.id) {
     for (const key in currentPermission.permissions) {
       if (currentPermission.permissions[key].id === columnForm.id) {
@@ -414,6 +437,8 @@ const saveAuthTree = (val: any) => {
             type,
             name,
             dsName,
+            tableId,
+            tableName,
           }))
         )
       }
@@ -427,6 +452,8 @@ const saveAuthTree = (val: any) => {
         type,
         name,
         dsName,
+        tableId,
+        tableName,
         id: +new Date(),
       }))
     )
@@ -451,115 +478,167 @@ const getDsList = async (row: any) => {
 
   if (row) {
     handleDsIdChange({ id: row.dsId, name: row.dsName })
-    handleEditeTable(row.dsId)
+    if (row.dsId) {
+      const detail = await getDatasetDetail(row.dsId)
+      datasetDetail.value = detail
+      if (detail && detail.tables && detail.tables.length > 0) {
+        tableListOptions.value = detail.tables.map((t: any) => ({
+          id: t.id,
+          table: t.table,
+          fields: t.fields || [],
+        }))
+      } else if (detail && detail.fields) {
+        tableListOptions.value = [{
+          id: row.dsId,
+          table: row.dsName,
+          fields: detail.fields,
+        }]
+      }
+      if (row.tableId) {
+        handleTableIdChange(row.tableId)
+      } else if (tableListOptions.value.length > 0) {
+        handleTableIdChange(tableListOptions.value[0].id)
+      }
+    }
   }
 }
 
-const handleRowPermission = (row: any) => {
+const handleRowPermission = async (row: any) => {
   columnForm.type = 'row'
-  getDsList(row)
+  await getDsList(row)
   if (row) {
-    const { name, dsId, id, tree, dsName, expression_tree, expressionTree } = row
+    const { name, dsId, id, tree, dsName, expression_tree, expressionTree, tableId, tableName } = row
     const expressionData = tree || expression_tree || expressionTree
+    const savedExpressionTree = typeof expressionData === 'object' ? expressionData : (typeof expressionData === 'string' && expressionData !== 'undefined' && expressionData !== 'null' && expressionData.trim() ? JSON.parse(expressionData) : {})
     Object.assign(columnForm, {
       id,
       name,
       dsId,
       dsName,
-      expression_tree: typeof expressionData === 'object' ? expressionData : (typeof expressionData === 'string' && expressionData !== 'undefined' && expressionData !== 'null' && expressionData.trim() ? JSON.parse(expressionData) : {}),
+      tableId,
+      tableName,
+      expression_tree: savedExpressionTree,
     })
+    if (dsId) {
+      await handleInitDsIdChange(dsId, true)
+      if (tableId) {
+        handleTableIdChange(tableId)
+      }
+    }
   }
   dialogFormVisible.value = true
   dialogTitle.value = row?.id ? '编辑行权限' : '添加行权限'
+  if (row && columnForm.expression_tree) {
+    nextTick(() => {
+      if (authTreeRef.value) {
+        authTreeRef.value.init(columnForm.expression_tree)
+      }
+    })
+  }
 }
 
-const handleColumnPermission = (row: any) => {
+const handleColumnPermission = async (row: any) => {
   columnForm.type = 'column'
-  getDsList(row)
+  await getDsList(row)
   if (row) {
-    const { name, dsId, id, permissions, dsName } = row
+    const { name, dsId, id, permissions, dsName, tableId, tableName } = row
+    const savedPermissions = permissions || []
     Object.assign(columnForm, {
       id,
       name,
       dsId,
       dsName,
-      permissions: permissions || [],
+      tableId,
+      tableName,
+      permissions: savedPermissions,
     })
+    if (dsId) {
+      await handleInitDsIdChange(dsId, true)
+      if (tableId) {
+        handleTableIdChange(tableId)
+      }
+    }
   }
   dialogFormVisible.value = true
   dialogTitle.value = row?.id ? '编辑列权限' : '添加列权限'
 }
 
-const handleInitDsIdChange = async (val: any) => {
+const handleInitDsIdChange = async (val: any, skipReset = false) => {
   const ds = dsListOptions.value.find((d: any) => d.id === val)
   if (ds) {
     columnForm.dsId = ds.id
     columnForm.dsName = ds.name
-    try {
-      const detail = await getDatasetDetail(val)
-      if (detail && detail.fields) {
-        fieldListOptions.value = (detail.fields as any[]).map((ele: any) => ({
-          id: ele.fieldName,
-          field_name: ele.fieldName,
-          fieldName: ele.fieldName,
-          description: ele.description || '',
-        }))
-        if (columnForm.type === 'column') {
-          columnForm.permissions = fieldListOptions.value.map((ele: any) => ({
-            fieldName: ele.fieldName,
-            field_name: ele.fieldName,
-            field_comment: ele.description || '',
-            enable: true,
-          }))
-        }
-      } else {
-        fieldListOptions.value = []
-        columnForm.permissions = []
-      }
-    } catch {
+    if (!skipReset) {
+      columnForm.tableId = ''
+      columnForm.tableName = ''
       fieldListOptions.value = []
       columnForm.permissions = []
     }
-    if (authTreeRef.value) {
+    try {
+      const detail = await getDatasetDetail(val)
+      datasetDetail.value = detail
+      if (detail && detail.tables && detail.tables.length > 0) {
+        tableListOptions.value = detail.tables.map((t: any) => ({
+          id: t.id,
+          table: t.table,
+          fields: t.fields || [],
+        }))
+      } else if (detail && detail.fields) {
+        tableListOptions.value = [{
+          id: val,
+          table: ds.name,
+          fields: detail.fields,
+        }]
+      } else {
+        tableListOptions.value = []
+      }
+    } catch {
+      tableListOptions.value = []
+      datasetDetail.value = null
+    }
+    if (!skipReset && authTreeRef.value) {
       authTreeRef.value.init({})
     }
+  }
+}
+
+const handleTableIdChange = (val: any) => {
+  const table = tableListOptions.value.find((t: any) => t.id === val)
+  if (table) {
+    columnForm.tableId = table.id
+    columnForm.tableName = table.table
+    fieldListOptions.value = (table.fields || []).map((ele: any) => ({
+      id: ele.fieldName,
+      field_name: ele.fieldName,
+      fieldName: ele.fieldName,
+      description: ele.description || '',
+    }))
+    if (columnForm.type === 'column') {
+      const enableMap = columnForm.permissions.reduce((pre: any, next: any) => {
+        pre[next.fieldName] = next.enable
+        return pre
+      }, {})
+      columnForm.permissions = fieldListOptions.value.map((ele: any) => ({
+        fieldName: ele.fieldName,
+        field_name: ele.fieldName,
+        field_comment: ele.description || '',
+        enable: enableMap[ele.fieldName] ?? true,
+      }))
+    }
+  } else {
+    columnForm.tableId = ''
+    columnForm.tableName = ''
+    fieldListOptions.value = []
+    columnForm.permissions = []
+  }
+  if (authTreeRef.value) {
+    authTreeRef.value.init({})
   }
 }
 
 const handleDsIdChange = (val: any) => {
   columnForm.dsId = val.id
   columnForm.dsName = val.name
-}
-
-const handleEditeTable = async (val: any) => {
-  try {
-    const detail = await getDatasetDetail(val)
-    if (detail && detail.fields) {
-      fieldListOptions.value = (detail.fields as any[]).map((ele: any) => ({
-        id: ele.fieldName,
-        field_name: ele.fieldName,
-        fieldName: ele.fieldName,
-        description: ele.description || '',
-      }))
-      if (columnForm.type !== 'row') {
-        const enableMap = columnForm.permissions.reduce((pre: any, next: any) => {
-          pre[next.fieldName] = next.enable
-          return pre
-        }, {})
-        columnForm.permissions = fieldListOptions.value.map((ele: any) => ({
-          fieldName: ele.fieldName,
-          field_name: ele.fieldName,
-          field_comment: ele.description || '',
-          enable: enableMap[ele.fieldName] ?? false,
-        }))
-      }
-    }
-  } catch {
-    fieldListOptions.value = []
-  }
-  if (columnForm.type === 'row') {
-    authTreeRef.value?.init(columnForm.expression_tree)
-  }
 }
 
 const beforeClose = () => {
@@ -630,7 +709,16 @@ const closeForm = () => {
 const authTreeRef = ref()
 
 const saveHandler = () => {
-  if (!columnForm.name || !columnForm.dsId) {
+  if (!columnForm.name) {
+    message.warning('请输入规则名称')
+    return
+  }
+  if (!columnForm.dsId) {
+    message.warning('请选择数据集')
+    return
+  }
+  if (!columnForm.tableId) {
+    message.warning('请选择数据表')
     return
   }
   if (columnForm.type === 'row') {
@@ -639,7 +727,7 @@ const saveHandler = () => {
       saveAuthTree(val)
     }
   } else {
-    const { permissions, dsId, type, name, dsName } = columnForm
+    const { permissions, dsId, type, name, dsName, tableId, tableName } = columnForm
     if (columnForm.id) {
       for (const key in currentPermission.permissions) {
         if (currentPermission.permissions[key].id === columnForm.id) {
@@ -651,6 +739,8 @@ const saveHandler = () => {
               type,
               name,
               dsName,
+              tableId,
+              tableName,
             }))
           )
         }
@@ -663,6 +753,8 @@ const saveHandler = () => {
           type,
           name,
           dsName,
+          tableId,
+          tableName,
           id: +new Date(),
         }))
       )
@@ -732,6 +824,8 @@ const save = async () => {
         name: perm.name,
         type: perm.type,
         dsId: perm.dsId ? parseInt(perm.dsId) : null,
+        tableId: perm.tableId ? parseInt(perm.tableId) : null,
+        tableName: perm.tableName || '',
         enable: 1,
       }
 

@@ -56,6 +56,8 @@ public class PermissionServiceImpl implements PermissionService {
         permission.setEnable(permissionDTO.getEnable());
         permission.setType(permissionDTO.getType());
         permission.setDsId(permissionDTO.getDsId());
+        permission.setTableId(permissionDTO.getTableId());
+        permission.setTableName(permissionDTO.getTableName());
 
         if (permissionDTO.getExpressionTree() != null) {
             permission.setExpressionTree(JSONUtil.toJsonStr(permissionDTO.getExpressionTree()));
@@ -161,11 +163,16 @@ public class PermissionServiceImpl implements PermissionService {
 
     @Override
     public String getRowPermissionFilter(Long dsId, String userId, Map<String, Object> userInfo) {
+        return getRowPermissionFilter(dsId, null, userId, userInfo);
+    }
+
+    @Override
+    public String getRowPermissionFilter(Long dsId, Long tableId, String userId, Map<String, Object> userInfo) {
         if (SecurityUtil.isAdmin()) {
             return "";
         }
 
-        List<PermissionDTO> rowPermissions = getRowPermissionsByDsId(dsId);
+        List<PermissionDTO> rowPermissions = getRowPermissionsByDsIdAndTableId(dsId, tableId);
         if (CollectionUtils.isEmpty(rowPermissions)) {
             return "";
         }
@@ -189,11 +196,16 @@ public class PermissionServiceImpl implements PermissionService {
 
     @Override
     public List<String> getColumnPermissionFields(Long dsId, String userId, List<String> allFields) {
+        return getColumnPermissionFields(dsId, null, userId, allFields);
+    }
+
+    @Override
+    public List<String> getColumnPermissionFields(Long dsId, Long tableId, String userId, List<String> allFields) {
         if (SecurityUtil.isAdmin()) {
             return allFields;
         }
 
-        List<PermissionDTO> columnPermissions = getColumnPermissionsByDsId(dsId);
+        List<PermissionDTO> columnPermissions = getColumnPermissionsByDsIdAndTableId(dsId, tableId);
         if (CollectionUtils.isEmpty(columnPermissions)) {
             return allFields;
         }
@@ -212,6 +224,30 @@ public class PermissionServiceImpl implements PermissionService {
         }
 
         return allowedFields;
+    }
+
+    private List<PermissionDTO> getRowPermissionsByDsIdAndTableId(Long dsId, Long tableId) {
+        LambdaQueryWrapper<DsPermission> queryWrapper = new LambdaQueryWrapper<DsPermission>()
+                .eq(DsPermission::getDsId, dsId)
+                .eq(DsPermission::getType, DsPermission.PermissionType.ROW.getCode())
+                .eq(DsPermission::getEnable, 1);
+        if (tableId != null) {
+            queryWrapper.and(w -> w.eq(DsPermission::getTableId, tableId).or().isNull(DsPermission::getTableId));
+        }
+        List<DsPermission> permissions = dsPermissionMapper.selectList(queryWrapper);
+        return permissions.stream().map(this::convertToDTO).collect(Collectors.toList());
+    }
+
+    private List<PermissionDTO> getColumnPermissionsByDsIdAndTableId(Long dsId, Long tableId) {
+        LambdaQueryWrapper<DsPermission> queryWrapper = new LambdaQueryWrapper<DsPermission>()
+                .eq(DsPermission::getDsId, dsId)
+                .eq(DsPermission::getType, DsPermission.PermissionType.COLUMN.getCode())
+                .eq(DsPermission::getEnable, 1);
+        if (tableId != null) {
+            queryWrapper.and(w -> w.eq(DsPermission::getTableId, tableId).or().isNull(DsPermission::getTableId));
+        }
+        List<DsPermission> permissions = dsPermissionMapper.selectList(queryWrapper);
+        return permissions.stream().map(this::convertToDTO).collect(Collectors.toList());
     }
 
     @Override
@@ -237,6 +273,8 @@ public class PermissionServiceImpl implements PermissionService {
                 .enable(dto.getEnable())
                 .type(dto.getType())
                 .dsId(dto.getDsId())
+                .tableId(dto.getTableId())
+                .tableName(dto.getTableName())
                 .name(dto.getName())
                 .expressionTree(dto.getExpressionTree() != null ? JSONUtil.toJsonStr(dto.getExpressionTree()) : null)
                 .permissions(dto.getPermissions() != null ? JSONUtil.toJsonStr(dto.getPermissions()) : null)
@@ -251,6 +289,8 @@ public class PermissionServiceImpl implements PermissionService {
                 .enable(bean.getEnable())
                 .type(bean.getType())
                 .dsId(bean.getDsId())
+                .tableId(bean.getTableId())
+                .tableName(bean.getTableName())
                 .name(bean.getName());
 
         if (bean.getDsId() != null) {

@@ -1,12 +1,15 @@
 package com.datacopilotx.ai.service.graph;
 
 import com.datacopilotx.ai.domian.bean.DataSetBean;
+import com.datacopilotx.ai.domian.bean.DataTableBean;
+import com.datacopilotx.ai.mapper.DataTableMapper;
 import com.datacopilotx.ai.service.PermissionService;
 import com.datacopilotx.ai.service.graph.main.WorkflowServiceHelper;
 import com.datacopilotx.ai.service.graph.main.WorkflowState;
 import com.datacopilotx.ai.util.ColumnPermissionUtil;
 import com.datacopilotx.ai.util.SecurityUtil;
 import com.datacopilotx.common.constant.PromptConstant;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.bsc.langgraph4j.action.NodeAction;
@@ -15,6 +18,7 @@ import org.springframework.stereotype.Component;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @Slf4j
 @Component
@@ -25,6 +29,9 @@ public class PermissionInjectNode implements NodeAction<WorkflowState> {
 
     @Resource
     private WorkflowServiceHelper workflowServiceHelper;
+
+    @Resource
+    private DataTableMapper dataTableMapper;
 
     @Override
     public Map<String, Object> apply(WorkflowState state) {
@@ -53,7 +60,9 @@ public class PermissionInjectNode implements NodeAction<WorkflowState> {
 
         workflowServiceHelper.streamPrint(sink, PromptConstant.PERMISSION_INJECT_NODE, "\n应用数据权限过滤...\n", serializableSink, state);
 
-        String rowFilter = permissionService.getRowPermissionFilter(dataSetBean.getId(), currentUserId, userInfo);
+        Long tableId = extractTableIdFromSql(sql, dataSetBean.getId());
+
+        String rowFilter = permissionService.getRowPermissionFilter(dataSetBean.getId(), tableId, currentUserId, userInfo);
         String securedSql = sql;
 
         if (!rowFilter.isEmpty()) {
@@ -65,7 +74,7 @@ public class PermissionInjectNode implements NodeAction<WorkflowState> {
         }
 
         List<String> allFields = ColumnPermissionUtil.extractFieldsFromSql(sql);
-        List<String> allowedFields = permissionService.getColumnPermissionFields(dataSetBean.getId(), currentUserId, allFields);
+        List<String> allowedFields = permissionService.getColumnPermissionFields(dataSetBean.getId(), tableId, currentUserId, allFields);
 
         if (allowedFields != null && allowedFields.size() < allFields.size()) {
             String columnFilteredSql = ColumnPermissionUtil.rewriteAggregateSql(securedSql, allowedFields);
@@ -127,5 +136,50 @@ public class PermissionInjectNode implements NodeAction<WorkflowState> {
             return sql.substring(fromIndex + 6, endIndex).trim();
         }
         return "";
+    }
+
+    private Long extractTableIdFromSql(String sql, Long dsId) {
+        String fromPart = extractFromPart(sql);
+        if (fromPart.isEmpty()) {
+            return null;
+        }
+
+        String tableName = extractTableName(fromPart);
+        if (tableName == null || tableName.isEmpty()) {
+            return null;
+        }
+
+        try {
+            List<DataTableBean> tables = dataTableMapper.selectList(new LambdaQueryWrapper<DataTableBean>()
+                    .eq(DataTableBean::getDatasetId, dsId)
+                    .eq(DataTableBean::getIsDel, 0));
+
+            Optional<DataTableBean> matchedTable = tables.stream()
+                    .filter(t -> tableName.equalsIgnoreCase(t.getTable()))
+                    .findFirst();
+
+            return matchedTable.map(DataTableBean::getId).orElse(null);
+        } catch (Exception e) {
+            log.warn("Failed to extract tableId from SQL: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    private String extractTableName(String fromPart) {
+        String trimmed = fromPart.trim();
+        if (trimmed.startsWith("`")) {
+            int endIndex = trimmed.indexOf("`", 1);
+            if (endIndex > 0) {
+                return trimmed.substring(1, endIndex);
+            }
+        }
+
+        String[] parts = trimmed.split("[\\s,.`]+");
+        for (String part : parts) {
+            if (!part.isEmpty() && !part.equalsIgnoreCase("as")) {
+                return part;
+            }
+        }
+        return null;
     }
 }

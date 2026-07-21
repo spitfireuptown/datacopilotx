@@ -110,6 +110,8 @@ public class PermissionController {
                 .enable(form.getEnable())
                 .type(form.getType())
                 .dsId(form.getDsId())
+                .tableId(form.getTableId())
+                .tableName(form.getTableName())
                 .name(form.getName())
                 .whiteListUser(form.getWhiteListUser());
 

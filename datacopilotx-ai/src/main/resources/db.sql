@@ -131,6 +131,8 @@ CREATE TABLE IF NOT EXISTS `DS_PERMISSION` (
     `enable` TINYINT NOT NULL DEFAULT 1 COMMENT '是否启用：0-禁用，1-启用',
     `type` VARCHAR(64) NOT NULL COMMENT '权限类型：row（行权限）/ column（列权限）',
     `ds_id` BIGINT NOT NULL COMMENT '数据集ID',
+    `table_id` BIGINT COMMENT '数据表ID',
+    `table_name` VARCHAR(255) COMMENT '数据表名称',
     `name` VARCHAR(128) NOT NULL COMMENT '权限规则名称',
     `expression_tree` LONGTEXT COMMENT '行权限表达式树（JSON格式）',
     `permissions` LONGTEXT COMMENT '列权限字段列表（JSON格式）',
@@ -140,7 +142,8 @@ CREATE TABLE IF NOT EXISTS `DS_PERMISSION` (
     `ctime` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `utime` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     INDEX idx_ds_id (`ds_id`),
-    INDEX idx_type (`type`)
+    INDEX idx_type (`type`),
+    INDEX idx_table_id (`table_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='数据权限表';
 
 -- 权限规则组表 - 将权限规则和用户关联
@@ -155,3 +158,12 @@ CREATE TABLE IF NOT EXISTS `DS_RULES` (
     `ctime` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `utime` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='权限规则组表';
+
+-- ==================== 数据库迁移脚本 ====================
+-- 用于已存在的数据库添加数据表相关字段
+-- 执行方式: mysql -u username -p database_name < db.sql
+
+ALTER TABLE IF EXISTS `DS_PERMISSION` 
+    ADD COLUMN IF NOT EXISTS `table_id` BIGINT COMMENT '数据表ID',
+    ADD COLUMN IF NOT EXISTS `table_name` VARCHAR(255) COMMENT '数据表名称',
+    ADD INDEX IF NOT EXISTS `idx_table_id` (`table_id`);

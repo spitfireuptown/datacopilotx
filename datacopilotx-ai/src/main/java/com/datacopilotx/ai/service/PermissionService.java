@@ -36,7 +36,11 @@ public interface PermissionService {
 
     String getRowPermissionFilter(Long dsId, String userId, Map<String, Object> userInfo);
 
+    String getRowPermissionFilter(Long dsId, Long tableId, String userId, Map<String, Object> userInfo);
+
     List<String> getColumnPermissionFields(Long dsId, String userId, List<String> allFields);
+
+    List<String> getColumnPermissionFields(Long dsId, Long tableId, String userId, List<String> allFields);
 
     boolean isUserInRule(String userId, Long permissionId);
 }

@@ -29,6 +29,12 @@ public class DsPermission implements Serializable {
     @TableField("ds_id")
     private Long dsId;
 
+    @TableField("table_id")
+    private Long tableId;
+
+    @TableField("table_name")
+    private String tableName;
+
     @TableField("name")
     private String name;
 

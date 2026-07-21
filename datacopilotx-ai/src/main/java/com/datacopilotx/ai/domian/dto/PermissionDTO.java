@@ -23,6 +23,10 @@ public class PermissionDTO {
 
     private String dsName;
 
+    private Long tableId;
+
+    private String tableName;
+
     private String name;
 
     private ExpressionTree expressionTree;

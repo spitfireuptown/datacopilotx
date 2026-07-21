@@ -45,7 +45,7 @@
 | Spring WebFlux			     | 3.3.4					   |流式Web框架
 | MyBatis Plus			       | 3.5.7					   |持久层框架
 | MySQL					            | 8.0					     |DB数据库
-| ElasticSearch					    | 7.9.3					   |向量库、支持流转的数据库
+| ElasticSearch					    | 8.13.4					  |向量库、支持流转的数据库
 | HikariCP					         | 5.1.0 ↑					 |数据库连接池
 | LangChain4J					      | 1.0.1					   |大模型服务框架
 | LangGraph4J				       | 1.6.2					   |大模型服务框架
