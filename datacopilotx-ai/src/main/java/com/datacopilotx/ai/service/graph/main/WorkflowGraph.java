@@ -26,7 +26,6 @@ public class WorkflowGraph {
     private final EasyChatGraphNode easyChatGraphNode;
     private final RecallKnowledgeGraphNode recallKnowledgeGraphNode;
     private final GenerateSqlGraphNode generateSqlGraphNode;
-    private final PermissionInjectNode permissionInjectNode;
     private final ExecuteSQLGraphNode executeSQLGraphNode;
 
     public StateGraph<WorkflowState> createResearchGraph() throws GraphStateException {
@@ -36,7 +35,6 @@ public class WorkflowGraph {
                 .addNode("easy_chat", node_async(easyChatGraphNode))
                 .addNode("recall_knowledge", node_async(recallKnowledgeGraphNode))
                 .addNode("generate_sql", node_async(generateSqlGraphNode))
-                .addNode("permission_inject", node_async(permissionInjectNode))
                 .addNode("execute_sql", node_async(executeSQLGraphNode))
 
                 .addEdge(START, "graceful_question")
@@ -50,17 +48,10 @@ public class WorkflowGraph {
                             if (sql.trim().isEmpty() && retryCount < MAX_RETRY) {
                                 return "generate_sql";
                             }
-                            // 根据用户角色判断是否需要权限注入
-                            int userRole = state.userRole().orElse(2);
-                            if (userRole == 0 || userRole == 1) {
-                                // 超级管理员和管理员跳过权限注入
-                                return "execute_sql";
-                            }
-                            return "permission_inject";
+                            return "execute_sql";
                         }),
-                        Map.of("generate_sql", "generate_sql", "permission_inject", "permission_inject", "execute_sql", "execute_sql")
+                        Map.of("generate_sql", "generate_sql", "execute_sql", "execute_sql")
                 )
-                .addEdge("permission_inject", "execute_sql")
                 .addConditionalEdges(
                         "intent_recognition",
                         edge_async(state -> {

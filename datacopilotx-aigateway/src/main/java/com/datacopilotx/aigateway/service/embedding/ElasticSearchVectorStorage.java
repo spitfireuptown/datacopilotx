@@ -102,11 +102,6 @@ public class ElasticSearchVectorStorage {
     }
 
     @SneakyThrows
-    public List<OllamaResultDTO.CallBackResult> retrieval(String indexName, List<Float> vectors, Integer topK, Float minScore) {
-        return hybridRetrieval(indexName, vectors, null, topK, minScore);
-    }
-
-    @SneakyThrows
     public List<OllamaResultDTO.CallBackResult> hybridRetrieval(String indexName, List<Float> vectors, String queryText, Integer topK, Float minScore) {
         String actualIndexName = WorkflowUtil.innerIndexName(indexName);
 

@@ -53,6 +53,11 @@ public class DataSetController {
         return WebResult.success(dataSetService.getTables(createForm));
     }
 
+    @GetMapping("/table/fields/{dsId}/{tableId}")
+    public WebResult<List<DataSetDTO.SchemaInfo>> getTableFields(@PathVariable long dsId, @PathVariable long tableId) {
+        return WebResult.success(dataSetService.getTableFields(dsId, tableId));
+    }
+
     @PostMapping("/file/upload")
     public WebResult<List<DataSetDTO.SchemaInfo>> fileUpload(@RequestParam("file") MultipartFile file,
                                          @RequestParam(value = "name", required = false) String name,

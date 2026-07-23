@@ -68,7 +68,7 @@ public class GracefulQuestionGraphNode implements NodeAction<WorkflowState> {
 
         String result = resultBuilder.toString();
         
-        Map<String, Object> collectedDataUpdate = state.appendCollectedData(result);
+        Map<String, Object> collectedDataUpdate = state.appendCollectedData("#### 用户问题: \n" + result);
 
         Map<String, Object> returnMap = new HashMap<>();
         returnMap.put("beautiful_question", result);

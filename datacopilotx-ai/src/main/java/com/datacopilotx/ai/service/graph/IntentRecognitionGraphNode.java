@@ -96,7 +96,7 @@ public class IntentRecognitionGraphNode implements NodeAction<WorkflowState> {
                 for (String subReason : reasonSpilt) {
                     workflowServiceHelper.streamPrint(sink, PromptConstant.INTENT_RECOGNITION_NODE, subReason, serializableSink, state);
                 }
-                collectedDataUpdate = state.appendCollectedData(analysis);
+                collectedDataUpdate = state.appendCollectedData("\n\n#### 意图识别: \n\n" + analysis);
             }
 
             Map<String, Object> result = new HashMap<>();

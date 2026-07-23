@@ -17,6 +17,7 @@ import org.bsc.langgraph4j.action.NodeAction;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Sinks;
 
+import java.util.HashMap;
 import java.util.Map;
 
 @Slf4j
@@ -54,11 +55,12 @@ public class ExecuteSQLGraphNode implements NodeAction<WorkflowState> {
             workflowServiceHelper.streamPrint(sink, PromptConstant.SQL_RESULT_NODE, JSONUtil.toJsonStr(queryDTO), serializableSink, state);
 
             String resultJson = JSONUtil.toJsonStr(queryDTO);
-            return Map.of(
-                "result", resultJson,
-                "answer", "SQL执行结果:\n" + resultJson,
-                "sql_error", ""
-            );
+            Map<String, Object> resultMap = new HashMap<>();
+            resultMap.put("result", resultJson);
+            resultMap.put("answer", "SQL执行结果:\n" + resultJson);
+            resultMap.put("sql_error", "");
+            resultMap.putAll(state.appendCollectedData("\n#### 问数结果: " + resultJson));
+            return resultMap;
         } catch (Exception e) {
             log.error("SQL执行失败: {}", e.getMessage(), e);
             int retryCount = state.retryCount().orElse(0) + 1;

@@ -110,7 +110,55 @@ public interface PromptConstant {
     // 生成SQL
     Pair<String, String> SQL_GENERATION_PROMPT = new Pair<>(
 
-            "你是一个高级数据专家，根据用户的问题和数据集生成正确的SQL。你擅长判断何时使用单表查询，何时使用多表联表查询。",
+            """
+            你是一个高级数据专家，根据用户的问题和数据集生成正确的SQL。你擅长判断何时使用单表查询，何时使用多表联表查询。
+            
+            你同时也是一个数据安全专家，必须严格执行权限规则：
+            - 如果存在列权限规则，只能SELECT允许访问的字段
+            - 如果存在行权限规则，必须在WHERE子句中添加过滤条件
+            
+            权限数据格式说明：
+            
+            ### 列权限（column_permissions）
+            格式：JSON数组，每个元素包含：
+            - "table_name": 表名（如果为空或"*"表示所有表）
+            - "field_name": 字段名
+            - "accessible": boolean类型，true表示允许访问，false表示禁止访问
+            
+            列权限处理规则：
+            - 遍历SQL中的所有SELECT字段
+            - 如果字段在禁止访问列表中，必须移除该字段
+            - 如果字段名相同但表名不同，需根据table_name判断
+            - 如果所有字段都被禁止，返回"SELECT 1 WHERE 1=0"
+            
+            ### 行权限（row_permissions）
+            格式：JSON数组，每个元素包含：
+            - "table_name": 表名（如果为空或"*"表示所有表）
+            - "conditions": JSON数组，每个条件包含：
+              - "field": 字段名
+              - "operator": 比较运算符（=, >, <, >=, <=, LIKE, IN, NOT IN, IS NULL, IS NOT NULL）
+              - "value": 条件值（如果operator是IN或NOT IN，value为数组）
+              - "logic": 逻辑运算符（AND, OR），默认为AND
+            
+            行权限处理规则：
+            - 将条件注入到WHERE子句中
+            - 如果已有WHERE子句，使用AND连接新增条件
+            - 如果没有WHERE子句，直接添加WHERE子句
+            - 支持变量替换：${variable_name}需要从user_context中获取对应值
+            
+            ### 聚合函数处理
+            如果禁止访问的字段在聚合函数中（如 COUNT(field), SUM(field)）：
+            - 将聚合函数中的字段替换为常量1（如 COUNT(1), SUM(1)）
+            - 如果聚合函数被移除后SELECT子句为空，返回"SELECT 1 WHERE 1=0"
+            
+            ### SQL修改原则
+            1. 保持原SQL的JOIN关系、分组、排序不变
+            2. 只修改SELECT字段和WHERE条件
+            3. 如果原SQL使用了别名，保持别名不变
+            4. 输出的SQL必须可以直接执行
+            
+            注意：如果用户为管理员（is_admin=true），则不需要应用任何权限限制。
+            """,
 
             """
             ## 当前时间
@@ -149,6 +197,9 @@ public interface PromptConstant {
             - 常量用单引号''包裹，中文别名用反撇号``包裹！
             - 输出的sql是可执行sql
             - 联表查询时，表名使用别名以简化SQL（如 主表名 a, 关联表名 b）
+            
+            ## 权限规则（如果为空则忽略）
+            ${permission_rules}
             
             ## 输出格式
             最终必须返回一个严格的JSON字符串，格式如下：
@@ -190,5 +241,4 @@ public interface PromptConstant {
     String SQL_RESULT_NODE = "sql_result_node";
     String EASY_CHAT_NODE = "easy_chat_node";
     String RECALL_NODE = "recall_node";
-    String PERMISSION_INJECT_NODE = "permission_inject_node";
 }

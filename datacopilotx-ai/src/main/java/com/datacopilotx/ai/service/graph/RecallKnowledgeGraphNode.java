@@ -15,6 +15,7 @@ import org.bsc.langgraph4j.action.NodeAction;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -33,7 +34,7 @@ public class RecallKnowledgeGraphNode implements NodeAction<WorkflowState> {
     @Override
     public Map<String, Object> apply(WorkflowState state) {
         Long datasetId = state.datasetId().orElseThrow(() -> new IllegalArgumentException("datasetId is empty"));
-        String analysis = state.intentAnalysis().orElseThrow(() -> new IllegalArgumentException("intentAnalysis is empty"));
+        String question = state.question().orElseThrow(() -> new IllegalArgumentException("question is empty"));
 
         List<KnowledgeLibBean> knowledgeLibBeans = knowledgeLibMapper.selectList(
                 new LambdaQueryWrapper<KnowledgeLibBean>()
@@ -50,7 +51,7 @@ public class RecallKnowledgeGraphNode implements NodeAction<WorkflowState> {
 
         List<String> result = new ArrayList<>();
         KnowledgeLibForm.RetrievalForm retrievalForm = new KnowledgeLibForm.RetrievalForm();
-        retrievalForm.setQuestion(analysis);
+        retrievalForm.setQuestion(question);
         retrievalForm.setTopK(5);
 
         for (KnowledgeLibBean knowledgeLibBean : knowledgeLibBeans) {
@@ -62,6 +63,9 @@ public class RecallKnowledgeGraphNode implements NodeAction<WorkflowState> {
         workflowServiceHelper.streamPrint(sink, PromptConstant.RECALL_NODE, String.format("已匹配%s条知识: ", knowledgeLibBeans.size()), serializableSink, state);
 
         log.info("Knowledge retrieval completed, found {} relevant results", result.size());
-        return Map.of("recall", result);
+        Map<String, Object> returnMap = new HashMap<>();
+        returnMap.put("recall", result);
+        returnMap.putAll(state.appendCollectedData("\n#### 知识库匹配: \n" + String.format("已匹配%s条知识", knowledgeLibBeans.size())));
+        return returnMap;
     }
 }

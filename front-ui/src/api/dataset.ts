@@ -188,6 +188,16 @@ export const getTableFields = (data: {
   return post<DatasetField[]>('/dataset/table/info', data);
 };
 
+/**
+ * 根据数据集ID和数据表ID获取表字段信息
+ * @param dsId 数据集ID
+ * @param tableId 数据表ID
+ * @returns Promise<DatasetField[]> 字段列表
+ */
+export const getTableFieldsByDsIdAndTableId = (dsId: string, tableId: string): Promise<DatasetField[]> => {
+  return get<DatasetField[]>(`/dataset/table/fields/${dsId}/${tableId}`);
+};
+
 export const testDatabaseConnection = (data: {
   type: string;
   host: string;

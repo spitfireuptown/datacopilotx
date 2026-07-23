@@ -131,7 +131,7 @@ public class ChatService {
                     throw new IllegalStateException("Workflow execution did not return any state");
                 }
                 
-                // 将收集到的sink数据保存到question_log
+                // 将收集到的数据保存到question_log（通过 collected_data channel，各节点已包含完整头部标记）
                 String collectedData = finalState.getCollectedData();
                 
                 QuestionLogBean updateLogBean = QuestionLogBean.builder()

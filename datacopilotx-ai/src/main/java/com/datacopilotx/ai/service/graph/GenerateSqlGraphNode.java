@@ -4,6 +4,8 @@ import cn.hutool.core.lang.Pair;
 import cn.hutool.json.JSONUtil;
 import com.datacopilotx.ai.domian.bean.DataSetBean;
 import com.datacopilotx.ai.domian.bean.ModelConfigBean;
+import com.datacopilotx.ai.domian.dto.PermissionDTO;
+import com.datacopilotx.ai.service.PermissionService;
 import com.datacopilotx.ai.service.graph.main.WorkflowServiceHelper;
 import com.datacopilotx.ai.service.graph.main.SerializableSink;
 import com.datacopilotx.ai.service.graph.main.WorkflowState;
@@ -19,9 +21,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.ObjectUtils;
 import reactor.core.publisher.Sinks;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @Slf4j
 @Component
@@ -31,6 +31,9 @@ public class GenerateSqlGraphNode implements NodeAction<WorkflowState> {
 
     @Resource
     private WorkflowServiceHelper workflowServiceHelper;
+
+    @Resource
+    private PermissionService permissionService;
 
     @Override
     public Map<String, Object> apply(WorkflowState state) {
@@ -43,15 +46,22 @@ public class GenerateSqlGraphNode implements NodeAction<WorkflowState> {
         String intentAnalysis = state.intentAnalysis().orElse("");
         int currentRetryCount = state.retryCount().orElse(0);
 
+        String currentUserId = state.userId().orElse(null);
+        Integer currentUserRole = state.userRole().orElse(2);
+        boolean isAdmin = state.isAdmin().orElse(false);
+
         if (currentRetryCount >= 3) {
             log.error("SQL生成已达到最大重试次数: 3");
+            String fallbackSql = isAdmin ? "" : "SELECT 1 WHERE 1=0";
             return Map.of(
-                    "sql", "",
+                    "sql", fallbackSql,
                     "token", 0,
                     "time_cost", 0,
                     "sql_error", "SQL生成失败，已达到最大重试次数"
             );
         }
+
+        String permissionRules = buildPermissionRules(dataSetBean.getId(), currentUserId, isAdmin);
 
         HashMap<String, String> promptParams = new HashMap<>();
         promptParams.put("${time}", workflowServiceHelper.getCurrentTime());
@@ -62,6 +72,7 @@ public class GenerateSqlGraphNode implements NodeAction<WorkflowState> {
         promptParams.put("${meta}", workflowServiceHelper.assembleDataSetInfo(dataSetBean, beautifulQuestion, state));
         promptParams.put("${analysis}", intentAnalysis);
         promptParams.put("${sql_error}", sqlError);
+        promptParams.put("${permission_rules}", permissionRules);
 
         Pair<String, String> promptPair = workflowServiceHelper.injectPrompt(
                 PromptConstant.SQL_GENERATION_PROMPT,
@@ -103,7 +114,7 @@ public class GenerateSqlGraphNode implements NodeAction<WorkflowState> {
                 throw new RuntimeException("生成的SQL为空，请重新生成");
             }
 
-            Map<String, Object> collectedDataUpdate = state.appendCollectedData(sql);
+            Map<String, Object> collectedDataUpdate = state.appendCollectedData("\n\n#### SQL: \n" + sql);
             
             log.info("Generated SQL: {}", sql);
             Map<String, Object> result = new HashMap<>();
@@ -131,5 +142,121 @@ public class GenerateSqlGraphNode implements NodeAction<WorkflowState> {
                     "sql", ""
             );
         }
+    }
+
+    private String buildPermissionRules(Long dsId, String userId, boolean isAdmin) {
+        if (isAdmin) {
+            return "";
+        }
+
+        Map<String, Object> userInfo = new HashMap<>();
+        userInfo.put("user_id", userId);
+
+        String columnPermissionsJson = buildColumnPermissionsJson(dsId, userId);
+        String rowPermissionsJson = buildRowPermissionsJson(dsId, userId, userInfo);
+
+        if (columnPermissionsJson.equals("[]") && rowPermissionsJson.equals("[]")) {
+            return "";
+        }
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("\n### 列权限规则\n");
+        sb.append(columnPermissionsJson);
+        sb.append("\n\n### 行权限规则\n");
+        sb.append(rowPermissionsJson);
+
+        return sb.toString();
+    }
+
+    private String buildColumnPermissionsJson(Long dsId, String userId) {
+        List<PermissionDTO> columnPermissions = permissionService.getColumnPermissionsByDsId(dsId);
+        if (columnPermissions == null || columnPermissions.isEmpty()) {
+            return "[]";
+        }
+
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (PermissionDTO permission : columnPermissions) {
+            if (!permissionService.isUserInRule(userId, permission.getId())) {
+                continue;
+            }
+            if (permission.getPermissions() != null) {
+                for (PermissionDTO.ColumnPermission cp : permission.getPermissions()) {
+                    Map<String, Object> item = new HashMap<>();
+                    item.put("table_name", permission.getTableName() != null ? permission.getTableName() : "*");
+                    item.put("field_name", cp.getFieldName());
+                    item.put("accessible", cp.getEnable() != null && cp.getEnable());
+                    result.add(item);
+                }
+            }
+        }
+        return JSONUtil.toJsonStr(result);
+    }
+
+    private String buildRowPermissionsJson(Long dsId, String userId, Map<String, Object> userInfo) {
+        List<PermissionDTO> rowPermissions = permissionService.getRowPermissionsByDsId(dsId);
+        if (rowPermissions == null || rowPermissions.isEmpty()) {
+            return "[]";
+        }
+
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (PermissionDTO permission : rowPermissions) {
+            if (!permissionService.isUserInRule(userId, permission.getId())) {
+                continue;
+            }
+            if (permission.getExpressionTree() != null) {
+                Map<String, Object> item = new HashMap<>();
+                item.put("table_name", permission.getTableName() != null ? permission.getTableName() : "*");
+
+                List<Map<String, Object>> conditions = convertExpressionTreeToConditions(
+                        permission.getExpressionTree(), userId, userInfo);
+                item.put("conditions", conditions);
+                result.add(item);
+            }
+        }
+        return JSONUtil.toJsonStr(result);
+    }
+
+    private List<Map<String, Object>> convertExpressionTreeToConditions(
+            PermissionDTO.ExpressionTree tree, String userId, Map<String, Object> userInfo) {
+        List<Map<String, Object>> conditions = new ArrayList<>();
+        if (tree == null || tree.getItems() == null) {
+            return conditions;
+        }
+
+        for (PermissionDTO.ExpressionItem item : tree.getItems()) {
+            if ("item".equals(item.getType())) {
+                Map<String, Object> condition = new HashMap<>();
+                condition.put("field", item.getFieldName());
+                condition.put("operator", item.getTerm());
+
+                Object value = item.getValue();
+                if (value instanceof String str && str.startsWith("$") && str.endsWith("$")) {
+                    String varName = str.substring(1, str.length() - 1);
+                    if ("user_id".equals(varName) || "userId".equals(varName)) {
+                        value = userId;
+                    } else if (userInfo != null && userInfo.containsKey(varName)) {
+                        value = userInfo.get(varName);
+                    }
+                }
+                condition.put("value", value);
+                condition.put("logic", item.getFilterType() != null ? item.getFilterType().toUpperCase() : "AND");
+
+                conditions.add(condition);
+            } else if ("tree".equals(item.getType()) && item.getSubTree() != null) {
+                conditions.addAll(convertExpressionTreeToConditions(item.getSubTree(), userId, userInfo));
+            }
+        }
+        return conditions;
+    }
+
+    private String buildUserContextJson(String userId, Map<String, Object> userInfo) {
+        Map<String, Object> context = new HashMap<>();
+        context.put("user_id", userId);
+
+        if (userInfo != null) {
+            context.putAll(userInfo);
+        }
+
+        return JSONUtil.toJsonStr(context);
     }
 }

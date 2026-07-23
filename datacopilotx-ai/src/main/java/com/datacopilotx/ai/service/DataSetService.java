@@ -267,6 +267,38 @@ public class DataSetService {
         return detailVO;
     }
 
+    public List<DataSetDTO.SchemaInfo> getTableFields(long dsId, long tableId) {
+        DataSetBean dataSetBean = dataSetMapper.selectOne(new LambdaQueryWrapper<DataSetBean>().eq(DataSetBean::getId, dsId));
+        if (dataSetBean == null) {
+            throw new DataCopilotXException("数据集不存在");
+        }
+
+        DataTableBean dataTableBean = dataTableMapper.selectOne(new LambdaQueryWrapper<DataTableBean>()
+                .eq(DataTableBean::getDatasetId, dsId)
+                .eq(DataTableBean::getId, tableId)
+                .eq(DataTableBean::getIsDel, 0));
+        if (dataTableBean == null) {
+            throw new DataCopilotXException("数据表不存在");
+        }
+
+        try {
+            DataSetDTO.DriverInfo driverInfo = DataSetDTO.DriverInfo
+                    .builder()
+                    .host(dataSetBean.getHost())
+                    .port(dataSetBean.getPort())
+                    .database(dataSetBean.getDatabase())
+                    .table(dataTableBean.getTable())
+                    .username(dataSetBean.getUsername())
+                    .password(dataSetBean.getPassword())
+                    .type(dataSetBean.getType())
+                    .build();
+            JDBCDriver driver = DriverFactory.getDriver(driverInfo);
+            return driver.fetchColumn(driverInfo);
+        } catch (Exception e) {
+            throw new DataCopilotXException("获取表字段失败: " + e.getMessage());
+        }
+    }
+
     public List<DataSetDTO.SchemaInfo> fileUpload(MultipartFile file, String name, String description) {
         DataSetDTO.ExcelDataSetInfo analysis = ExcelAnalysisUtil.analysis(file);
         dataSetCache.put(name, analysis.getContext());

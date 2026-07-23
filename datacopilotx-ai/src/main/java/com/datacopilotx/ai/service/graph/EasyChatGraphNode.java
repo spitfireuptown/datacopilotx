@@ -59,7 +59,7 @@ public class EasyChatGraphNode implements NodeAction<WorkflowState> {
 
         String answer = resultBuilder.toString();
 
-        Map<String, Object> collectedDataUpdate = state.appendCollectedData(answer);
+        Map<String, Object> collectedDataUpdate = state.appendCollectedData("\n\n#### 回答: \n" + answer);
 
         Map<String, Object> returnMap = new HashMap<>();
         returnMap.put("easy_chat_answer", answer);

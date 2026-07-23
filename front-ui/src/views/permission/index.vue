@@ -305,7 +305,7 @@ import {
 import LeftSidebar from '@/components/LeftSidebar.vue'
 import SelectPermission from './SelectPermission.vue'
 import AuthTree from './auth-tree/AuthTree.vue'
-import { getDatasetList, getDatasetDetail } from '@/api/dataset'
+import { getDatasetList, getDatasetDetail, getTableFieldsByDsIdAndTableId } from '@/api/dataset'
 import {
   createRule,
   updateRule,
@@ -495,9 +495,9 @@ const getDsList = async (row: any) => {
         }]
       }
       if (row.tableId) {
-        handleTableIdChange(row.tableId)
+        await handleTableIdChange(row.tableId)
       } else if (tableListOptions.value.length > 0) {
-        handleTableIdChange(tableListOptions.value[0].id)
+        await handleTableIdChange(tableListOptions.value[0].id)
       }
     }
   }
@@ -522,7 +522,7 @@ const handleRowPermission = async (row: any) => {
     if (dsId) {
       await handleInitDsIdChange(dsId, true)
       if (tableId) {
-        handleTableIdChange(tableId)
+        await handleTableIdChange(tableId)
       }
     }
   }
@@ -555,7 +555,7 @@ const handleColumnPermission = async (row: any) => {
     if (dsId) {
       await handleInitDsIdChange(dsId, true)
       if (tableId) {
-        handleTableIdChange(tableId)
+        await handleTableIdChange(tableId)
       }
     }
   }
@@ -602,17 +602,30 @@ const handleInitDsIdChange = async (val: any, skipReset = false) => {
   }
 }
 
-const handleTableIdChange = (val: any) => {
+const handleTableIdChange = async (val: any) => {
   const table = tableListOptions.value.find((t: any) => t.id === val)
   if (table) {
     columnForm.tableId = table.id
     columnForm.tableName = table.table
-    fieldListOptions.value = (table.fields || []).map((ele: any) => ({
-      id: ele.fieldName,
-      field_name: ele.fieldName,
-      fieldName: ele.fieldName,
-      description: ele.description || '',
-    }))
+    
+    try {
+      const fields = await getTableFieldsByDsIdAndTableId(String(columnForm.dsId), String(val))
+      fieldListOptions.value = (fields || []).map((ele: any) => ({
+        id: ele.fieldName,
+        field_name: ele.fieldName,
+        fieldName: ele.fieldName,
+        description: ele.description || '',
+      }))
+    } catch (error) {
+      console.error('获取表字段失败:', error)
+      fieldListOptions.value = (table.fields || []).map((ele: any) => ({
+        id: ele.fieldName,
+        field_name: ele.fieldName,
+        fieldName: ele.fieldName,
+        description: ele.description || '',
+      }))
+    }
+    
     if (columnForm.type === 'column') {
       const enableMap = columnForm.permissions.reduce((pre: any, next: any) => {
         pre[next.fieldName] = next.enable

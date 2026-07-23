@@ -203,8 +203,8 @@ public class WorkflowServiceHelper {
     
     public void streamPrint(Sinks.Many<ServerSentEvent<WebResult<String>>> sink, String node, String content, SerializableSink serializableSink, WorkflowState workflowState) {
         sink.tryEmitNext(buildSseEvent(node, WebResult.success(content)));
-        if (workflowState != null && content != null) {
-            workflowState.appendCollectedData(content);
+        if (serializableSink != null && content != null) {
+            serializableSink.collectData(content);
         }
     }
 

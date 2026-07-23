@@ -125,10 +125,6 @@ public class WorkflowState extends AgentState {
         return this.value("is_admin");
     }
 
-    public Optional<Boolean> isPiaoyitongUser() {
-        return this.value("is_piaoyitong_user");
-    }
-    
     public Optional<List<String>> collectedData() {
         return this.value("collected_data");
     }
