@@ -26,6 +26,14 @@
           </a-tooltip>
         </div>
       </div>
+      <div class="dashboard-action-row">
+        <a-divider v-if="tableColumns.length>1" type="vertical" style="height: 20px; margin: 0 4px;" />
+        <a-tooltip placement="topLeft" title="添加到仪表盘">
+          <PlusSquareOutlined
+            class="add-dashboard-btn"
+            @click="handleAddToDashboard" />
+        </a-tooltip>
+      </div>
       <a-table
         v-show="chartType=='Table'"
         :columns="tableColumns"
@@ -47,6 +55,7 @@ import hljs from 'highlight.js';
 import 'highlight.js/styles/github-dark.css';
 import { computed, ref } from 'vue';
 import * as echarts from 'echarts';
+import { message } from 'ant-design-vue';
 
 // 定义props
 const props = defineProps({
@@ -61,8 +70,24 @@ const props = defineProps({
   needScroll: {
     type: Boolean,
     default: false
+  },
+  questionId: {
+    type: String,
+    default: ''
+  },
+  questionText: {
+    type: String,
+    default: ''
+  },
+  sqlText: {
+    type: String,
+    default: ''
   }
 });
+
+const emit = defineEmits<{
+  addToDashboard: [data: { chartType: string; chartData: any; questionId: string; questionText: string; sqlText: string }];
+}>();
 
 // 配置marked使用highlight.js进行代码高亮
 marked.setOptions({
@@ -531,6 +556,20 @@ const handleTypeChange = (item) => {
   }
   echartsInit();
 };
+
+/**
+ * 添加到仪表盘
+ */
+const handleAddToDashboard = () => {
+  emit('addToDashboard', {
+    chartType: chartType.value,
+    chartData: props.jsonData,
+    questionId: props.questionId || '',
+    questionText: props.questionText || '',
+    sqlText: props.sqlText || '',
+  });
+  message.success('已添加到仪表盘');
+};
 </script>
 
 <style lang="scss">
@@ -644,6 +683,27 @@ const handleTypeChange = (item) => {
 
   .active {
     background-color: #e5f7f3;
+  }
+}
+
+.dashboard-action-row {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 2px 5px;
+
+  .add-dashboard-btn {
+    cursor: pointer;
+    font-size: 16px;
+    color: #999;
+    padding: 2px 5px;
+    border-radius: 5px;
+    transition: all 0.2s;
+
+    &:hover {
+      color: #1890ff;
+      background-color: #e6f7ff;
+    }
   }
 }
 .chart{

@@ -55,6 +55,7 @@ import { UndoOutlined } from '@ant-design/icons-vue';
 import MdPreview from '@/components/MdPreview.vue';
 import { MessageItem } from '@/dataTypes/chatType';
 import { message as Message } from 'ant-design-vue';
+import { saveDashboardChart, getDashboardList, createDashboard } from '@/api/dashboard';
 
 const props = defineProps({
   messages: {
@@ -137,11 +138,23 @@ watch(
   () => props.messages,
   (newMessage) => {
     // 更新为最新的消息列表
-    messageItemList.value = newMessage?.map(({ id, message, status, jsonData }) => {
+    messageItemList.value = newMessage?.map(({ id, message, status, jsonData }, index) => {
       // 处理message为null的情况
       const currentMessage = message || '';
       // 处理jsonData为null的情况
       let processedJsonData = jsonData;
+      
+      // 提取SQL文本（在"问数结果:"之前的部分中查找SQL）
+      let extractedSql = '';
+      const resultIndex = currentMessage.lastIndexOf('问数结果:');
+      if (resultIndex !== -1) {
+        const beforeResult = currentMessage.substring(0, resultIndex);
+        const sqlMatch = beforeResult.match(/SQL[查询：:]\s*([\s\S]*?)(?=问数结果:|$)/i);
+        if (sqlMatch) {
+          extractedSql = sqlMatch[1].trim();
+        }
+      }
+      
       // 找到最后一个"问数结果:"（处理重试导致的重复内容，最后一次执行通常是成功的）
       const lastIndex = currentMessage.lastIndexOf('问数结果:');
       if (lastIndex !== -1) {
@@ -176,6 +189,16 @@ watch(
         }
       }
 
+      // 提取问题ID和问题文本（从前一条本地消息获取）
+      const questionId = id?.replace('_answer', '') || '';
+      let questionText = '';
+      if (status === 'ai' && index > 0) {
+        const prevMsg = newMessage[index - 1];
+        if (prevMsg && prevMsg.status === 'local') {
+          questionText = prevMsg.message || '';
+        }
+      }
+
       console.log('message', currentMessage)
       console.log('processedJsonData', processedJsonData)
       return {
@@ -187,7 +210,13 @@ watch(
           h(MdPreview, {
             text: content,
             needScroll: false,
-            jsonData: processedJsonData
+            jsonData: processedJsonData,
+            questionId,
+            questionText,
+            sqlText: extractedSql,
+            onAddToDashboard: (data: any) => {
+              handleAddToDashboard(data);
+            },
           })
       };
     }) || [];
@@ -199,6 +228,46 @@ watch(
 
 /** message变化时自动滚动到底部 */
 const bubbleListContentRef = ref<HTMLElement | null>(null);
+
+/**
+ * 将图表添加到仪表盘
+ */
+const handleAddToDashboard = async (data: { chartType: string; chartData: any; questionId: string; questionText: string; sqlText: string }) => {
+  try {
+    // 获取或创建仪表盘
+    let dashboardId: number;
+    try {
+      const dashboards = await getDashboardList();
+      if (dashboards.length > 0) {
+        dashboardId = dashboards[0].id!;
+      } else {
+        const newDash = await createDashboard('默认仪表盘');
+        dashboardId = newDash.id!;
+      }
+    } catch {
+      const newDash = await createDashboard('默认仪表盘');
+      dashboardId = newDash.id!;
+    }
+
+    await saveDashboardChart({
+      dashboardId,
+      chartName: (data.questionText || '未命名').substring(0, 50),
+      chartType: data.chartType,
+      chartData: typeof data.chartData === 'string' ? data.chartData : JSON.stringify(data.chartData),
+      sqlText: data.sqlText || '',
+      question: data.questionText || '',
+      questionId: data.questionId || '',
+      layoutX: 0,
+      layoutY: 0,
+      layoutW: 500,
+      layoutH: 350,
+    });
+    Message.success('已添加到仪表盘');
+  } catch (error) {
+    console.error('添加到仪表盘失败:', error);
+    Message.error('添加失败，请稍后重试');
+  }
+};
 
 function scrollToBottom() {
   const doScroll = () => {

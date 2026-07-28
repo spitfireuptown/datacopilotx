@@ -159,6 +159,39 @@ CREATE TABLE IF NOT EXISTS `DS_RULES` (
     `utime` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='权限规则组表';
 
+CREATE TABLE `DASHBOARD` (
+    `id` BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+    `name` VARCHAR(255) NOT NULL COMMENT '仪表盘名称',
+    `description` VARCHAR(500) DEFAULT NULL COMMENT '描述',
+    `creator` VARCHAR(36) NOT NULL COMMENT '创建人ID',
+    `is_del` INT NOT NULL DEFAULT 0 COMMENT '是否删除',
+    `ctime` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `utime` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    INDEX idx_creator (`creator`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='仪表盘定义';
+
+CREATE TABLE `DASHBOARD_CHART` (
+    `id` BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+    `dashboard_id` BIGINT NOT NULL COMMENT '所属仪表盘ID',
+    `chart_name` VARCHAR(255) DEFAULT NULL COMMENT '图表名称',
+    `chart_type` VARCHAR(64) NOT NULL DEFAULT 'Table' COMMENT '图表类型',
+    `chart_data` LONGTEXT COMMENT '图表数据（JSON）',
+    `sql_text` LONGTEXT COMMENT 'SQL语句',
+    `question` VARCHAR(500) DEFAULT NULL COMMENT '原始提问',
+    `question_id` VARCHAR(64) DEFAULT NULL COMMENT '关联问题ID',
+    `session_id` VARCHAR(64) DEFAULT NULL COMMENT '关联会话ID',
+    `layout_x` INT NOT NULL DEFAULT 0 COMMENT 'X位置',
+    `layout_y` INT NOT NULL DEFAULT 0 COMMENT 'Y位置',
+    `layout_w` INT NOT NULL DEFAULT 400 COMMENT '宽度',
+    `layout_h` INT NOT NULL DEFAULT 300 COMMENT '高度',
+    `creator` VARCHAR(36) NOT NULL COMMENT '创建人ID',
+    `is_del` INT NOT NULL DEFAULT 0 COMMENT '是否删除',
+    `ctime` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `utime` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    INDEX idx_dashboard (`dashboard_id`),
+    INDEX idx_creator (`creator`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='仪表盘图表卡片';
+
 -- ==================== 数据库迁移脚本 ====================
 -- 用于已存在的数据库添加数据表相关字段
 -- 执行方式: mysql -u username -p database_name < db.sql

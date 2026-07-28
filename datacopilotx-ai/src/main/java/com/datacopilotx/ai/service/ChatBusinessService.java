@@ -8,6 +8,7 @@ import com.datacopilotx.ai.domian.bean.DataSetBean;
 import com.datacopilotx.ai.domian.bean.ModelConfigBean;
 import com.datacopilotx.ai.domian.bean.QuestionLogBean;
 import com.datacopilotx.ai.domian.dto.QuestionLogDTO;
+import com.datacopilotx.ai.domian.dto.QuestionWithChartDTO;
 import com.datacopilotx.ai.domian.vo.PageVO;
 import com.datacopilotx.ai.domian.vo.QuestionDetailLogVO;
 import com.datacopilotx.ai.mapper.DataSetMapper;
@@ -79,5 +80,13 @@ public class ChatBusinessService {
 
     public void deleteChatHistory(String id) {
         this.questionLogMapper.delete(new LambdaQueryWrapper<QuestionLogBean>().eq(QuestionLogBean::getSessionId, id));
+    }
+
+    /**
+     * 获取含有图表数据的问数记录
+     */
+    public List<QuestionWithChartDTO> getQuestionsWithChart() {
+        String currentUserId = SecurityUtil.getCurrentUserId();
+        return questionLogMapper.selectQuestionsWithChart(currentUserId);
     }
 }

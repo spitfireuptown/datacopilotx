@@ -14,6 +14,10 @@
         <DatabaseOutlined class="menu-icon" />
         <span class="menu-text">知识库</span>
       </div>
+      <div class="menu-item" :class="{ active: activeMenu === 'dashboard' }" @click="goToDashboard">
+        <DashboardOutlined class="menu-icon" />
+        <span class="menu-text">仪表盘</span>
+      </div>
     </div>
 
     <div class="sidebar-bottom">
@@ -84,7 +88,7 @@
 // 导入必要的依赖
 import { ref, reactive, onMounted, watch } from 'vue';
 import { message } from 'ant-design-vue';
-import { MessageOutlined, DatabaseOutlined, RadarChartOutlined, SettingOutlined, UserOutlined, LockOutlined } from '@ant-design/icons-vue';
+import { MessageOutlined, DatabaseOutlined, RadarChartOutlined, SettingOutlined, UserOutlined, LockOutlined, DashboardOutlined } from '@ant-design/icons-vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useDialogueStore } from '@/stores/modules/dialogues';
 import { useAuthStore } from '@/stores/modules/auth';
@@ -118,6 +122,8 @@ const updateActiveMenu = () => {
     activeMenu.value = 'dataset';
   } else if (path === '/knowledge' || path.startsWith('/knowledge/')) {
     activeMenu.value = 'knowledge';
+  } else if (path === '/dashboard') {
+    activeMenu.value = 'dashboard';
   } else if (path === '/model-config') {
     activeMenu.value = 'settings';
   } else if (path === '/user-management') {
@@ -149,6 +155,12 @@ const goToDatasetConfig = () => {
 const goToKnowledge = () => {
   activeMenu.value = 'knowledge';
   router.push('/knowledge');
+};
+
+// 跳转到仪表盘页面
+const goToDashboard = () => {
+  activeMenu.value = 'dashboard';
+  router.push('/dashboard');
 };
 
 // 跳转到设置页面

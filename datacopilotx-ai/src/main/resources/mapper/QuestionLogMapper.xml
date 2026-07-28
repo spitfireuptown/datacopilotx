@@ -23,4 +23,21 @@
         AND creator = #{currentUserId}
         GROUP BY session_id ORDER BY ctime DESC
     </select>
+
+    <select id="selectQuestionsWithChart" resultType="com.datacopilotx.ai.domian.dto.QuestionWithChartDTO">
+        SELECT
+            id,
+            question_id AS questionId,
+            session_id AS sessionId,
+            question,
+            result,
+            `sql`,
+            ctime
+        FROM QUESTION_LOG
+        WHERE
+            result IS NOT NULL AND result != '' AND is_del = 0
+            AND creator = #{currentUserId}
+        ORDER BY ctime DESC
+        LIMIT 100
+    </select>
 </mapper>

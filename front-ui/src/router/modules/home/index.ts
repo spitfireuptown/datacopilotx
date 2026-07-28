@@ -99,6 +99,15 @@ const homeRoutes: RouteRecordRaw[] = [
       title: '权限配置',
       keepAlive: true
     }
+  },
+  {
+    path: '/dashboard',
+    name: 'Dashboard',
+    component: () => import('@/views/Dashboard.vue'),
+    meta: {
+      title: '仪表盘',
+      keepAlive: true
+    }
   }
 ];
 
