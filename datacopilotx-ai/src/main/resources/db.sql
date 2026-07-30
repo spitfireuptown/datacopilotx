@@ -192,6 +192,19 @@ CREATE TABLE `DASHBOARD_CHART` (
     INDEX idx_creator (`creator`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='仪表盘图表卡片';
 
+CREATE TABLE `DASHBOARD_SHARE` (
+    `id` BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+    `dashboard_id` BIGINT NOT NULL COMMENT '所属仪表盘ID',
+    `token` VARCHAR(64) NOT NULL COMMENT '免密访问令牌',
+    `expire_time` TIMESTAMP NOT NULL COMMENT '过期时间',
+    `creator` VARCHAR(36) NOT NULL COMMENT '创建人ID',
+    `is_del` INT NOT NULL DEFAULT 0 COMMENT '是否删除',
+    `ctime` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `utime` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    UNIQUE INDEX uk_token (`token`),
+    INDEX idx_share_dashboard (`dashboard_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='仪表盘免密分享链接';
+
 -- ==================== 数据库迁移脚本 ====================
 -- 用于已存在的数据库添加数据表相关字段
 -- 执行方式: mysql -u username -p database_name < db.sql

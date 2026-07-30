@@ -95,3 +95,48 @@ export interface QuestionWithChartItem {
 export const getQuestionsWithChart = (): Promise<QuestionWithChartItem[]> => {
   return get<QuestionWithChartItem[]>('/dashboard/questions');
 };
+
+// ==================== 免密分享 ====================
+export interface DashboardShareItem {
+  id?: number;
+  dashboardId: number;
+  token: string;
+  expireTime: string;
+  ctime?: string;
+}
+
+export interface SharedChartItem {
+  id: number;
+  chartName?: string;
+  chartType: string;
+  chartData: string;
+  layoutX: number;
+  layoutY: number;
+  layoutW: number;
+  layoutH: number;
+}
+
+export interface SharedDashboard {
+  name: string;
+  charts: SharedChartItem[];
+}
+
+/** 生成免密分享链接（重新生成会作废旧链接） */
+export const createDashboardShare = (dashboardId: number, expireDays: number): Promise<DashboardShareItem> => {
+  return post<DashboardShareItem>('/dashboard/share/create', { dashboardId, expireDays });
+};
+
+/** 查询当前有效的分享链接 */
+export const getDashboardShare = (dashboardId: number): Promise<DashboardShareItem | null> => {
+  return get<DashboardShareItem | null>('/dashboard/share/info', { dashboardId });
+};
+
+/** 撤销分享链接 */
+export const revokeDashboardShare = (dashboardId: number): Promise<void> => {
+  return del(`/dashboard/share/revoke/${dashboardId}`);
+};
+
+/** 免密访问分享的仪表盘（公开接口，不携带认证头） */
+export const getSharedDashboard = (token: string): Promise<SharedDashboard> => {
+  return get<SharedDashboard>(`/public/dashboard/${token}`, undefined, { noAuth: true, noError: true });
+};

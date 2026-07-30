@@ -61,7 +61,8 @@ public class SecurityConfig {
                         .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()
                         .requestMatchers(
                                 "/auth/login",
-                                "/auth/register"
+                                "/auth/register",
+                                "/public/**"
                         ).permitAll()
                         .requestMatchers(
                                 "/swagger-ui/**",

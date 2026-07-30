@@ -1,12 +1,12 @@
 <template>
   <div
-    class="dashboard-chart-card"
+    class="widget-wrapper"
     :class="{ 'content-only': contentOnly }"
-    :style="cardStyle"
+    :style="wrapperStyle"
     @mousedown.stop
   >
     <!-- 标题栏（拖拽手柄） -->
-    <div v-if="!contentOnly" class="chart-header" :class="{ readonly }" @mousedown="startDrag">
+    <div v-if="!contentOnly" class="widget-header" :class="{ readonly }" @mousedown="startDrag">
       <a-input
         v-if="isRenaming"
         ref="renameInputRef"
@@ -18,9 +18,12 @@
         @keydown.enter="confirmRename"
         @keydown.esc="cancelRename"
       />
-      <div v-else class="chart-title" @dblclick.stop="startRename">{{ chartData.chartName || '未命名图表' }}</div>
-      <div v-if="!readonly" class="chart-actions">
-        <a-tooltip title="卡片设置">
+      <div v-else class="widget-title" @dblclick.stop="startRename">
+        <component :is="typeIcon" class="title-icon" />
+        {{ widget.title }}
+      </div>
+      <div v-if="!readonly" class="widget-actions">
+        <a-tooltip title="组件设置">
           <a-popover trigger="click" placement="bottomRight" :get-popup-container="(n:any) => n.parentNode">
             <template #content>
               <div class="card-settings-panel">
@@ -31,13 +34,13 @@
                       v-for="c in presetColors"
                       :key="c"
                       class="color-swatch"
-                      :class="{ active: (cardColor || '#ffffff') === c }"
+                      :class="{ active: (widget.bgColor || '#ffffff') === c }"
                       :style="{ background: c }"
-                      @click="changeCardColor(c)"
+                      @click="changeColor(c)"
                     />
                   </div>
                   <div class="custom-color-row">
-                    <input type="color" :value="cardColor || '#ffffff'" @input="changeCardColor(($event.target as HTMLInputElement).value)" />
+                    <input type="color" :value="widget.bgColor || '#ffffff'" @input="changeColor(($event.target as HTMLInputElement).value)" />
                     <span class="custom-label">自定义</span>
                   </div>
                 </div>
@@ -64,9 +67,9 @@
 
     <!-- 仅显示内容模式下的悬浮浮层 -->
     <div v-if="contentOnly" class="content-only-overlay">
-      <div class="overlay-name">{{ chartData.chartName || '未命名图表' }}</div>
+      <div class="overlay-name">{{ widget.title }}</div>
       <div v-if="!readonly" class="overlay-actions">
-        <a-tooltip title="卡片设置">
+        <a-tooltip title="组件设置">
           <a-popover trigger="click" placement="bottomRight" :get-popup-container="(n:any) => n.parentNode">
             <template #content>
               <div class="card-settings-panel">
@@ -77,13 +80,13 @@
                       v-for="c in presetColors"
                       :key="c"
                       class="color-swatch"
-                      :class="{ active: (cardColor || '#ffffff') === c }"
+                      :class="{ active: (widget.bgColor || '#ffffff') === c }"
                       :style="{ background: c }"
-                      @click="changeCardColor(c)"
+                      @click="changeColor(c)"
                     />
                   </div>
                   <div class="custom-color-row">
-                    <input type="color" :value="cardColor || '#ffffff'" @input="changeCardColor(($event.target as HTMLInputElement).value)" />
+                    <input type="color" :value="widget.bgColor || '#ffffff'" @input="changeColor(($event.target as HTMLInputElement).value)" />
                     <span class="custom-label">自定义</span>
                   </div>
                 </div>
@@ -105,21 +108,9 @@
       </div>
     </div>
 
-    <!-- 图表内容 -->
-    <div class="chart-body">
-      <a-table
-        v-if="chartData.chartType === 'Table'"
-        :columns="tableColumns"
-        :data-source="tableData"
-        :pagination="false"
-        :scroll="{ x: 'max-content', y: cardBodyHeight }"
-        size="small"
-      />
-      <div
-        v-else
-        ref="chartRef"
-        class="echarts-container"
-      />
+    <!-- 内容插槽 -->
+    <div class="widget-body">
+      <slot />
     </div>
 
     <!-- 右下角缩放手柄 -->
@@ -132,30 +123,27 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import { DeleteOutlined, EditOutlined, SettingOutlined } from '@ant-design/icons-vue';
-import * as echarts from 'echarts';
-import type { DashboardChartItem } from '@/api/dashboard';
+import { computed, h, nextTick, provide, ref } from 'vue';
+import { DeleteOutlined, EditOutlined, SettingOutlined, PictureOutlined, FontSizeOutlined, FieldTimeOutlined, SoundOutlined, NumberOutlined, PieChartOutlined, AimOutlined } from '@ant-design/icons-vue';
+import type { DashboardWidget } from '@/types/dashboardWidget';
 import { isDarkColor, adjustColor } from '@/types/dashboardWidget';
 
 const props = defineProps<{
-  chartData: DashboardChartItem;
+  widget: DashboardWidget;
   containerWidth: number;
   containerHeight: number;
   readonly?: boolean;
-  cardColor?: string;
   contentOnly?: boolean;
 }>();
 
 const emit = defineEmits<{
-  delete: [id: number];
-  layoutChange: [id: number, x: number, y: number, w: number, h: number];
-  rename: [id: number, name: string];
-  colorChange: [id: number, color: string];
-  contentOnlyChange: [id: number, value: boolean];
+  delete: [id: string];
+  layoutChange: [id: string, x: number, y: number, w: number, h: number];
+  rename: [id: string, name: string];
+  colorChange: [id: string, color: string];
+  contentOnlyChange: [id: string, value: boolean];
 }>();
 
-// Grid snap size
 const GRID = 20;
 
 const presetColors = [
@@ -163,145 +151,41 @@ const presetColors = [
   '#1a1a2e', '#16213e', '#0f3460', '#2d3436',
 ];
 
-const isDark = computed(() => props.cardColor ? isDarkColor(props.cardColor) : false);
+const typeIcon = computed(() => {
+  const map: Record<string, any> = {
+    carousel: PictureOutlined,
+    text: FontSizeOutlined,
+    timer: FieldTimeOutlined,
+    marquee: SoundOutlined,
+    numberFlip: NumberOutlined,
+    progressRing: PieChartOutlined,
+    pulse: AimOutlined,
+  };
+  return map[props.widget.type] || FontSizeOutlined;
+});
 
-const cardStyle = computed(() => {
-  const bg = props.cardColor || '#ffffff';
-  const headerBg = props.cardColor ? adjustColor(bg, isDark.value ? -5 : -3) : '#fafafa';
-  const textColor = isDark.value ? '#ffffff' : undefined;
+const isDark = computed(() => props.widget.bgColor ? isDarkColor(props.widget.bgColor) : false);
+
+// 提供拖拽函数给子组件使用
+provide('widgetStartDrag', (e: MouseEvent) => {
+  startDrag(e);
+});
+
+const wrapperStyle = computed(() => {
+  const bg = props.widget.bgColor || '#ffffff';
+  const headerBg = props.widget.bgColor ? adjustColor(bg, isDark.value ? -5 : -3) : '#fafafa';
+  const textColor = isDark.value ? '#ffffff' : '#333333';
   return {
-    left: `${props.chartData.layoutX}px`,
-    top: `${props.chartData.layoutY}px`,
-    width: `${props.chartData.layoutW}px`,
-    height: `${props.chartData.layoutH}px`,
+    left: `${props.widget.layoutX}px`,
+    top: `${props.widget.layoutY}px`,
+    width: `${props.widget.layoutW}px`,
+    height: `${props.widget.layoutH}px`,
     background: bg,
     color: textColor,
     '--header-bg': headerBg,
-    '--text-color': textColor || '#333',
+    '--text-color': textColor,
     '--border-color': isDark.value ? 'rgba(255,255,255,0.1)' : '#f0f0f0',
   };
-});
-
-const cardBodyHeight = computed(() => Math.max(100, props.chartData.layoutH - 50));
-
-// ---- Table data parsing ----
-const tableColumns = computed(() => {
-  try {
-    const parsed = typeof props.chartData.chartData === 'string'
-      ? JSON.parse(props.chartData.chartData)
-      : props.chartData.chartData;
-    if (parsed?.columns && Array.isArray(parsed.columns)) {
-      return parsed.columns.map((col: any) => ({
-        title: col.name,
-        dataIndex: col.name,
-        key: col.name,
-        ellipsis: true,
-      }));
-    }
-    if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === 'object') {
-      return Object.keys(parsed[0]).map(key => ({
-        title: key,
-        dataIndex: key,
-        key,
-        ellipsis: true,
-      }));
-    }
-    return [];
-  } catch {
-    return [];
-  }
-});
-
-const tableData = computed(() => {
-  try {
-    const parsed = typeof props.chartData.chartData === 'string'
-      ? JSON.parse(props.chartData.chartData)
-      : props.chartData.chartData;
-    if (parsed?.data && Array.isArray(parsed.data)) {return parsed.data;}
-    if (Array.isArray(parsed)) {return parsed;}
-    return [];
-  } catch {
-    return [];
-  }
-});
-
-// ---- ECharts ----
-const chartRef = ref<HTMLDivElement>();
-let chartInstance: echarts.ECharts | null = null;
-
-const getChartData = () => {
-  try {
-    return typeof props.chartData.chartData === 'string'
-      ? JSON.parse(props.chartData.chartData)
-      : props.chartData.chartData;
-  } catch {
-    return null;
-  }
-};
-
-const renderChart = () => {
-  if (!chartRef.value || props.chartData.chartType === 'Table') {return;}
-  if (!chartInstance) {
-    chartInstance = echarts.init(chartRef.value);
-  }
-  const data = getChartData();
-  if (!data?.columns || !data?.data) {return;}
-
-  const xData = data.data.map((row: any) => row[data.columns[0]?.name] ?? '');
-  const yData = data.data.map((row: any) => row[data.columns[1]?.name] ?? 0);
-  const pieData = xData.map((name: string, i: number) => ({ name, value: yData[i] }));
-
-  let option: any;
-  switch (props.chartData.chartType) {
-    case 'PieChart':
-      option = {
-        tooltip: { trigger: 'item' },
-        legend: { top: '5%', left: 'center', textStyle: { fontSize: 10 } },
-        series: [{
-          name: '数据',
-          type: 'pie',
-          radius: ['40%', '70%'],
-          data: pieData,
-          label: { fontSize: 10 },
-        }],
-      };
-      break;
-    case 'LineChart':
-      option = {
-        tooltip: { trigger: 'axis' },
-        xAxis: { type: 'category', data: xData, axisLabel: { fontSize: 10 } },
-        yAxis: { type: 'value', axisLabel: { fontSize: 10 } },
-        series: [{ data: yData, type: 'line', smooth: true }],
-      };
-      break;
-    case 'BarChart':
-      option = {
-        tooltip: { trigger: 'axis' },
-        xAxis: { type: 'category', data: xData, axisLabel: { fontSize: 10 } },
-        yAxis: { type: 'value', axisLabel: { fontSize: 10 } },
-        series: [{ data: yData, type: 'bar', barWidth: '50%' }],
-      };
-      break;
-    default:
-      return;
-  }
-  chartInstance.setOption(option, true);
-};
-
-watch(() => [props.chartData.chartType, props.chartData.chartData, props.chartData.layoutW, props.chartData.layoutH], () => {
-  nextTick(() => {
-    renderChart();
-    chartInstance?.resize();
-  });
-}, { deep: true });
-
-onMounted(() => {
-  nextTick(() => renderChart());
-});
-
-onBeforeUnmount(() => {
-  chartInstance?.dispose();
-  chartInstance = null;
 });
 
 // ---- Drag ----
@@ -316,8 +200,8 @@ const startDrag = (e: MouseEvent) => {
   isDragging.value = true;
   dragStartX.value = e.clientX;
   dragStartY.value = e.clientY;
-  dragOrigX.value = props.chartData.layoutX;
-  dragOrigY.value = props.chartData.layoutY;
+  dragOrigX.value = props.widget.layoutX;
+  dragOrigY.value = props.widget.layoutY;
   document.addEventListener('mousemove', onDrag);
   document.addEventListener('mouseup', stopDrag);
 };
@@ -328,9 +212,9 @@ const onDrag = (e: MouseEvent) => {
   const dy = e.clientY - dragStartY.value;
   let nx = Math.round((dragOrigX.value + dx) / GRID) * GRID;
   let ny = Math.round((dragOrigY.value + dy) / GRID) * GRID;
-  nx = Math.max(0, Math.min(nx, Math.max(0, props.containerWidth - props.chartData.layoutW)));
-  ny = Math.max(0, Math.min(ny, Math.max(0, props.containerHeight - props.chartData.layoutH)));
-  emit('layoutChange', props.chartData.id!, nx, ny, props.chartData.layoutW, props.chartData.layoutH);
+  nx = Math.max(0, Math.min(nx, Math.max(0, props.containerWidth - props.widget.layoutW)));
+  ny = Math.max(0, Math.min(ny, Math.max(0, props.containerHeight - props.widget.layoutH)));
+  emit('layoutChange', props.widget.id, nx, ny, props.widget.layoutW, props.widget.layoutH);
 };
 
 const stopDrag = () => {
@@ -352,8 +236,8 @@ const startResize = (e: MouseEvent) => {
   isResizing.value = true;
   resizeStartX.value = e.clientX;
   resizeStartY.value = e.clientY;
-  resizeOrigW.value = props.chartData.layoutW;
-  resizeOrigH.value = props.chartData.layoutH;
+  resizeOrigW.value = props.widget.layoutW;
+  resizeOrigH.value = props.widget.layoutH;
   document.addEventListener('mousemove', onResize);
   document.addEventListener('mouseup', stopResize);
 };
@@ -365,8 +249,8 @@ const onResize = (e: MouseEvent) => {
   let nw = Math.round((resizeOrigW.value + dx) / GRID) * GRID;
   let nh = Math.round((resizeOrigH.value + dy) / GRID) * GRID;
   nw = Math.max(200, nw);
-  nh = Math.max(150, nh);
-  emit('layoutChange', props.chartData.id!, props.chartData.layoutX, props.chartData.layoutY, nw, nh);
+  nh = Math.max(120, nh);
+  emit('layoutChange', props.widget.id, props.widget.layoutX, props.widget.layoutY, nw, nh);
 };
 
 const stopResize = () => {
@@ -383,7 +267,7 @@ const renameInputRef = ref<any>(null);
 const startRename = () => {
   if (props.readonly) {return;}
   isRenaming.value = true;
-  renameValue.value = props.chartData.chartName || '';
+  renameValue.value = props.widget.title || '';
   nextTick(() => {
     renameInputRef.value?.focus?.();
     renameInputRef.value?.select?.();
@@ -394,8 +278,8 @@ const confirmRename = () => {
   if (!isRenaming.value) {return;}
   isRenaming.value = false;
   const name = renameValue.value.trim();
-  if (name && name !== props.chartData.chartName) {
-    emit('rename', props.chartData.id!, name);
+  if (name && name !== props.widget.title) {
+    emit('rename', props.widget.id, name);
   }
 };
 
@@ -404,23 +288,23 @@ const cancelRename = () => {
 };
 
 // ---- Color ----
-const changeCardColor = (color: string) => {
-  emit('colorChange', props.chartData.id!, color);
+const changeColor = (color: string) => {
+  emit('colorChange', props.widget.id, color);
 };
 
 // ---- Content Only ----
 const toggleContentOnly = () => {
-  emit('contentOnlyChange', props.chartData.id!, !props.contentOnly);
+  emit('contentOnlyChange', props.widget.id, !props.contentOnly);
 };
 
 // ---- Delete ----
 const handleDelete = () => {
-  emit('delete', props.chartData.id!);
+  emit('delete', props.widget.id);
 };
 </script>
 
 <style lang="scss" scoped>
-.dashboard-chart-card {
+.widget-wrapper {
   position: absolute;
   border-radius: 8px;
   box-shadow: none;
@@ -459,7 +343,7 @@ const handleDelete = () => {
   z-index: 20;
   border-bottom: 1px solid #f0f0f0;
 
-  .dashboard-chart-card:hover & {
+  .widget-wrapper:hover & {
     opacity: 1;
   }
 
@@ -496,7 +380,7 @@ const handleDelete = () => {
   }
 }
 
-.chart-header {
+.widget-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -513,11 +397,11 @@ const handleDelete = () => {
     cursor: default;
   }
 
-  .dashboard-chart-card:hover & {
+  .widget-wrapper:hover & {
     border-bottom-color: var(--border-color, #f0f0f0);
   }
 
-  .chart-title {
+  .widget-title {
     font-size: 13px;
     font-weight: 500;
     color: var(--text-color, #333);
@@ -526,6 +410,14 @@ const handleDelete = () => {
     white-space: nowrap;
     flex: 1;
     margin-right: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+
+    .title-icon {
+      font-size: 14px;
+      opacity: 0.7;
+    }
   }
 
   .rename-input {
@@ -533,14 +425,14 @@ const handleDelete = () => {
     margin-right: 8px;
   }
 
-  .chart-actions {
+  .widget-actions {
     display: flex;
     gap: 4px;
     opacity: 0;
     transition: opacity 0.2s;
   }
 
-  .dashboard-chart-card:hover & .chart-actions {
+  .widget-wrapper:hover & .widget-actions {
     opacity: 1;
   }
 
@@ -562,17 +454,10 @@ const handleDelete = () => {
   }
 }
 
-.chart-body {
+.widget-body {
   flex: 1;
-  padding: 8px;
   overflow: auto;
   min-height: 0;
-}
-
-.echarts-container {
-  width: 100%;
-  height: 100%;
-  min-height: 120px;
 }
 
 .resize-handle {
@@ -590,7 +475,7 @@ const handleDelete = () => {
   opacity: 0;
   transition: opacity 0.2s;
 
-  .dashboard-chart-card:hover & {
+  .widget-wrapper:hover & {
     opacity: 1;
   }
 

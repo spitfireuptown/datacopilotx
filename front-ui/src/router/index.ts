@@ -11,6 +11,12 @@ const router = createRouter({
       component: () => import('@/views/user/Login.vue'),
       meta: { requiresAuth: false },
     },
+    {
+      path: '/share/dashboard/:token',
+      name: 'ShareDashboard',
+      component: () => import('@/views/ShareDashboard.vue'),
+      meta: { requiresAuth: false, title: '仪表盘分享' },
+    },
     ...homeRoutes,
   ],
 });

@@ -363,14 +363,11 @@ public class TextToSqlAccuracyTest {
         DataSetBean dataSetBean = createMockDataSetBean();
         ModelConfigBean modelConfigBean = createMockModelConfigBean();
 
-        Map<String, Object> initialData = workflowGraph.createInitialState(sessionId, questionId, salesDatasetId, modelConfigBean.getId(), question);
+        Map<String, Object> initialData = workflowGraph.createInitialState(sessionId, questionId, salesDatasetId, modelConfigBean.getId(), question, "test_user", 0, true);
         initialData = new HashMap<>(initialData);
         initialData.put("sink", new SerializableSink(sink));
         initialData.put("data_set_bean", dataSetBean);
         initialData.put("model_config_bean", modelConfigBean);
-        initialData.put("user_id", "test_user");
-        initialData.put("user_role", 0);
-        initialData.put("is_admin", true);
 
         RunnableConfig runnableConfig = RunnableConfig.builder()
                 .threadId(sessionId)
