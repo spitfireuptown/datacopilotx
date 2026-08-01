@@ -44,4 +44,18 @@ public class ChatController {
     public void deleteChatHistory(@PathVariable("id") String id) {
         this.chatBusinessService.deleteChatHistory(id);
     }
+
+    /**
+     * 归因分析 —— 对智能问数结果进行多维度归因分析
+     * <p>
+     * 调用 harness 模块的 Planner-Executor-Synthesizer 架构，
+     * 将复杂问题分解为子任务 DAG，按依赖顺序执行，最终综合为归因分析报告。
+     *
+     * @param questionForm 问题表单（包含原始问题、数据集ID、模型ID等）
+     * @return SSE 流式返回归因分析报告
+     */
+    @RequestMapping(value = "/attribution", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public Flux<ServerSentEvent<WebResult<String>>> attributionAnalysis(@RequestBody QuestionForm questionForm) {
+        return chatService.attributionAnalysis(questionForm);
+    }
 }

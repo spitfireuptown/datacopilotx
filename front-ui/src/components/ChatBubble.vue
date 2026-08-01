@@ -22,7 +22,7 @@
     <div ref="bubbleListContentRef" class="bubble-list">
       <div v-for="item in messageItemList" :key="item.key" class="bubble-item-wrapper">
         <BubbleList :roles="roles" :items="[item]" />
-        
+
         <!-- 用户发送的气泡下面显示重新生成按钮 -->
         <div v-if="item.role === 'local'" class="regenerate-btn-container">
           <a-button
@@ -34,6 +34,32 @@
               <UndoOutlined />
             </template>
             重新生成
+          </a-button>
+        </div>
+
+        <!-- AI回答的气泡下面显示归因分析按钮 -->
+        <div v-if="item.role === 'ai'" class="attribution-btn-container">
+          <a-button
+            type="text"
+            class="attribution-btn"
+            @click="handleAttribution(item)"
+          >
+            <template #icon>
+              <BarChartOutlined />
+            </template>
+            归因分析
+          </a-button>
+          <!-- 归因分析报告气泡：显示下载按钮 -->
+          <a-button
+            v-if="String(item.key).startsWith('attr_') && item.content"
+            type="text"
+            class="attribution-btn"
+            @click="handleDownloadReport(item)"
+          >
+            <template #icon>
+              <DownloadOutlined />
+            </template>
+            下载报告
           </a-button>
         </div>
       </div>
@@ -51,7 +77,7 @@
 <script lang="ts" setup>
 import { Bubble, BubbleList } from 'ant-design-x-vue';
 import { Avatar } from 'ant-design-vue';
-import { UndoOutlined } from '@ant-design/icons-vue';
+import { UndoOutlined, BarChartOutlined, DownloadOutlined } from '@ant-design/icons-vue';
 import MdPreview from '@/components/MdPreview.vue';
 import { MessageItem } from '@/dataTypes/chatType';
 import { message as Message } from 'ant-design-vue';
@@ -73,7 +99,41 @@ const props = defineProps({
   }
 });
 
-const emit = defineEmits(['newChat', 'regenerate']);
+const emit = defineEmits(['newChat', 'regenerate', 'attribution']);
+
+// 点击归因分析按钮 —— 在对话框内渲染归因分析报告
+const handleAttribution = (item: any) => {
+  const questionId = String(item.key || '').replace('_answer', '');
+  const questionText = item.questionText || '';
+  emit('attribution', { questionId, question: questionText });
+};
+
+// 下载归因分析报告
+const handleDownloadReport = (item: any) => {
+  if (!item.content) {
+    Message.warning('暂无可下载的报告内容');
+    return;
+  }
+  try {
+    const questionText = (item.questionText || '归因分析').substring(0, 20).replace(/[\\/:*?"<>|]/g, '_');
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const now = new Date();
+    const ts = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}${pad(now.getHours())}${pad(now.getMinutes())}`;
+    const fileName = `归因分析报告_${questionText}_${ts}.md`;
+    const blob = new Blob([item.content], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    Message.success('报告已下载');
+  } catch (error) {
+    Message.error('下载失败');
+  }
+};
 
 // 暴露滚动方法供父组件调用
 defineExpose({
@@ -192,7 +252,7 @@ watch(
       // 提取问题ID和问题文本（从前一条本地消息获取）
       const questionId = id?.replace('_answer', '') || '';
       let questionText = '';
-      if (status === 'ai' && index > 0) {
+      if (status !== 'local' && index > 0) {
         const prevMsg = newMessage[index - 1];
         if (prevMsg && prevMsg.status === 'local') {
           questionText = prevMsg.message || '';
@@ -205,6 +265,7 @@ watch(
         key: id,
         role: status === 'local' ? 'local' : 'ai',
         content: lastIndex > -1 ? currentMessage.substring(0, lastIndex + 5) : currentMessage,
+        questionText,
         // @ts-expect-error-next-line 暂时忽略content类型
         messageRender: (content) =>
           h(MdPreview, {
@@ -326,7 +387,27 @@ function scrollToBottom() {
   color: #666;
   font-size: 12px;
   padding: 4px 12px;
-  
+
+  &:hover {
+    color: #1890ff;
+    background-color: #e6f7ff;
+  }
+}
+
+/* 归因分析按钮容器 */
+.attribution-btn-container {
+  display: flex;
+  justify-content: flex-start;
+  padding-left: 40px;
+  margin-top: 4px;
+}
+
+/* 归因分析按钮样式 */
+.attribution-btn {
+  color: #666;
+  font-size: 12px;
+  padding: 4px 12px;
+
   &:hover {
     color: #1890ff;
     background-color: #e6f7ff;

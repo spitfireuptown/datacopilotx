@@ -242,3 +242,153 @@ export async function getChatHistoryDetail(
 export const deleteChatHistory = (id: string): Promise<void> => {
   return del(`/chat/delete/${id}`);
 };
+
+/**
+ * 归因分析 SSE 流式接口配置项
+ */
+export interface AttributionStreamOptions {
+  /** 中止控制器信号 */
+  signal?: AbortSignal;
+  /** 原始问题 */
+  message?: string;
+  /** 数据集ID */
+  datasetId?: string;
+  /** 模型ID */
+  modelId?: string;
+  /** 问题ID */
+  questionId?: string;
+  /** 会话ID */
+  sessionId?: string;
+}
+
+/**
+ * 归因分析流式 API
+ * <p>
+ * 调用后端 /chat/attribution 接口，以 SSE 流式返回归因分析报告。
+ * 事件类型：
+ *   - attribution_start：分析开始
+ *   - attribution_report：分析报告内容（Markdown）
+ *   - complete：完成
+ *   - error：异常
+ *
+ * @param onChunk 块回调函数（传入累积的报告内容）
+ * @param options 配置选项
+ * @param onComplete 流结束回调
+ */
+export async function attributionAnalysisStreamApi(
+  onChunk: (chunk: string) => void,
+  options: AttributionStreamOptions = {},
+  onComplete?: () => void
+): Promise<void> {
+  const { signal, message = '', datasetId, modelId, questionId: providedQuestionId, sessionId } = options;
+
+  const questionId = providedQuestionId || `qu_${generateUUID()}`;
+  const requestUrl = `/api/chat/attribution`;
+  const token = localStorage.getItem('access_token');
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const response = await fetch(requestUrl, {
+    method: 'POST',
+    headers,
+    credentials: 'include',
+    body: JSON.stringify({
+      question: message,
+      datasetId,
+      modelId,
+      questionId,
+      sessionId
+    }),
+    signal,
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new Error('No response body');
+  }
+
+  const decoder = new TextDecoder();
+  let done = false;
+  let remainingData = '';
+  let lastId = '';
+  let lastEvent = '';
+  let reportContent = '';
+  let progressMsg = '';
+
+  while (!done) {
+    const { value, done: readerDone } = await reader.read();
+    done = readerDone;
+
+    if (value) {
+      const chunk = decoder.decode(value, { stream: !readerDone });
+      const fullData = remainingData + chunk;
+      const lines = fullData.split('\n');
+
+      for (let i = 0; i < lines.length - 1; i++) {
+        const line = lines[i].trim();
+        if (!line) {
+          lastEvent = '';
+          continue;
+        }
+
+        if (line.startsWith('event:')) {
+          lastEvent = line.substring(6).trim();
+        } else if (line.startsWith('id:')) {
+          lastId = line.substring(3).trim();
+        } else if (line.startsWith('data:')) {
+          const dataContent = line.substring(5).trim();
+          if (!dataContent) {continue;}
+
+          // 检测完成或错误标记
+          if (dataContent.includes('[DONE]') || lastEvent === 'complete' || lastEvent === 'error') {
+            done = true;
+            reader.cancel();
+            if (lastEvent === 'error') {
+              try {
+                const errObj = JSON.parse(dataContent);
+                reportContent = errObj.message || dataContent;
+              } catch {
+                reportContent = dataContent;
+              }
+              onChunk(reportContent);
+            }
+            if (onComplete) {onComplete();}
+            break;
+          }
+
+          try {
+            const dataContentObj = JSON.parse(dataContent);
+            dataContentObj.id = lastId;
+            // attribution_report 事件携带完整报告内容
+            if (lastEvent === 'attribution_report' && dataContentObj.data) {
+              reportContent = dataContentObj.data;
+              onChunk(reportContent);
+            } else if (lastEvent === 'attribution_start' && dataContentObj.data) {
+              onChunk(dataContentObj.data);
+            } else if (lastEvent === 'progress' && dataContentObj.data) {
+              // 累积进度消息，前端可实时展示
+              progressMsg = dataContentObj.data;
+              onChunk(progressMsg);
+            }
+          } catch {
+            // 非JSON数据，直接传递
+            onChunk(dataContent);
+          }
+        }
+      }
+
+      remainingData = lines[lines.length - 1];
+    }
+  }
+
+  if (onComplete) {onComplete();}
+}

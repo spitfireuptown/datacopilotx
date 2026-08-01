@@ -82,7 +82,7 @@
 // 导入路由和图标
 import { Sender, useXAgent, useXChat } from 'ant-design-x-vue';
 import { message as Msg } from 'ant-design-vue';
-import { mockChatStreamApi } from '@/api/chat.ts';
+import { mockChatStreamApi, attributionAnalysisStreamApi } from '@/api/chat.ts';
 import { useDialogueStore } from '@/stores/modules/dialogues';
 import { ref, watch, onMounted } from 'vue';
 
@@ -198,10 +198,118 @@ const setDatasetAndModel = (datasetId: number | undefined, modelId: number | und
   }
 };
 
+/**
+ * 触发归因分析
+ * <p>
+ * 调用后端 /chat/attribution 接口，以 SSE 流式返回归因分析报告，
+ * 将报告作为新的 AI 消息追加到对话列表（key 以 attr_ 开头，便于前端识别）。
+ *
+ * @param questionId 问题ID（来自被分析的问数消息）
+ * @param questionText 问题文本
+ */
+const attributionLoading = ref<boolean>(false);
+let attributionController: AbortController;
+
+const triggerAttribution = async (questionId: string, questionText: string) => {
+  if (attributionLoading.value) {
+    Msg.warning('归因分析正在进行中，请稍候');
+    return;
+  }
+
+  // 校验是否选择了数据集
+  if (!selectedDatasetId.value) {
+    Msg.warning('请选择数据集');
+    showDatasetWarning.value = true;
+    return;
+  }
+
+  // 校验是否选择了模型
+  if (!selectedModel.value) {
+    Msg.warning('请选择模型');
+    showModelWarning.value = true;
+    return;
+  }
+
+  attributionLoading.value = true;
+  attributionController = new AbortController();
+
+  // 占位消息：显示加载中（key 以 attr_ 开头，用于前端识别归因分析报告气泡）
+  const attrMsgId = `attr_${questionId}_${Date.now()}`;
+  setMessages((prev: any[]) => [
+    ...prev,
+    {
+      id: attrMsgId,
+      message: '正在进行归因分析，请稍候...',
+      status: 'loading'
+    }
+  ]);
+
+  let reportContent = '';
+
+  try {
+    await attributionAnalysisStreamApi(
+      (chunk: string) => {
+        reportContent = chunk;
+        // 实时更新占位消息内容（保留 loading 状态，让 Bubble 组件显示 loading 动画）
+        const status = chunk.length > 100 ? 'loading' : 'loading';
+        setMessages((prev: any[]) =>
+          prev.map((m: any) =>
+            m.id === attrMsgId
+              ? { ...m, message: reportContent, status }
+              : m
+          )
+        );
+      },
+      {
+        signal: attributionController.signal,
+        message: questionText,
+        datasetId: selectedDatasetId.value?.value,
+        modelId: selectedModelId.value?.value,
+        questionId: questionId,
+        sessionId: sessionId.value
+      },
+      () => {
+        attributionLoading.value = false;
+        setMessages((prev: any[]) =>
+          prev.map((m: any) =>
+            m.id === attrMsgId
+              ? { ...m, message: reportContent || '归因分析完成', status: 'success' }
+              : m
+          )
+        );
+      }
+    );
+  } catch (error: any) {
+    attributionLoading.value = false;
+    if (error?.name === 'AbortError') {
+      setMessages((prev: any[]) =>
+        prev.map((m: any) =>
+          m.id === attrMsgId
+            ? { ...m, message: '归因分析已取消', status: 'error' }
+            : m
+        )
+      );
+    } else {
+      Msg.error('归因分析失败: ' + (error?.message || '未知错误'));
+      setMessages((prev: any[]) =>
+        prev.map((m: any) =>
+          m.id === attrMsgId
+            ? { ...m, message: '归因分析失败: ' + (error?.message || '未知错误'), status: 'error' }
+            : m
+        )
+      );
+    }
+  }
+};
+
 defineExpose({
   newChat,
   setQuestion,
-  setDatasetAndModel
+  setDatasetAndModel,
+  getDatasetId: () => selectedDatasetId.value?.value,
+  getModelId: () => selectedModelId.value?.value,
+  getSessionId: () => sessionId.value,
+  triggerAttribution
 });
 
 /** 发送消息 */
@@ -337,7 +445,7 @@ const [agent] = useXAgent({
   }
 });
 
-const { onRequest, messages } = useXChat({
+const { onRequest, messages, setMessages } = useXChat({
   agent: agent.value
 });
 

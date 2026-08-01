@@ -25,6 +25,7 @@
         :chat-title="currentChatTitle"
         @new-chat="resetChat"
         @regenerate="handleRegenerate"
+        @attribution="handleAttribution"
       />
     </div>
     <div class="sender-wrap">
@@ -70,6 +71,11 @@ const handleRegenerate = (content: string) => {
   senderInputRef.value?.setQuestion(content);
 };
 
+// 归因分析：委托给 SenderInput 执行（复用其 datasetId/modelId/sessionId 状态）
+const handleAttribution = ({ questionId, question }: { questionId: string; question: string }) => {
+  senderInputRef.value?.triggerAttribution(questionId, question);
+};
+
 const handleDeleteChat = (sessionId: string) => {
   if (currentSessionId.value === sessionId) {
     resetChat();
@@ -94,7 +100,7 @@ onMounted(() => {
   };
   
   window.addEventListener('createNewChat', handleCreateNewChat);
-  
+
   // 组件卸载时移除事件监听
   onUnmounted(() => {
     window.removeEventListener('createNewChat', handleCreateNewChat);

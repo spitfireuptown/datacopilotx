@@ -20,6 +20,7 @@
         <module>datacopilotx-common</module>
         <module>datacopilotx-aigateway</module>
         <module>datacopilotx-autotest</module>
+        <module>datacopilotx-harness</module>
     </modules>
 
     <properties>
