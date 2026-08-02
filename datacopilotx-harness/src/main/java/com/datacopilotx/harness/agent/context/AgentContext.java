@@ -49,6 +49,18 @@ public class AgentContext {
     /** 用户 ID */
     private String userId;
 
+    /**
+     * 数据集下所有表的 schema 信息（表名、字段、描述等）
+     * 由 ChatService 在构建上下文时组装，供 ScopeAnalyzer 和 PlannerAgent 使用
+     */
+    private String dataSourceInfo;
+
+    /**
+     * 收拢后的数据边界 —— ScopeAnalyzer 从 dataSourceInfo 中筛选出的与问题相关的表信息
+     * 只包含问题涉及的表及其 schema，PlannerAgent 基于此进行子任务规划
+     */
+    private String narrowedScope;
+
     /** Planner 生成的子任务 DAG */
     private TaskDAG taskDAG;
 

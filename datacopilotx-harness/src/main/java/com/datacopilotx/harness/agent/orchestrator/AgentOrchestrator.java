@@ -5,6 +5,7 @@ import com.datacopilotx.harness.agent.domain.AttributionReport;
 import com.datacopilotx.harness.agent.domain.TaskDAG;
 import com.datacopilotx.harness.agent.executor.ExecutorAgent;
 import com.datacopilotx.harness.agent.planner.PlannerAgent;
+import com.datacopilotx.harness.agent.scope.ScopeAnalyzer;
 import com.datacopilotx.harness.agent.synthesizer.SynthesizerAgent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -13,10 +14,11 @@ import org.springframework.stereotype.Component;
 import java.util.function.Consumer;
 
 /**
- * 本地 Agent 编排器 —— Planner → Executor → Synthesizer 直连，无需 Redis
+ * 本地 Agent 编排器 —— ScopeAnalyzer → Planner → Executor → Synthesizer 直连，无需 Redis
  * <p>
  * 职责：
  * <ol>
+ *   <li>调用 ScopeAnalyzer 分析问题涉及的数据表，收拢数据边界</li>
  *   <li>调用 PlannerAgent 将问题分解为子任务 DAG</li>
  *   <li>调用 ExecutorAgent 按依赖顺序执行子任务</li>
  *   <li>调用 SynthesizerAgent 综合所有结果生成归因分析报告</li>
@@ -27,6 +29,7 @@ import java.util.function.Consumer;
 @RequiredArgsConstructor
 public class AgentOrchestrator {
 
+    private final ScopeAnalyzer scopeAnalyzer;
     private final PlannerAgent plannerAgent;
     private final ExecutorAgent executorAgent;
     private final SynthesizerAgent synthesizerAgent;
@@ -42,6 +45,13 @@ public class AgentOrchestrator {
         String sessionId = context.getSessionId();
         long startTime = System.currentTimeMillis();
         log.info("[AgentOrchestrator] ===== 归因分析开始: session={} =====", sessionId);
+
+        // Phase 0: Scope Analysis —— 分析问题涉及哪些数据表，收拢数据边界
+        log.info("[AgentOrchestrator] Phase 0: Scope 分析");
+        progressCallback.accept("正在分析问题涉及的数据表，收拢数据边界...");
+        String narrowedScope = scopeAnalyzer.analyze(context);
+        context.setNarrowedScope(narrowedScope);
+        log.info("[AgentOrchestrator] Scope 分析完成");
 
         // Phase 1: Planner
         log.info("[AgentOrchestrator] Phase 1: Planner 规划");

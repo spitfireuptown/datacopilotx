@@ -37,8 +37,8 @@
           </a-button>
         </div>
 
-        <!-- AI回答的气泡下面显示归因分析按钮 -->
-        <div v-if="item.role === 'ai'" class="attribution-btn-container">
+        <!-- 只有问数结果的AI气泡显示归因分析按钮，归因分析报告本身不显示 -->
+        <div v-if="item.role === 'ai' && !String(item.key).startsWith('attr_')" class="attribution-btn-container">
           <a-button
             type="text"
             class="attribution-btn"

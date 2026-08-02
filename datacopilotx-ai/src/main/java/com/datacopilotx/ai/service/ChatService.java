@@ -222,7 +222,11 @@ public class ChatService {
 
         Thread.startVirtualThread(() -> {
             try {
-                // 构建 AgentContext（携带模型配置，供 Planner/Executor/Synthesizer 调用 LLM）
+                // 组装数据集 schema 信息（表名、字段、描述等），供归因分析使用
+                String dataSourceInfo = flowServiceHelper.assembleDataSetInfo(
+                        dataSetBean, questionForm.getQuestion());
+
+                // 构建 AgentContext（携带模型配置和 schema 信息，供 Planner/Executor/Synthesizer 调用 LLM）
                 AgentContext context = AgentContext.builder()
                         .sessionId(sessionId)
                         .originalQuestion(questionForm.getQuestion())
@@ -234,6 +238,7 @@ public class ChatService {
                         .baseUrl(modelConfigBean.getBaseUrl())
                         .platform(modelConfigBean.getPlatform())
                         .userId(SecurityUtil.getCurrentUserId())
+                        .dataSourceInfo(dataSourceInfo)
                         .build();
 
                 // 发送开始事件

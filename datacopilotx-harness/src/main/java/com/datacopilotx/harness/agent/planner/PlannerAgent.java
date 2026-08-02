@@ -119,17 +119,34 @@ public class PlannerAgent {
      * 构建规划提示词
      */
     private String buildPlanningPrompt(AgentContext context) {
+        String narrowedScope = context.getNarrowedScope();
+        String dataSourceSection = "";
+
+        if (narrowedScope != null && !narrowedScope.isBlank()) {
+            dataSourceSection = String.format("""
+                    ## 可用数据表（已收拢，仅包含与问题相关的表）
+                    %s
+                    """, narrowedScope);
+        } else if (context.getDataSourceInfo() != null && !context.getDataSourceInfo().isBlank()) {
+            dataSourceSection = String.format("""
+                    ## 可用数据表
+                    %s
+                    """, context.getDataSourceInfo());
+        }
+
         return String.format("""
                 ## 用户原始问题
                 %s
 
+                %s
                 ## 要求
                 1. 将问题分解为 3-8 个子任务
                 2. 优先分解为归因分析维度：下钻分析（哪个维度贡献最大）、对比分析（同比/环比变化）、异常检测（哪些指标异常）
                 3. 明确子任务之间的依赖关系（dependsOn）
-                4. NL2SQL 类型子任务需要指定 dataSource 和 metrics
+                4. NL2SQL 类型子任务必须指定 dataSource（使用上述可用数据表中的表名）和 metrics
                 5. 至少有一个子任务标记为 attributionCore=true
-                """, context.getOriginalQuestion());
+                6. 只使用上述可用数据表中存在的字段和维度，不要凭空捏造字段名
+                """, context.getOriginalQuestion(), dataSourceSection);
     }
 
     /**

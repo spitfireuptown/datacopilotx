@@ -119,7 +119,7 @@
             placeholder="请选择数据集"
             style="width: 100%"
           >
-            <a-select-option v-for="dataset in datasets" :key="dataset.name" :value="String(dataset.id)">
+            <a-select-option v-for="dataset in datasets" :key="dataset.id" :value="String(dataset.id)">
               {{ dataset.name }}
             </a-select-option>
           </a-select>
