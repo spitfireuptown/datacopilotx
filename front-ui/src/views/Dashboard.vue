@@ -38,7 +38,7 @@
             </template>
             <template v-else>
               <span class="item-name">{{ dash.name }}</span>
-              <span class="item-meta">{{ dash.ctime?.substring(0, 10) }}</span>
+              <span class="item-meta">{{ String(dash.ctime || '').substring(0, 10) }}</span>
             </template>
           </div>
 
