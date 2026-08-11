@@ -13,11 +13,13 @@ import dev.langchain4j.model.openai.OpenAiChatModel;
 import dev.langchain4j.model.openai.OpenAiEmbeddingModel;
 import dev.langchain4j.model.openai.OpenAiStreamingChatModel;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.ObjectUtils;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.FluxSink;
 
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -36,6 +38,13 @@ public class OpenAIChatService implements AIChatService {
     private static final Map<String, OpenAiStreamingChatModel> streamingChatModelCache = new ConcurrentHashMap<>();
     private static final Map<String, OpenAiEmbeddingModel> embeddingModelCache = new ConcurrentHashMap<>();
 
+    /**
+     * OpenAI HTTP 请求超时时间（秒），默认 120s，覆盖 langchain4j 默认的 60s 读超时。
+     * NL2SQL 等长文本生成任务可能超过 60s，需通过 ai.gateway.openai.timeout-seconds 调整。
+     */
+    @Value("${ai.gateway.openai.timeout-seconds:120}")
+    private long timeoutSeconds;
+
     private String buildModelKey(String apiKey, String model, String baseUrl) {
         return String.format("%s_%s_%s", apiKey, model, baseUrl);
     }
@@ -48,6 +57,7 @@ public class OpenAIChatService implements AIChatService {
                 .baseUrl(chatRequest.getBaseUrl())
                 .temperature(0.0)
                 .topP(1.0)
+                .timeout(Duration.ofSeconds(timeoutSeconds))
                 .build());
     }
 
@@ -59,6 +69,7 @@ public class OpenAIChatService implements AIChatService {
                 .baseUrl(chatRequest.getBaseUrl())
                 .temperature(0.0)
                 .topP(1.0)
+                .timeout(Duration.ofSeconds(timeoutSeconds))
                 .build());
     }
 
@@ -69,6 +80,7 @@ public class OpenAIChatService implements AIChatService {
                 .modelName(chatRequest.getModel())
                 .baseUrl(chatRequest.getBaseUrl())
                 .dimensions(chatRequest.getDimensions())
+                .timeout(Duration.ofSeconds(timeoutSeconds))
                 .build());
     }
 

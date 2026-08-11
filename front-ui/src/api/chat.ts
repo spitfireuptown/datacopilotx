@@ -86,55 +86,64 @@ export async function mockChatStreamApi(
   let lastEvent = '';
 
   while (!done) {
-    const { value, done: readerDone } = await reader.read();
-    done = readerDone;
-    
-    if (value) {
-      // 解码新数据
-      const chunk = decoder.decode(value, { stream: !readerDone });
-      // 合并剩余数据和新数据
-      const fullData = remainingData + chunk;
-      // 按行拆分数据
-      const lines = fullData.split('\n');
+    try {
+      const { value, done: readerDone } = await reader.read();
+      done = readerDone;
       
-      // 处理每行数据，提取SSE格式中的有效信息
-      for (let i = 0; i < lines.length - 1; i++) {
-        const line = lines[i].trim();
-        if (!line) {
-          // 空行表示一个SSE事件结束，重置lastEvent
-          lastEvent = '';
-          continue;
+      if (value) {
+        // 解码新数据
+        const chunk = decoder.decode(value, { stream: !readerDone });
+        // 合并剩余数据和新数据
+        const fullData = remainingData + chunk;
+        // 按行拆分数据
+        const lines = fullData.split('\n');
+        
+        // 处理每行数据，提取SSE格式中的有效信息
+        for (let i = 0; i < lines.length - 1; i++) {
+          const line = lines[i].trim();
+          if (!line) {
+            // 空行表示一个SSE事件结束，重置lastEvent
+            lastEvent = '';
+            continue;
+          }
+          
+          if (line.startsWith('event:')) {
+            lastEvent = line.substring(6).trim();
+          } else if (line.startsWith('id:')) {
+            lastId = line.substring(3).trim();
+          } else if (line.startsWith('data:')) {
+            const dataContent = line.substring(5).trim();
+            if (!dataContent) {continue;}
+            
+            // 检测 [DONE] 标记，立即结束流读取
+            if (dataContent.includes('[DONE]') || lastEvent === 'complete') {
+              done = true;
+              reader.cancel();
+              if (onComplete) {onComplete();}
+              break;
+            }
+            
+            try {
+              const dataContentObj = JSON.parse(dataContent);
+              dataContentObj.id = lastId;
+              dataContentObj.event = lastEvent;
+              onChunk(JSON.stringify(dataContentObj));
+            } catch {
+              // 非JSON数据，直接传递
+              onChunk(dataContent);
+            }
+          }
         }
         
-        if (line.startsWith('event:')) {
-          lastEvent = line.substring(6).trim();
-        } else if (line.startsWith('id:')) {
-          lastId = line.substring(3).trim();
-        } else if (line.startsWith('data:')) {
-          const dataContent = line.substring(5).trim();
-          if (!dataContent) {continue;}
-          
-          // 检测 [DONE] 标记，立即结束流读取
-          if (dataContent.includes('[DONE]') || lastEvent === 'complete') {
-            done = true;
-            reader.cancel();
-            if (onComplete) {onComplete();}
-            break;
-          }
-          
-          try {
-            const dataContentObj = JSON.parse(dataContent);
-            dataContentObj.id = lastId;
-            onChunk(JSON.stringify(dataContentObj));
-          } catch {
-            // 非JSON数据，直接传递
-            onChunk(dataContent);
-          }
-        }
+        // 保存最后一行作为未处理完的数据
+        remainingData = lines[lines.length - 1];
       }
-      
-      // 保存最后一行作为未处理完的数据
-      remainingData = lines[lines.length - 1];
+    } catch (readError: any) {
+      if (readError?.name === 'AbortError' || signal?.aborted) {
+        done = true;
+        break;
+      }
+      throw readError;
     }
   }
   
@@ -323,70 +332,81 @@ export async function attributionAnalysisStreamApi(
   let lastEvent = '';
   let reportContent = '';
   let progressMsg = '';
+  let isReportReady = false;
 
   while (!done) {
-    const { value, done: readerDone } = await reader.read();
-    done = readerDone;
+    try {
+      const { value, done: readerDone } = await reader.read();
+      done = readerDone;
 
-    if (value) {
-      const chunk = decoder.decode(value, { stream: !readerDone });
-      const fullData = remainingData + chunk;
-      const lines = fullData.split('\n');
+      if (value) {
+        const chunk = decoder.decode(value, { stream: !readerDone });
+        const fullData = remainingData + chunk;
+        const lines = fullData.split('\n');
 
-      for (let i = 0; i < lines.length - 1; i++) {
-        const line = lines[i].trim();
-        if (!line) {
-          lastEvent = '';
-          continue;
-        }
+        for (let i = 0; i < lines.length - 1; i++) {
+          const line = lines[i].trim();
+          if (!line) {
+            lastEvent = '';
+            continue;
+          }
 
-        if (line.startsWith('event:')) {
-          lastEvent = line.substring(6).trim();
-        } else if (line.startsWith('id:')) {
-          lastId = line.substring(3).trim();
-        } else if (line.startsWith('data:')) {
-          const dataContent = line.substring(5).trim();
-          if (!dataContent) {continue;}
+          if (line.startsWith('event:')) {
+            lastEvent = line.substring(6).trim();
+          } else if (line.startsWith('id:')) {
+            lastId = line.substring(3).trim();
+          } else if (line.startsWith('data:')) {
+            const dataContent = line.substring(5).trim();
+            if (!dataContent) {continue;}
 
-          // 检测完成或错误标记
-          if (dataContent.includes('[DONE]') || lastEvent === 'complete' || lastEvent === 'error') {
-            done = true;
-            reader.cancel();
-            if (lastEvent === 'error') {
-              try {
-                const errObj = JSON.parse(dataContent);
-                reportContent = errObj.message || dataContent;
-              } catch {
-                reportContent = dataContent;
+            if (dataContent.includes('[DONE]') || lastEvent === 'complete' || lastEvent === 'error') {
+              done = true;
+              reader.cancel();
+              if (lastEvent === 'error') {
+                try {
+                  const errObj = JSON.parse(dataContent);
+                  reportContent = errObj.message || dataContent;
+                } catch {
+                  reportContent = dataContent;
+                }
+                onChunk(reportContent);
               }
-              onChunk(reportContent);
+              if (onComplete) {onComplete();}
+              break;
             }
-            if (onComplete) {onComplete();}
-            break;
-          }
 
-          try {
-            const dataContentObj = JSON.parse(dataContent);
-            dataContentObj.id = lastId;
-            // attribution_report 事件携带完整报告内容
-            if (lastEvent === 'attribution_report' && dataContentObj.data) {
-              reportContent = dataContentObj.data;
-              onChunk(reportContent);
-            } else if (lastEvent === 'attribution_start' && dataContentObj.data) {
-              onChunk(dataContentObj.data);
-            } else if (lastEvent === 'progress' && dataContentObj.data) {
-              // 累积进度消息，前端可实时展示
-              progressMsg = dataContentObj.data;
-              onChunk(progressMsg);
+            try {
+              const dataContentObj = JSON.parse(dataContent);
+              dataContentObj.id = lastId;
+              if (lastEvent === 'attribution_report' && dataContentObj.data) {
+                reportContent = dataContentObj.data;
+                isReportReady = true;
+                onChunk(reportContent);
+              } else if (lastEvent === 'attribution_start' && dataContentObj.data) {
+                progressMsg = dataContentObj.data;
+                onChunk(progressMsg);
+              } else if (lastEvent === 'progress' && dataContentObj.data) {
+                if (!isReportReady) {
+                  progressMsg = progressMsg
+                    ? progressMsg + '\n' + dataContentObj.data
+                    : dataContentObj.data;
+                  onChunk(progressMsg);
+                }
+              }
+            } catch {
+              onChunk(dataContent);
             }
-          } catch {
-            // 非JSON数据，直接传递
-            onChunk(dataContent);
           }
         }
-      }
 
-      remainingData = lines[lines.length - 1];
+        remainingData = lines[lines.length - 1];
+      }
+    } catch (readError: any) {
+      if (readError?.name === 'AbortError' || signal?.aborted) {
+        done = true;
+        break;
+      }
+      throw readError;
     }
   }
 

@@ -19,7 +19,7 @@ import static org.bsc.langgraph4j.action.AsyncNodeAction.node_async;
 @Component
 public class WorkflowGraph {
 
-    private static final int MAX_RETRY = 3;
+    public static final int MAX_RETRY = 3;
 
     private final GracefulQuestionGraphNode gracefulQuestionGraphNode;
     private final IntentRecognitionGraphNode intentRecognitionGraphNode;

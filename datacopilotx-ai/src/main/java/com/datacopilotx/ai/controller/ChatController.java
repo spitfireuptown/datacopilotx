@@ -25,7 +25,7 @@ public class ChatController {
     ChatService chatService;
 
 
-    @RequestMapping(value = "/completions", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+        @RequestMapping(value = "/completions", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<ServerSentEvent<WebResult<String>>> chatCompletions(@RequestBody QuestionForm questionForm) {
         return chatService.chatCompletions(questionForm);
     }

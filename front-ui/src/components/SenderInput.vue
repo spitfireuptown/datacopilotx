@@ -84,7 +84,7 @@ import { Sender, useXAgent, useXChat } from 'ant-design-x-vue';
 import { message as Msg } from 'ant-design-vue';
 import { mockChatStreamApi, attributionAnalysisStreamApi } from '@/api/chat.ts';
 import { useDialogueStore } from '@/stores/modules/dialogues';
-import { ref, watch, onMounted } from 'vue';
+import { ref, watch, onMounted, onUnmounted } from 'vue';
 
 // 导入模型相关API
 import { getModelList } from '@/api/model.ts';
@@ -121,6 +121,13 @@ const dialogueStores = useDialogueStore();
 /** 重置所有数据，开启了新对话 */
 // 修改newChat函数，确保仅在明确需要新建对话时才清空历史记录
 const newChat = () => {
+  // 中止正在进行的流式请求
+  if (controller && !controller.signal.aborted) {
+    controller.abort();
+  }
+  if (attributionController && !attributionController.signal.aborted) {
+    attributionController.abort();
+  }
   selectedModel.value = null;
   selectedModelId.value = undefined;
   conversation_uuid.value = undefined;
@@ -363,7 +370,7 @@ const [agent] = useXAgent({
       if (controller) {
         controller.abort();
       }
-    }, 60000); // 60秒超时
+    }, 180000); // 180秒超时
     
     // 流结束时立刻重置loading
     const resetLoading = () => {
@@ -388,6 +395,14 @@ const [agent] = useXAgent({
 
             let jsonData = {};
             jsonData = JSON.parse(chunk);
+            
+            // 过滤心跳进度事件，不显示在对话内容中
+            if (jsonData.event === 'progress') {
+              if (jsonData.data && typeof jsonData.data === 'string') {
+                onUpdate(fullContent);
+              }
+              return;
+            }
             
             // 检查是否是各种节点类型的数据
             if (jsonData.id && jsonData.data) {
@@ -438,7 +453,12 @@ const [agent] = useXAgent({
         resetLoading  // onComplete 回调：流结束立刻重置loading
       );
     } catch (streamError: any) {
-      Msg.error(streamError.message);
+      if (streamError?.name === 'AbortError' || controller?.signal?.aborted) {
+        // 主动取消或超时导致的中止，不显示错误
+        console.log('流式请求已中止', streamError?.message);
+      } else {
+        Msg.error(streamError.message);
+      }
     } finally {
       resetLoading();
     }
@@ -629,6 +649,16 @@ onMounted(() => {
   fetchModels();
   fetchDatasets();
   generateNewIds();
+});
+
+// 组件卸载时中止正在进行的流式请求
+onUnmounted(() => {
+  if (controller && !controller.signal.aborted) {
+    controller.abort();
+  }
+  if (attributionController && !attributionController.signal.aborted) {
+    attributionController.abort();
+  }
 });
 
 // 监听selectedModel 和conversation_uuid，有变化就给dialogueStores 赋值

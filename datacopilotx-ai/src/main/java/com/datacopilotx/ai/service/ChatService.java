@@ -94,6 +94,7 @@ public class ChatService {
         questionForm.setQuestionLogBean(questionLogBean);
 
         Thread.startVirtualThread(() -> {
+            Thread heartbeatThread = null;
             try {
                 log.info("Building workflow state graph...");
                 StateGraph<WorkflowState> workflow = workflowGraph.createResearchGraph();
@@ -121,6 +122,24 @@ public class ChatService {
                         .threadId(sessionId)
                         .build();
 
+                // 心跳线程：每隔 10 秒发送进度事件，防止 SSE 连接超时断开
+                heartbeatThread = new Thread(() -> {
+                    while (!Thread.currentThread().isInterrupted()) {
+                        try {
+                            Thread.sleep(10000);
+                            sink.tryEmitNext(ServerSentEvent.<WebResult<String>>builder()
+                                    .event("progress")
+                                    .data(WebResult.success("AI 正在思考中..."))
+                                    .build());
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            break;
+                        }
+                    }
+                });
+                heartbeatThread.setDaemon(true);
+                heartbeatThread.start();
+
                 log.info("Starting workflow execution, initial state keys: {}", initialData.keySet());
 
                 WorkflowState finalState = null;
@@ -131,6 +150,9 @@ public class ChatService {
                     finalState = nodeOutput.state();
                     log.debug("Executed node {}, current state: {}", nodeCount, finalState);
                 }
+
+                // 停止心跳
+                heartbeatThread.interrupt();
 
                 if (finalState == null) {
                     throw new IllegalStateException("Workflow execution did not return any state");
@@ -163,6 +185,9 @@ public class ChatService {
                 sink.tryEmitComplete();
             } catch (Exception e) {
                 log.error("Chat completions execution failed", e);
+                if (heartbeatThread != null) {
+                    heartbeatThread.interrupt();
+                }
                 sink.tryEmitNext(ServerSentEvent.<WebResult<String>>builder()
                         .event("error")
                         .data(WebResult.error(500, "执行异常: " + e.getMessage()))

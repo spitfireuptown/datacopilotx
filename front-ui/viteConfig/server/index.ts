@@ -9,12 +9,19 @@ export default function (env: Record<string, string>) {
     // 是否自动打开浏览器
     open: true,
     proxy: {
-      // '/api'
       ['/api']: {
-        target: 'http://localhost:34567', //  代理的请求服务器地址
-        changeOrigin: true, // 跨域
+        target: 'http://localhost:34567',
+        changeOrigin: true,
         rewrite: (path: string) =>
-          path.replace(new RegExp('^' + '/api'), '')
+          path.replace(new RegExp('^' + '/api'), ''),
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq) => {
+            proxyReq.setTimeout(600000);
+          });
+          proxy.on('error', (err) => {
+            console.error('代理请求错误:', err.message);
+          });
+        }
       }
     }
   };

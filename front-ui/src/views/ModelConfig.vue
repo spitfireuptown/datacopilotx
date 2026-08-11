@@ -316,7 +316,6 @@ const handleSubmit = async () => {
 
 // 重置表单
 const handleReset = () => {
-  // 清空表单数据
   formData.model = '';
   formData.type = '';
   formData.functionType = '';
@@ -326,8 +325,7 @@ const handleReset = () => {
   formData.dimension = undefined;
   formData.id = undefined;
   
-  // 重置表单验证状态
-  formRef.value?.resetFields();
+  formRef.value?.clearValidate();
 };
 
 // 取消操作

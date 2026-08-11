@@ -1,7 +1,8 @@
-package com.datacopilotx.harness.agent.planner;
+package com.datacopilotx.harness.agent.graph;
 
 import com.datacopilotx.aigateway.domain.dto.ChatRequest;
 import com.datacopilotx.aigateway.service.chat.AIGatewayChatService;
+import com.datacopilotx.common.constant.PromptConstant;
 import com.datacopilotx.common.util.WorkflowUtil;
 import com.datacopilotx.harness.agent.context.AgentContext;
 import com.datacopilotx.harness.agent.domain.SubTask;
@@ -37,45 +38,6 @@ public class PlannerAgent {
     private final ObjectMapper objectMapper;
 
     /**
-     * Planner 规划提示词 —— 指导 LLM 将复杂问题分解为子任务 DAG
-     */
-    private static final String PLANNER_SYSTEM_PROMPT = """
-            你是一个归因分析规划专家，擅长将复杂的"智能问数"归因分析问题分解为有依赖关系的子任务。
-
-            ## 你的任务
-            将用户问题分解为多个子任务，每个子任务是一个独立的分析步骤，子任务之间可能存在依赖关系（DAG）。
-
-            ## 子任务类型
-            - NL2SQL：需要查询数据库获取数据，指定 dataSource（表名）和 metrics（维度/指标）
-            - ML_PIPELINE：需要调用机器学习流水线（如异常检测、趋势预测、贡献度分析）
-            - AGGREGATION：对上游子任务的结果进行聚合计算
-            - COMPARISON：对不同维度的结果进行对比分析
-
-            ## 依赖关系规则
-            - 如果子任务B需要子任务A的结果，则B依赖A（在 dependsOn 中填写A的taskId）
-            - 叶子任务（无下游依赖）通常是最终归因结论的直接支撑
-            - 将最重要的归因维度子任务标记为 attributionCore=true
-
-            ## 输出格式
-            必须返回严格的JSON数组，每个元素是一个子任务：
-            ```json
-            [
-              {
-                "taskId": "task_1",
-                "description": "子任务描述",
-                "type": "NL2SQL",
-                "dataSource": "表名",
-                "metrics": {"dimensions": ["维度1"], "measures": ["指标1"]},
-                "dependsOn": [],
-                "priority": 0,
-                "attributionCore": true,
-                "attributionAngle": "drill_down"
-              }
-            ]
-            ```
-            """;
-
-    /**
      * 规划 —— 将原始问题分解为子任务 DAG
      *
      * @param context 上下文（包含原始问题、数据源信息等）
@@ -86,7 +48,7 @@ public class PlannerAgent {
 
         String userPrompt = buildPlanningPrompt(context);
         ChatRequest chatRequest = ChatRequest.builder()
-                .systemPrompt(PLANNER_SYSTEM_PROMPT)
+                .systemPrompt(PromptConstant.HARNESS_PLANNER_SYSTEM_PROMPT)
                 .userPrompt(userPrompt)
                 .question(context.getOriginalQuestion())
                 .model(context.getModel())
@@ -134,19 +96,8 @@ public class PlannerAgent {
                     """, context.getDataSourceInfo());
         }
 
-        return String.format("""
-                ## 用户原始问题
-                %s
-
-                %s
-                ## 要求
-                1. 将问题分解为 3-8 个子任务
-                2. 优先分解为归因分析维度：下钻分析（哪个维度贡献最大）、对比分析（同比/环比变化）、异常检测（哪些指标异常）
-                3. 明确子任务之间的依赖关系（dependsOn）
-                4. NL2SQL 类型子任务必须指定 dataSource（使用上述可用数据表中的表名）和 metrics
-                5. 至少有一个子任务标记为 attributionCore=true
-                6. 只使用上述可用数据表中存在的字段和维度，不要凭空捏造字段名
-                """, context.getOriginalQuestion(), dataSourceSection);
+        return String.format(PromptConstant.HARNESS_PLANNER_USER_PROMPT,
+                context.getOriginalQuestion(), dataSourceSection);
     }
 
     /**

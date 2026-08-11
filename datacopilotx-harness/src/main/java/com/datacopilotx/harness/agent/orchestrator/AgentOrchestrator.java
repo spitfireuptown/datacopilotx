@@ -3,10 +3,10 @@ package com.datacopilotx.harness.agent.orchestrator;
 import com.datacopilotx.harness.agent.context.AgentContext;
 import com.datacopilotx.harness.agent.domain.AttributionReport;
 import com.datacopilotx.harness.agent.domain.TaskDAG;
-import com.datacopilotx.harness.agent.executor.ExecutorAgent;
-import com.datacopilotx.harness.agent.planner.PlannerAgent;
-import com.datacopilotx.harness.agent.scope.ScopeAnalyzer;
-import com.datacopilotx.harness.agent.synthesizer.SynthesizerAgent;
+import com.datacopilotx.harness.agent.graph.ExecutorAgent;
+import com.datacopilotx.harness.agent.graph.PlannerAgent;
+import com.datacopilotx.harness.agent.graph.ScopeAnalyzerAgent;
+import com.datacopilotx.harness.agent.graph.SynthesizerAgent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -29,7 +29,7 @@ import java.util.function.Consumer;
 @RequiredArgsConstructor
 public class AgentOrchestrator {
 
-    private final ScopeAnalyzer scopeAnalyzer;
+    private final ScopeAnalyzerAgent scopeAnalyzer;
     private final PlannerAgent plannerAgent;
     private final ExecutorAgent executorAgent;
     private final SynthesizerAgent synthesizerAgent;
@@ -47,35 +47,39 @@ public class AgentOrchestrator {
         log.info("[AgentOrchestrator] ===== 归因分析开始: session={} =====", sessionId);
 
         // Phase 0: Scope Analysis —— 分析问题涉及哪些数据表，收拢数据边界
+        progressCallback.accept("Step 1/4: 正在分析问题涉及的数据表，收拢数据边界...");
         log.info("[AgentOrchestrator] Phase 0: Scope 分析");
-        progressCallback.accept("正在分析问题涉及的数据表，收拢数据边界...");
         String narrowedScope = scopeAnalyzer.analyze(context);
         context.setNarrowedScope(narrowedScope);
         log.info("[AgentOrchestrator] Scope 分析完成");
+        progressCallback.accept("Step 1/4 完成: 数据边界已收拢");
 
         // Phase 1: Planner
+        progressCallback.accept("Step 2/4: 正在规划子任务...");
         log.info("[AgentOrchestrator] Phase 1: Planner 规划");
-        progressCallback.accept("正在规划子任务...");
         TaskDAG dag = plannerAgent.plan(context);
         if (dag == null || dag.getSubTasks().isEmpty()) {
+            progressCallback.accept("规划失败：未能生成子任务");
             return buildEmptyReport(context, "Planner 未能生成子任务");
         }
         context.setTaskDAG(dag);
         log.info("[AgentOrchestrator] Planner 完成，共 {} 个子任务", dag.getSubTasks().size());
+        progressCallback.accept(String.format("Step 2/4 完成: 已规划 %d 个子任务", dag.getSubTasks().size()));
 
         // Phase 2: Executor
+        progressCallback.accept(String.format("Step 3/4: 正在执行子任务（共 %d 个）...", dag.getSubTasks().size()));
         log.info("[AgentOrchestrator] Phase 2: Executor 执行");
-        progressCallback.accept("正在执行子任务（共 " + dag.getSubTasks().size() + " 个）...");
-        executorAgent.execute(context);
+        executorAgent.execute(context, progressCallback);
         log.info("[AgentOrchestrator] Executor 完成");
 
         // Phase 3: Synthesizer
+        progressCallback.accept("Step 4/4: 正在综合子任务结果，生成归因分析报告...");
         log.info("[AgentOrchestrator] Phase 3: Synthesizer 综合");
-        progressCallback.accept("正在生成归因分析报告...");
         AttributionReport report = synthesizerAgent.synthesize(context);
 
         long totalTime = System.currentTimeMillis() - startTime;
         log.info("[AgentOrchestrator] ===== 归因分析完成: session={}, 耗时 {}ms =====", sessionId, totalTime);
+        progressCallback.accept(String.format("归因分析完成，总耗时 %dms", totalTime));
 
         return report;
     }

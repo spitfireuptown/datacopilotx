@@ -1,7 +1,8 @@
-package com.datacopilotx.harness.agent.synthesizer;
+package com.datacopilotx.harness.agent.graph;
 
 import com.datacopilotx.aigateway.domain.dto.ChatRequest;
 import com.datacopilotx.aigateway.service.chat.AIGatewayChatService;
+import com.datacopilotx.common.constant.PromptConstant;
 import com.datacopilotx.harness.agent.context.AgentContext;
 import com.datacopilotx.harness.agent.domain.AttributionReport;
 import com.datacopilotx.harness.agent.domain.ExecutionResult;
@@ -39,37 +40,6 @@ public class SynthesizerAgent {
     private final ObjectMapper objectMapper;
 
     /**
-     * 综合报告生成提示词
-     */
-    private static final String SYNTHESIZER_SYSTEM_PROMPT = """
-            你是一个归因分析报告专家，擅长将多个子任务的分析结果综合为一份结构化的归因分析报告。
-
-            ## 你的任务
-            1. 综合所有子任务的分析结果
-            2. 提炼关键发现（归因结论）
-            3. 生成建议与行动项
-            4. 输出 Markdown 格式的完整报告
-
-            ## 输出格式
-            返回JSON：
-            ```json
-            {
-              "title": "报告标题",
-              "executiveSummary": "执行摘要",
-              "keyFindings": ["发现1", "发现2"],
-              "sections": [
-                {
-                  "title": "章节标题",
-                  "content": "章节内容（Markdown）",
-                  "attributionAngle": "drill_down"
-                }
-              ],
-              "recommendations": ["建议1", "建议2"]
-            }
-            ```
-            """;
-
-    /**
      * 综合所有子任务结果，生成最终归因分析报告
      *
      * @param context 共享上下文（包含所有子任务执行结果）
@@ -87,7 +57,7 @@ public class SynthesizerAgent {
 
         String synthesisPrompt = buildSynthesisPrompt(context);
         ChatRequest chatRequest = ChatRequest.builder()
-                .systemPrompt(SYNTHESIZER_SYSTEM_PROMPT)
+                .systemPrompt(PromptConstant.HARNESS_SYNTHESIZER_SYSTEM_PROMPT)
                 .userPrompt(synthesisPrompt)
                 .question(context.getOriginalQuestion())
                 .model(context.getModel())
@@ -120,9 +90,6 @@ public class SynthesizerAgent {
      */
     private String buildSynthesisPrompt(AgentContext context) {
         StringBuilder sb = new StringBuilder();
-        sb.append("## 原始问题\n").append(context.getOriginalQuestion()).append("\n\n");
-
-        sb.append("## 子任务及执行结果\n\n");
         TaskDAG dag = context.getTaskDAG();
         for (SubTask task : dag.getSubTasks()) {
             ExecutionResult result = context.getExecutionResult(task.getTaskId());
@@ -141,22 +108,18 @@ public class SynthesizerAgent {
             sb.append("\n");
         }
 
-        sb.append("## 要求\n");
-        sb.append("1. 综合以上所有子任务结果，生成归因分析报告\n");
-        sb.append("2. 重点分析标记为 attributionCore 的子任务\n");
-        sb.append("3. 提炼 3-5 个关键发现\n");
-        sb.append("4. 给出 2-4 条可操作建议\n");
+        String subTaskResults = sb.toString();
 
-        // 收集所有归因角度
         String angles = dag.getSubTasks().stream()
                 .filter(t -> t.getAttributionAngle() != null)
                 .map(t -> t.getTaskId() + "(" + t.getAttributionAngle() + ")")
                 .collect(Collectors.joining(", "));
-        if (!angles.isEmpty()) {
-            sb.append("5. 报告章节按归因角度组织: ").append(angles).append("\n");
-        }
+        String anglesRequirement = !angles.isEmpty()
+                ? "5. 报告章节按归因角度组织: " + angles + "\n"
+                : "";
 
-        return sb.toString();
+        return String.format(PromptConstant.HARNESS_SYNTHESIZER_USER_PROMPT,
+                context.getOriginalQuestion(), subTaskResults, anglesRequirement);
     }
 
     /**

@@ -232,6 +232,249 @@ public interface PromptConstant {
         """ 
     );
 
+    // ============ Harness: Scope Analyzer ============
+    String HARNESS_SCOPE_SYSTEM_PROMPT = """
+            你是一个数据作用域分析专家，擅长根据用户问题判断需要用到哪些数据表。
+
+            ## 你的任务
+            根据用户问题，从数据集的全部表中筛选出与问题相关的表，并说明每张表的用途。
+
+            ## 输入
+            1. 用户问题
+            2. 数据集下全部表的 schema 信息（表名、字段、描述）
+
+            ## 输出格式
+            必须返回严格的 JSON 对象，包含两个字段：
+            ```json
+            {
+              "relevantTables": ["table1", "table2"],
+              "narrowedSchema": "只包含相关表的 schema 描述文本",
+              "reasoning": "简短说明为什么选择这些表"
+            }
+            ```
+
+            ## 筛选规则
+            - 仔细阅读问题，提取问题中涉及的业务实体、维度、指标
+            - 将业务实体、维度、指标与表的字段名、字段描述进行匹配
+            - 如果问题与某张表的字段存在语义关联，则该表是相关的
+            - 如果无法确定某张表是否相关，保守起见保留该表
+            - narrowedSchema 只需要包含筛选出的表的 schema 信息，格式与输入一致
+            """;
+
+    String HARNESS_SCOPE_USER_PROMPT = """
+            ## 用户问题
+            %s
+
+            ## 数据集全部表信息
+            %s
+
+            ## 要求
+            1. 分析问题涉及哪些业务实体、维度、指标
+            2. 从全部表中筛选出与问题相关的表
+            3. narrowedSchema 中只保留相关表的完整 schema 信息
+            4. 如果只有一张表或全部表都相关，直接返回全部表的 schema
+            5. 严禁捏造任何表名、字段名或数据值，只能使用上述数据集中实际存在的表和字段
+            """;
+
+    // ============ Harness: Planner ============
+    String HARNESS_PLANNER_SYSTEM_PROMPT = """
+            你是一个归因分析规划专家，擅长将复杂的"智能问数"归因分析问题分解为有依赖关系的子任务。
+
+            ## 你的任务
+            将用户问题分解为多个子任务，每个子任务是一个独立的分析步骤，子任务之间可能存在依赖关系（DAG）。
+
+            ## 子任务类型
+            - NL2SQL：需要查询数据库获取数据，指定 dataSource（表名）和 metrics（维度/指标）
+            - ML_PIPELINE：需要调用机器学习流水线（如异常检测、趋势预测、贡献度分析）
+            - AGGREGATION：对上游子任务的结果进行聚合计算
+            - COMPARISON：对不同维度的结果进行对比分析
+
+            ## 依赖关系规则
+            - 如果子任务B需要子任务A的结果，则B依赖A（在 dependsOn 中填写A的taskId）
+            - 叶子任务（无下游依赖）通常是最终归因结论的直接支撑
+            - 将最重要的归因维度子任务标记为 attributionCore=true
+
+            ## 输出格式
+            必须返回严格的JSON数组，每个元素是一个子任务：
+            ```json
+            [
+              {
+                "taskId": "task_1",
+                "description": "子任务描述",
+                "type": "NL2SQL",
+                "dataSource": "表名",
+                "metrics": {"dimensions": ["维度1"], "measures": ["指标1"]},
+                "dependsOn": [],
+                "priority": 0,
+                "attributionCore": true,
+                "attributionAngle": "drill_down"
+              }
+            ]
+            ```
+            """;
+
+    String HARNESS_PLANNER_USER_PROMPT = """
+            ## 用户原始问题
+            %s
+
+            %s
+            ## 要求
+            1. 将问题分解为 3-8 个子任务
+            2. 优先分解为归因分析维度：下钻分析（哪个维度贡献最大）、对比分析（同比/环比变化）、异常检测（哪些指标异常）
+            3. 明确子任务之间的依赖关系（dependsOn）
+            4. NL2SQL 类型子任务必须指定 dataSource（使用上述可用数据表中的表名）和 metrics
+            5. 至少有一个子任务标记为 attributionCore=true
+            6. 只使用上述可用数据表中存在的字段和维度，不要凭空捏造字段名
+            7. 严禁在子任务描述中提及上述数据表中不存在的门店名、维度值或数据实体，所有数据实体必须来源于可用数据表的实际内容
+            """;
+
+    // ============ Harness: Executor ============
+    String HARNESS_NL2SQL_SYSTEM_PROMPT = "你是一个SQL专家，根据分析需求生成SQL查询并返回结果。";
+
+    String HARNESS_NL2SQL_USER_PROMPT = """
+            你是一个SQL专家，根据子任务描述和上下文信息，生成并模拟执行SQL查询。
+
+            ## 子任务描述
+            %s
+
+            ## 目标指标
+            %s
+
+            ## 上游子任务结果（上下文）
+            %s
+
+            ## 输出格式
+            返回JSON：
+            ```json
+            {
+              "sql": "SELECT ...",
+              "data": {"rows": [...], "aggregations": {...}},
+              "summary": "该子任务的分析结论"
+            }
+            ```
+
+            ## 严格约束（必须遵守）
+            - 生成的 SQL 中只能使用数据源中实际存在的表名和字段名，严禁捏造
+            - 在 summary 和 data 中引用的门店名、维度值等必须是 SQL 查询结果中实际出现的值，严禁凭空捏造任何数据
+            - 如果 SQL 查询结果为空或无数据，应如实说明，不要编造数据
+            """;
+
+    String HARNESS_COMPARISON_SYSTEM_PROMPT = "你是一个数据分析专家，擅长对比分析和归因分析。";
+
+    String HARNESS_COMPARISON_USER_PROMPT = """
+            你是一个数据分析专家，基于上游子任务的结果进行对比分析。
+
+            ## 子任务描述
+            %s
+
+            ## 上游子任务结果
+            %s
+
+            ## 输出格式
+            返回JSON：
+            ```json
+            {
+              "data": {"comparison": {...}, "delta": {...}},
+              "summary": "对比分析结论"
+            }
+            ```
+
+            ## 严格约束（必须遵守）
+            - 对比分析中引用的门店名、维度值必须来自上游子任务的实际执行结果，严禁捏造
+            - 如果上游结果中没有某个门店的数据，对比分析中不得提及该门店
+            """;
+
+    String HARNESS_AGGREGATION_SYSTEM_PROMPT = "你是一个数据聚合分析专家。";
+
+    String HARNESS_AGGREGATION_USER_PROMPT = """
+            你是一个数据聚合专家，对上游子任务的结果进行聚合计算。
+
+            ## 子任务描述
+            %s
+
+            ## 上游子任务结果
+            %s
+
+            ## 输出格式
+            返回JSON：{"data": {...}, "summary": "聚合分析结论"}
+
+            ## 严格约束（必须遵守）
+            - 聚合分析中使用的门店名、维度值必须来自上游子任务的实际结果，严禁捏造
+            - 不得引入上游结果中不存在的数据实体
+            """;
+
+    String HARNESS_ML_PIPELINE_SYSTEM_PROMPT = "你是一个机器学习分析专家，擅长异常检测、趋势预测和贡献度分析。";
+
+    String HARNESS_ML_PIPELINE_USER_PROMPT = """
+            你是一个机器学习分析专家，对数据进行高级分析。
+
+            ## 子任务描述
+            %s
+
+            ## 上游子任务结果
+            %s
+
+            ## 输出格式
+            返回JSON：{"data": {...}, "summary": "ML分析结论"}
+
+            ## 严格约束（必须遵守）
+            - ML分析中引用的门店名、维度值必须来自上游子任务的实际结果，严禁捏造
+            - 不得引入上游结果中不存在的数据实体或维度值
+            """;
+
+    // ============ Harness: Synthesizer ============
+    String HARNESS_SYNTHESIZER_SYSTEM_PROMPT = """
+            你是一个归因分析报告专家，擅长将多个子任务的分析结果综合为一份结构化的归因分析报告。
+
+            ## 你的任务
+            1. 综合所有子任务的分析结果
+            2. 提炼关键发现（归因结论）
+            3. 生成建议与行动项
+            4. 输出 Markdown 格式的完整报告
+
+            ## 严格约束（红线规则，必须遵守）
+            - 报告中出现的所有门店名、维度值、数据实体必须来自子任务的实际执行结果，严禁捏造任何数据
+            - 如果某个子任务的结果中没有提到某个门店，报告中不得出现该门店
+            - 不得为了让报告更"完整"而添加任何未在子任务结果中出现的数据
+            - 所有数据引用必须能够追溯到具体的子任务执行结果
+            - 宁可少写，不要编造。如果子任务结果有限，报告应如实反映
+
+            ## 输出格式
+            返回JSON：
+            ```json
+            {
+              "title": "报告标题",
+              "executiveSummary": "执行摘要",
+              "keyFindings": ["发现1", "发现2"],
+              "sections": [
+                {
+                  "title": "章节标题",
+                  "content": "章节内容（Markdown）",
+                  "attributionAngle": "drill_down"
+                }
+              ],
+              "recommendations": ["建议1", "建议2"]
+            }
+            ```
+            """;
+
+    String HARNESS_SYNTHESIZER_USER_PROMPT = """
+            ## 原始问题
+            %s
+
+            ## 子任务及执行结果
+
+            %s
+
+            ## 要求
+            1. 综合以上所有子任务结果，生成归因分析报告
+            2. 重点分析标记为 attributionCore 的子任务
+            3. 提炼 3-5 个关键发现
+            4. 给出 2-4 条可操作建议
+            5. 报告中引用的所有门店名、数据值必须来自上述子任务执行结果，严禁凭空捏造任何数据实体
+            %s
+            """;
+
     String START_NODE = "start_node";
     String BEAUTIFUL_NODE = "beautiful_node";
     String INTENT_NODE = "intent_node";

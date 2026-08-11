@@ -1,7 +1,8 @@
-package com.datacopilotx.harness.agent.executor;
+package com.datacopilotx.harness.agent.graph;
 
 import com.datacopilotx.aigateway.domain.dto.ChatRequest;
 import com.datacopilotx.aigateway.service.chat.AIGatewayChatService;
+import com.datacopilotx.common.constant.PromptConstant;
 import com.datacopilotx.harness.agent.context.AgentContext;
 import com.datacopilotx.harness.agent.domain.ExecutionResult;
 import com.datacopilotx.harness.agent.domain.SubTask;
@@ -18,6 +19,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
@@ -44,59 +47,12 @@ public class ExecutorAgent {
     );
 
     /**
-     * NL2SQL 执行提示词
-     */
-    private static final String NL2SQL_EXECUTOR_PROMPT = """
-            你是一个SQL专家，根据子任务描述和上下文信息，生成并模拟执行SQL查询。
-
-            ## 子任务描述
-            %s
-
-            ## 目标指标
-            %s
-
-            ## 上游子任务结果（上下文）
-            %s
-
-            ## 输出格式
-            返回JSON：
-            ```json
-            {
-              "sql": "SELECT ...",
-              "data": {"rows": [...], "aggregations": {...}},
-              "summary": "该子任务的分析结论"
-            }
-            ```
-            """;
-
-    /**
-     * 对比分析执行提示词
-     */
-    private static final String COMPARISON_EXECUTOR_PROMPT = """
-            你是一个数据分析专家，基于上游子任务的结果进行对比分析。
-
-            ## 子任务描述
-            %s
-
-            ## 上游子任务结果
-            %s
-
-            ## 输出格式
-            返回JSON：
-            ```json
-            {
-              "data": {"comparison": {...}, "delta": {...}},
-              "summary": "对比分析结论"
-            }
-            ```
-            """;
-
-    /**
      * 执行 DAG 中的所有子任务
      *
-     * @param context 共享上下文（包含 DAG 和上游结果）
+     * @param context          共享上下文（包含 DAG 和上游结果）
+     * @param progressCallback 进度回调，用于 SSE 推送子任务执行进度
      */
-    public void execute(AgentContext context) {
+    public void execute(AgentContext context, Consumer<String> progressCallback) {
         TaskDAG dag = context.getTaskDAG();
         if (dag == null || dag.getSubTasks().isEmpty()) {
             log.warn("[Executor] DAG 为空，跳过执行");
@@ -104,13 +60,13 @@ public class ExecutorAgent {
         }
 
         List<SubTask> sortedTasks = dag.getSubTasks();
-        // 已完成的子任务 ID 集合
+        int totalTasks = sortedTasks.size();
         Set<String> completedTasks = ConcurrentHashMap.newKeySet();
+        AtomicInteger completedCount = new AtomicInteger(0);
 
-        log.info("[Executor] 开始执行 {} 个子任务", sortedTasks.size());
+        log.info("[Executor] 开始执行 {} 个子任务", totalTasks);
 
         while (completedTasks.size() < sortedTasks.size()) {
-            // 找出所有依赖已满足且尚未执行的子任务
             List<SubTask> readyTasks = sortedTasks.stream()
                     .filter(task -> !completedTasks.contains(task.getTaskId()))
                     .filter(task -> completedTasks.containsAll(task.getDependsOn()))
@@ -121,9 +77,14 @@ public class ExecutorAgent {
                 break;
             }
 
-            // 同层级无依赖子任务并行执行
             List<CompletableFuture<Void>> futures = readyTasks.stream()
                     .map(task -> CompletableFuture.runAsync(() -> {
+                        int currentNum = completedCount.get() + 1;
+                        String typeLabel = getTypeLabel(task.getType());
+                        progressCallback.accept(String.format(
+                                "正在执行子任务 %d/%d [%s]: %s",
+                                currentNum, totalTasks, typeLabel, task.getDescription()
+                        ));
                         log.info("[Executor] 开始执行子任务: {}", task.getTaskId());
                         long start = System.currentTimeMillis();
 
@@ -132,17 +93,35 @@ public class ExecutorAgent {
 
                         context.putExecutionResult(result);
                         completedTasks.add(task.getTaskId());
+                        int done = completedCount.incrementAndGet();
 
+                        String summary = result.getSummary() != null
+                                ? result.getSummary()
+                                : (result.isSuccess() ? "执行成功" : "执行失败");
+                        progressCallback.accept(String.format(
+                                "子任务 %d/%d 完成: %s（耗时 %dms）—— %s",
+                                done, totalTasks, task.getDescription(),
+                                result.getExecutionTimeMs(), summary
+                        ));
                         log.info("[Executor] 子任务 {} 完成，耗时 {}ms, 成功: {}",
                                 task.getTaskId(), result.getExecutionTimeMs(), result.isSuccess());
                     }, PARALLEL_EXECUTOR))
                     .toList();
 
-            // 等待当前批次完成
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
         }
 
         log.info("[Executor] 全部子任务执行完成，共 {} 个", completedTasks.size());
+    }
+
+    private String getTypeLabel(com.datacopilotx.common.constant.SubTaskType type) {
+        if (type == null) return "UNKNOWN";
+        return switch (type) {
+            case NL2SQL -> "NL2SQL";
+            case COMPARISON -> "对比分析";
+            case AGGREGATION -> "聚合分析";
+            case ML_PIPELINE -> "ML分析";
+        };
     }
 
     /**
@@ -187,11 +166,11 @@ public class ExecutorAgent {
         String upstreamContext = buildUpstreamContext(task, context);
         String metricsStr = task.getMetrics() != null ? task.getMetrics().toString() : "";
 
-        String userPrompt = String.format(NL2SQL_EXECUTOR_PROMPT,
+        String userPrompt = String.format(PromptConstant.HARNESS_NL2SQL_USER_PROMPT,
                 task.getDescription(), metricsStr, upstreamContext);
 
         ChatRequest chatRequest = buildChatRequest(
-                "你是一个SQL专家，根据分析需求生成SQL查询并返回结果。",
+                PromptConstant.HARNESS_NL2SQL_SYSTEM_PROMPT,
                 userPrompt, task.getDescription(), context);
 
         String rawResponse = aiGatewayChatService.chatCompletions(chatRequest);
@@ -213,11 +192,11 @@ public class ExecutorAgent {
     private ExecutionResult executeComparison(SubTask task, AgentContext context) {
         String upstreamContext = buildUpstreamContext(task, context);
 
-        String userPrompt = String.format(COMPARISON_EXECUTOR_PROMPT,
+        String userPrompt = String.format(PromptConstant.HARNESS_COMPARISON_USER_PROMPT,
                 task.getDescription(), upstreamContext);
 
         ChatRequest chatRequest = buildChatRequest(
-                "你是一个数据分析专家，擅长对比分析和归因分析。",
+                PromptConstant.HARNESS_COMPARISON_SYSTEM_PROMPT,
                 userPrompt, task.getDescription(), context);
 
         String rawResponse = aiGatewayChatService.chatCompletions(chatRequest);
@@ -238,21 +217,11 @@ public class ExecutorAgent {
     private ExecutionResult executeAggregation(SubTask task, AgentContext context) {
         String upstreamContext = buildUpstreamContext(task, context);
 
-        String userPrompt = String.format("""
-                你是一个数据聚合专家，对上游子任务的结果进行聚合计算。
-
-                ## 子任务描述
-                %s
-
-                ## 上游子任务结果
-                %s
-
-                ## 输出格式
-                返回JSON：{"data": {...}, "summary": "聚合分析结论"}
-                """, task.getDescription(), upstreamContext);
+        String userPrompt = String.format(PromptConstant.HARNESS_AGGREGATION_USER_PROMPT,
+                task.getDescription(), upstreamContext);
 
         ChatRequest chatRequest = buildChatRequest(
-                "你是一个数据聚合分析专家。",
+                PromptConstant.HARNESS_AGGREGATION_SYSTEM_PROMPT,
                 userPrompt, task.getDescription(), context);
 
         String rawResponse = aiGatewayChatService.chatCompletions(chatRequest);
@@ -275,21 +244,11 @@ public class ExecutorAgent {
     private ExecutionResult executeMLPipeline(SubTask task, AgentContext context) {
         String upstreamContext = buildUpstreamContext(task, context);
 
-        String userPrompt = String.format("""
-                你是一个机器学习分析专家，对数据进行高级分析。
-
-                ## 子任务描述
-                %s
-
-                ## 上游子任务结果
-                %s
-
-                ## 输出格式
-                返回JSON：{"data": {...}, "summary": "ML分析结论"}
-                """, task.getDescription(), upstreamContext);
+        String userPrompt = String.format(PromptConstant.HARNESS_ML_PIPELINE_USER_PROMPT,
+                task.getDescription(), upstreamContext);
 
         ChatRequest chatRequest = buildChatRequest(
-                "你是一个机器学习分析专家，擅长异常检测、趋势预测和贡献度分析。",
+                PromptConstant.HARNESS_ML_PIPELINE_SYSTEM_PROMPT,
                 userPrompt, task.getDescription(), context);
 
         String rawResponse = aiGatewayChatService.chatCompletions(chatRequest);

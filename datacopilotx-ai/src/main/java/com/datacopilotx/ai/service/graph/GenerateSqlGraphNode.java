@@ -6,6 +6,7 @@ import com.datacopilotx.ai.domian.bean.DataSetBean;
 import com.datacopilotx.ai.domian.bean.ModelConfigBean;
 import com.datacopilotx.ai.domian.dto.PermissionDTO;
 import com.datacopilotx.ai.service.PermissionService;
+import com.datacopilotx.ai.service.graph.main.WorkflowGraph;
 import com.datacopilotx.ai.service.graph.main.WorkflowServiceHelper;
 import com.datacopilotx.ai.service.graph.main.SerializableSink;
 import com.datacopilotx.ai.service.graph.main.WorkflowState;
@@ -50,8 +51,8 @@ public class GenerateSqlGraphNode implements NodeAction<WorkflowState> {
         Integer currentUserRole = state.userRole().orElse(2);
         boolean isAdmin = state.isAdmin().orElse(false);
 
-        if (currentRetryCount >= 3) {
-            log.error("SQL生成已达到最大重试次数: 3");
+        if (currentRetryCount >= WorkflowGraph.MAX_RETRY) {
+            log.error("SQL生成已达到最大重试次数: {}，最后一次错误: {}", WorkflowGraph.MAX_RETRY, sqlError);
             String fallbackSql = isAdmin ? "" : "SELECT 1 WHERE 1=0";
             return Map.of(
                     "sql", fallbackSql,
@@ -129,7 +130,7 @@ public class GenerateSqlGraphNode implements NodeAction<WorkflowState> {
             int retryCount = currentRetryCount + 1;
 
             workflowServiceHelper.streamPrint(sink, PromptConstant.SQL_GENERATION_NODE,
-                    "\nSQL生成失败，正在重试 " + retryCount + "/3...\n", serializableSink, state);
+                    "\nSQL生成失败，正在重试 " + retryCount + "/" + WorkflowGraph.MAX_RETRY + "...\n", serializableSink, state);
 
             String newSqlError = "SQL生成失败: " + ExceptionUtil.getFullStackTrace(e) + "\n请根据错误信息修复并重新生成SQL。";
             if (!sqlError.isEmpty()) {
