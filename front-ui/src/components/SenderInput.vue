@@ -82,7 +82,8 @@
 // 导入路由和图标
 import { Sender, useXAgent, useXChat } from 'ant-design-x-vue';
 import { message as Msg } from 'ant-design-vue';
-import { mockChatStreamApi, attributionAnalysisStreamApi } from '@/api/chat.ts';
+import { mockChatStreamApi, attributionAnalysisStreamApi, reportAnalysisStreamApi } from '@/api/chat.ts';
+import type { DataReport } from '@/api/chat.ts';
 import { useDialogueStore } from '@/stores/modules/dialogues';
 import { ref, watch, onMounted, onUnmounted } from 'vue';
 
@@ -114,7 +115,7 @@ const props = defineProps({
   }
 });
 
-const emit = defineEmits(['messagesChange', 'loadingChange']);
+const emit = defineEmits(['messagesChange', 'loadingChange', 'reportLoadingChange', 'reportProgress', 'reportData', 'reportError']);
 
 const dialogueStores = useDialogueStore();
 
@@ -128,6 +129,11 @@ const newChat = () => {
   if (attributionController && !attributionController.signal.aborted) {
     attributionController.abort();
   }
+  if (reportController && !reportController.signal.aborted) {
+    reportController.abort();
+  }
+  reportLoading.value = false;
+  emit('reportLoadingChange', false);
   selectedModel.value = null;
   selectedModelId.value = undefined;
   conversation_uuid.value = undefined;
@@ -316,8 +322,78 @@ defineExpose({
   getDatasetId: () => selectedDatasetId.value?.value,
   getModelId: () => selectedModelId.value?.value,
   getSessionId: () => sessionId.value,
-  triggerAttribution
+  triggerAttribution,
+  triggerReport
 });
+
+/**
+ * 触发数据报告
+ * <p>
+ * 调用后端 /chat/report 接口，以 SSE 流式返回完整数据报告，
+ * 报告通过 reportData 事件传给父组件（AIChat），在全屏抽屉中展示。
+ *
+ * @param questionId 问题ID（来自被分析的问数消息）
+ * @param questionText 问题文本
+ */
+const reportLoading = ref<boolean>(false);
+let reportController: AbortController;
+
+const triggerReport = async (questionId: string, questionText: string) => {
+  if (reportLoading.value) {
+    Msg.warning('数据报告生成中，请稍候');
+    return;
+  }
+
+  // 校验是否选择了数据集
+  if (!selectedDatasetId.value) {
+    Msg.warning('请选择数据集');
+    showDatasetWarning.value = true;
+    return;
+  }
+
+  // 校验是否选择了模型
+  if (!selectedModel.value) {
+    Msg.warning('请选择模型');
+    showModelWarning.value = true;
+    return;
+  }
+
+  reportLoading.value = true;
+  reportController = new AbortController();
+  emit('reportLoadingChange', true);
+  emit('reportProgress', '正在准备生成数据报告...');
+
+  try {
+    await reportAnalysisStreamApi(
+      (progress: string) => {
+        emit('reportProgress', progress);
+      },
+      (report: DataReport) => {
+        emit('reportData', report);
+      },
+      {
+        signal: reportController.signal,
+        message: questionText,
+        datasetId: selectedDatasetId.value?.value,
+        modelId: selectedModelId.value?.value,
+        questionId: questionId,
+        sessionId: sessionId.value
+      },
+      () => {
+        reportLoading.value = false;
+        emit('reportLoadingChange', false);
+      }
+    );
+  } catch (error: any) {
+    reportLoading.value = false;
+    emit('reportLoadingChange', false);
+    if (error?.name === 'AbortError') {
+      emit('reportError', '数据报告生成已取消');
+    } else {
+      emit('reportError', '数据报告生成失败: ' + (error?.message || '未知错误'));
+    }
+  }
+};
 
 /** 发送消息 */
 const question = ref('');
@@ -658,6 +734,9 @@ onUnmounted(() => {
   }
   if (attributionController && !attributionController.signal.aborted) {
     attributionController.abort();
+  }
+  if (reportController && !reportController.signal.aborted) {
+    reportController.abort();
   }
 });
 

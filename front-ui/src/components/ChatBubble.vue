@@ -37,7 +37,7 @@
           </a-button>
         </div>
 
-        <!-- 只有问数结果的AI气泡显示归因分析按钮，归因分析报告本身不显示 -->
+        <!-- 只有问数结果的AI气泡显示归因分析/数据报告按钮，归因分析报告本身不显示 -->
         <div v-if="item.role === 'ai' && !String(item.key).startsWith('attr_')" class="attribution-btn-container">
           <a-button
             type="text"
@@ -48,6 +48,16 @@
               <BarChartOutlined />
             </template>
             归因分析
+          </a-button>
+          <a-button
+            type="text"
+            class="attribution-btn"
+            @click="handleReport(item)"
+          >
+            <template #icon>
+              <FileTextOutlined />
+            </template>
+            数据报告
           </a-button>
           <!-- 归因分析报告气泡：显示下载按钮 -->
           <a-button
@@ -77,7 +87,7 @@
 <script lang="ts" setup>
 import { Bubble, BubbleList } from 'ant-design-x-vue';
 import { Avatar } from 'ant-design-vue';
-import { UndoOutlined, BarChartOutlined, DownloadOutlined } from '@ant-design/icons-vue';
+import { UndoOutlined, BarChartOutlined, DownloadOutlined, FileTextOutlined } from '@ant-design/icons-vue';
 import MdPreview from '@/components/MdPreview.vue';
 import { MessageItem } from '@/dataTypes/chatType';
 import { message as Message } from 'ant-design-vue';
@@ -99,13 +109,20 @@ const props = defineProps({
   }
 });
 
-const emit = defineEmits(['newChat', 'regenerate', 'attribution']);
+const emit = defineEmits(['newChat', 'regenerate', 'attribution', 'report']);
 
 // 点击归因分析按钮 —— 在对话框内渲染归因分析报告
 const handleAttribution = (item: any) => {
   const questionId = String(item.key || '').replace('_answer', '');
   const questionText = item.questionText || '';
   emit('attribution', { questionId, question: questionText });
+};
+
+// 点击数据报告按钮 —— 生成归因+预测+图表的完整数据报告
+const handleReport = (item: any) => {
+  const questionId = String(item.key || '').replace('_answer', '');
+  const questionText = item.questionText || '';
+  emit('report', { questionId, question: questionText });
 };
 
 // 下载归因分析报告

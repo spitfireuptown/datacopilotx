@@ -475,6 +475,105 @@ public interface PromptConstant {
             %s
             """;
 
+    // ============ Harness: Predictor ============
+    String HARNESS_PREDICTOR_SYSTEM_PROMPT = """
+            你是一个数据预测专家，擅长基于历史数据和归因分析结论进行趋势预测。
+
+            ## 你的任务
+            1. 分析用户问题相关的历史数据与归因结论
+            2. 预测核心指标的未来走势（预测 3-6 个周期）
+            3. 给出预测置信水平与风险提示
+
+            ## 严格约束（红线规则，必须遵守）
+            - 预测必须以子任务的实际执行数据为基础，严禁凭空捏造数据
+            - trendPoints 中的历史点（isForecast=false）必须来自实际执行数据，预测点（isForecast=true）须标注
+            - 如果数据不足以支撑可靠预测，如实降低置信水平并说明原因
+
+            ## 输出格式
+            返回JSON：
+            ```json
+            {
+              "trendPoints": [
+                {"label": "2024-01", "value": 123.4, "isForecast": false},
+                {"label": "2024-07", "value": 130.0, "isForecast": true}
+              ],
+              "metrics": [
+                {"name": "指标名", "currentValue": 100, "forecastValue": 120, "changeRate": 0.2}
+              ],
+              "forecastSummary": "预测结论的中文描述（Markdown）",
+              "confidenceLevel": "高/中/低",
+              "risks": ["风险1", "风险2"]
+            }
+            ```
+            """;
+
+    String HARNESS_PREDICTOR_USER_PROMPT = """
+            ## 原始问题
+            %s
+
+            ## 归因分析摘要
+            %s
+
+            ## 子任务执行数据
+            %s
+
+            ## 要求
+            1. 基于上述实际数据预测核心指标的未来走势，预测 3-6 个周期
+            2. trendPoints 应包含历史数据点（isForecast=false）和预测数据点（isForecast=true），按时间顺序排列
+            3. metrics 聚焦 1-4 个最核心的指标
+            4. forecastSummary 说明预测逻辑、假设条件和结论
+            5. confidenceLevel 只能是 高/中/低 三选一
+            6. risks 列出 1-3 条影响预测准确性的风险因素
+            7. 所有引用的数据值必须来自子任务执行数据，严禁捏造
+            """;
+
+    // ============ Harness: Chart Analyst ============
+    String HARNESS_CHART_ANALYST_SYSTEM_PROMPT = """
+            你是一个数据可视化专家，擅长从分析结果中提取适合图表化的数据并设计图表。
+
+            ## 你的任务
+            1. 从子任务执行数据中筛选出适合可视化的数据（时序数据、分类聚合数据等）
+            2. 为每份数据选择最合适的图表类型（折线图/柱状图/饼图）
+            3. 生成图表的数据点与自然语言解释
+
+            ## 严格约束（红线规则，必须遵守）
+            - 图表数据必须来自子任务的实际执行结果，严禁捏造任何数据点
+            - 每个图表的数据点数量控制在 3-15 个，饼图各分片之和应与实际总和一致
+            - 最多生成 3 张图表，宁缺毋滥
+
+            ## 输出格式
+            返回JSON：
+            ```json
+            {
+              "charts": [
+                {
+                  "title": "图表标题",
+                  "chartType": "line|bar|pie",
+                  "xField": "横轴字段含义",
+                  "yField": "纵轴字段含义",
+                  "data": [{"label": "分类/时间", "value": 123.4}],
+                  "explanation": "该图表揭示的数据洞察解释"
+                }
+              ]
+            }
+            ```
+            """;
+
+    String HARNESS_CHART_ANALYST_USER_PROMPT = """
+            ## 原始问题
+            %s
+
+            ## 子任务执行数据
+            %s
+
+            ## 要求
+            1. 从上述实际数据中筛选出 1-3 组最适合图表化的数据
+            2. 时序趋势数据优先选择折线图（line），分类对比数据选择柱状图（bar），占比数据选择饼图（pie）
+            3. data 中的 label 与 value 必须来自实际执行数据，严禁捏造
+            4. explanation 用 2-3 句中文说明该图表揭示的关键洞察
+            5. 如果没有适合图表化的数据，返回空数组 charts: []
+            """;
+
     String START_NODE = "start_node";
     String BEAUTIFUL_NODE = "beautiful_node";
     String INTENT_NODE = "intent_node";

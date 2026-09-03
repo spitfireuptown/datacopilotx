@@ -58,4 +58,18 @@ public class ChatController {
     public Flux<ServerSentEvent<WebResult<String>>> attributionAnalysis(@RequestBody QuestionForm questionForm) {
         return chatService.attributionAnalysis(questionForm);
     }
+
+    /**
+     * 数据报告 —— 归因分析 + 数据预测 + 图表解释的完整报告
+     * <p>
+     * 在归因分析全流程基础上追加预测与图表智能体，
+     * 最终以结构化 JSON 报告（report_data 事件）返回，前端全屏抽屉渲染。
+     *
+     * @param questionForm 问题表单（包含原始问题、数据集ID、模型ID等）
+     * @return SSE 流式返回数据报告
+     */
+    @RequestMapping(value = "/report", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public Flux<ServerSentEvent<WebResult<String>>> reportAnalysis(@RequestBody QuestionForm questionForm) {
+        return chatService.reportAnalysis(questionForm);
+    }
 }

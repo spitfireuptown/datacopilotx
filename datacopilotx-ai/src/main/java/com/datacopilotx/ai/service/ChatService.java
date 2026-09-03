@@ -15,7 +15,9 @@ import com.datacopilotx.ai.service.graph.main.WorkflowState;
 import com.datacopilotx.ai.util.SecurityUtil;
 import com.datacopilotx.harness.agent.context.AgentContext;
 import com.datacopilotx.harness.agent.domain.AttributionReport;
+import com.datacopilotx.harness.agent.domain.DataReport;
 import com.datacopilotx.harness.agent.orchestrator.AgentOrchestrator;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.util.ObjectUtils;
 import com.datacopilotx.common.constant.PromptConstant;
 import com.datacopilotx.common.result.WebResult;
@@ -48,6 +50,8 @@ public class ChatService {
     private WorkflowServiceHelper flowServiceHelper;
     @Resource
     private AgentOrchestrator agentOrchestrator;
+    @Resource
+    private ObjectMapper objectMapper;
 
 
     // 问数入口
@@ -332,6 +336,151 @@ public class ChatService {
                 sink.tryEmitNext(ServerSentEvent.<WebResult<String>>builder()
                         .event("error")
                         .data(WebResult.error(500, "归因分析执行异常: " + e.getMessage()))
+                        .build());
+                sink.tryEmitComplete();
+            }
+        });
+
+        return sink.asFlux();
+    }
+
+    /**
+     * 数据报告入口 —— 归因分析 + 数据预测 + 图表解释的完整报告
+     * <p>
+     * 流程：
+     * <ol>
+     *   <li>根据 QuestionForm 构建 AgentContext</li>
+     *   <li>调用编排器执行 ScopeAnalyzer → Planner → Executor → Synthesizer → Predictor → ChartAnalyst 全流程</li>
+     *   <li>以 SSE 流式返回结构化报告 JSON（report_data 事件）</li>
+     * </ol>
+     */
+    public Flux<ServerSentEvent<WebResult<String>>> reportAnalysis(QuestionForm questionForm) {
+        Sinks.Many<ServerSentEvent<WebResult<String>>> sink = Sinks.many().unicast().onBackpressureBuffer();
+
+        String sessionId = ObjectUtils.isEmpty(questionForm.getSessionId())
+                ? IdUtils.genKey("rpt") : questionForm.getSessionId();
+
+        // 校验数据集
+        DataSetBean dataSetBean = dataSourceMapper.selectOne(
+                new LambdaQueryWrapper<DataSetBean>()
+                        .eq(DataSetBean::getId, questionForm.getDatasetId())
+        );
+        if (ObjectUtils.isEmpty(dataSetBean)) {
+            flowServiceHelper.errorHandling(PromptConstant.START_NODE, sink, "指定数据集不存在");
+            return sink.asFlux();
+        }
+
+        // 查询模型配置（数据报告需要调用 LLM）
+        ModelConfigBean modelConfigBean = modelConfigMapper.selectOne(
+                new LambdaQueryWrapper<ModelConfigBean>()
+                        .eq(ModelConfigBean::getId, questionForm.getModelId())
+        );
+        if (ObjectUtils.isEmpty(modelConfigBean)) {
+            flowServiceHelper.errorHandling(PromptConstant.START_NODE, sink, "指定模型不存在");
+            return sink.asFlux();
+        }
+
+        QuestionLogBean questionLogBean = QuestionLogBean.builder()
+                .questionId(questionForm.getQuestionId())
+                .sessionId(sessionId)
+                .datasetId(questionForm.getDatasetId())
+                .modelId(questionForm.getModelId())
+                .question(questionForm.getQuestion())
+                .creator(SecurityUtil.getCurrentUserId())
+                .build();
+        questionLogMapper.insert(questionLogBean);
+
+        Thread.startVirtualThread(() -> {
+            Thread heartbeatThread = null;
+            try {
+                // 组装数据集 schema 信息，供归因分析使用
+                String dataSourceInfo = flowServiceHelper.assembleDataSetInfo(
+                        dataSetBean, questionForm.getQuestion());
+
+                // 构建 AgentContext（携带模型配置和 schema 信息，供各智能体调用 LLM）
+                AgentContext context = AgentContext.builder()
+                        .sessionId(sessionId)
+                        .originalQuestion(questionForm.getQuestion())
+                        .datasetId(questionForm.getDatasetId())
+                        .modelId(questionForm.getModelId())
+                        .model(modelConfigBean.getModel())
+                        .modelType(modelConfigBean.getType())
+                        .apiKey(modelConfigBean.getApiKey())
+                        .baseUrl(modelConfigBean.getBaseUrl())
+                        .platform(modelConfigBean.getPlatform())
+                        .userId(SecurityUtil.getCurrentUserId())
+                        .dataSourceInfo(dataSourceInfo)
+                        .build();
+
+                // 发送开始事件
+                sink.tryEmitNext(ServerSentEvent.<WebResult<String>>builder()
+                        .event("report_start")
+                        .data(WebResult.success("开始生成数据报告，问题: " + questionForm.getQuestion()))
+                        .build());
+
+                // 心跳线程：每隔 10 秒发送进度事件，防止 SSE 连接超时断开
+                heartbeatThread = new Thread(() -> {
+                    while (!Thread.currentThread().isInterrupted()) {
+                        try {
+                            Thread.sleep(10000);
+                            sink.tryEmitNext(ServerSentEvent.<WebResult<String>>builder()
+                                    .event("progress")
+                                    .data(WebResult.success("数据报告生成中..."))
+                                    .build());
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            break;
+                        }
+                    }
+                });
+                heartbeatThread.setDaemon(true);
+                heartbeatThread.start();
+
+                // 执行数据报告全流程（归因 + 预测 + 图表）
+                DataReport report = agentOrchestrator.generateReport(context, progressMsg -> {
+                    sink.tryEmitNext(ServerSentEvent.<WebResult<String>>builder()
+                            .event("progress")
+                            .data(WebResult.success(progressMsg))
+                            .build());
+                });
+
+                // 停止心跳
+                heartbeatThread.interrupt();
+
+                // 返回结构化报告 JSON，前端全屏抽屉渲染
+                String reportJson = objectMapper.writeValueAsString(report);
+                sink.tryEmitNext(ServerSentEvent.<WebResult<String>>builder()
+                        .event("report_data")
+                        .data(WebResult.success(reportJson))
+                        .build());
+
+                // 更新 question_log（answer 存报告 JSON，便于历史追溯）
+                QuestionLogBean updateLogBean = QuestionLogBean.builder()
+                        .questionId(questionForm.getQuestionId())
+                        .sessionId(sessionId)
+                        .answer(reportJson)
+                        .costToken((long) report.getTotalTokenUsage())
+                        .costTime(String.valueOf(report.getTotalExecutionTimeMs()))
+                        .build();
+                questionLogMapper.update(updateLogBean,
+                        new LambdaQueryWrapper<QuestionLogBean>()
+                                .eq(QuestionLogBean::getQuestionId, questionForm.getQuestionId())
+                                .eq(QuestionLogBean::getSessionId, sessionId));
+
+                sink.tryEmitNext(ServerSentEvent.<WebResult<String>>builder()
+                        .event("complete")
+                        .data(WebResult.success("[DONE]"))
+                        .build());
+                sink.tryEmitComplete();
+
+            } catch (Exception e) {
+                log.error("数据报告生成失败", e);
+                if (heartbeatThread != null) {
+                    heartbeatThread.interrupt();
+                }
+                sink.tryEmitNext(ServerSentEvent.<WebResult<String>>builder()
+                        .event("error")
+                        .data(WebResult.error(500, "数据报告生成异常: " + e.getMessage()))
                         .build());
                 sink.tryEmitComplete();
             }

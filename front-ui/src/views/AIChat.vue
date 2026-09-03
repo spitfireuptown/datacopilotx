@@ -26,6 +26,7 @@
         @new-chat="resetChat"
         @regenerate="handleRegenerate"
         @attribution="handleAttribution"
+        @report="handleReport"
       />
     </div>
     <div class="sender-wrap">
@@ -34,8 +35,22 @@
         :external-session-id="currentSessionId"
         @messages-change="handleMessagesChange"
         @loading-change="handleLoading"
+        @report-loading-change="handleReportLoadingChange"
+        @report-progress="handleReportProgress"
+        @report-data="handleReportData"
+        @report-error="handleReportError"
       />
     </div>
+
+    <!-- 数据报告全屏抽屉 -->
+    <DataReportDrawer
+      :open="reportDrawerOpen"
+      :report="reportData"
+      :loading="reportGenerating"
+      :progress="reportProgress"
+      :error="reportError"
+      @close="handleReportDrawerClose"
+    />
   </div>
 </template>
 
@@ -76,6 +91,46 @@ const handleAttribution = ({ questionId, question }: { questionId: string; quest
   senderInputRef.value?.triggerAttribution(questionId, question);
 };
 
+// ===== 数据报告 =====
+// 抽屉开关、报告数据、生成状态、进度与错误
+const reportDrawerOpen = ref<boolean>(false);
+const reportData = ref<DataReport | null>(null);
+const reportGenerating = ref<boolean>(false);
+const reportProgress = ref<string>('');
+const reportError = ref<string>('');
+
+// 数据报告：委托给 SenderInput 执行（复用其 datasetId/modelId/sessionId 状态）
+const handleReport = ({ questionId, question }: { questionId: string; question: string }) => {
+  // 重置状态并打开抽屉展示加载进度
+  reportData.value = null;
+  reportError.value = '';
+  reportProgress.value = '正在准备生成数据报告...';
+  reportGenerating.value = true;
+  reportDrawerOpen.value = true;
+  senderInputRef.value?.triggerReport(questionId, question);
+};
+
+const handleReportLoadingChange = (loading: boolean) => {
+  reportGenerating.value = loading;
+};
+
+const handleReportProgress = (progress: string) => {
+  reportProgress.value = progress;
+};
+
+const handleReportData = (report: DataReport) => {
+  reportData.value = report;
+  reportError.value = '';
+};
+
+const handleReportError = (errorMsg: string) => {
+  reportError.value = errorMsg;
+};
+
+const handleReportDrawerClose = () => {
+  reportDrawerOpen.value = false;
+};
+
 const handleDeleteChat = (sessionId: string) => {
   if (currentSessionId.value === sessionId) {
     resetChat();
@@ -85,6 +140,8 @@ const handleDeleteChat = (sessionId: string) => {
 // Import necessary dependencies
 import { onMounted, onUnmounted, ref } from 'vue';
 import { useDialogueStore } from '@/stores/modules/dialogues';
+import DataReportDrawer from '@/components/DataReportDrawer.vue';
+import type { DataReport } from '@/api/chat.ts';
 
 // Create store instance
 const dialogueStore = useDialogueStore();

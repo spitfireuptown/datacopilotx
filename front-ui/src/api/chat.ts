@@ -152,6 +152,222 @@ export async function mockChatStreamApi(
 }
 
 /**
+ * 数据报告流式 API 配置项
+ */
+export interface ReportStreamOptions {
+  /** 中止控制器信号 */
+  signal?: AbortSignal;
+  /** 原始问题 */
+  message?: string;
+  /** 数据集ID */
+  datasetId?: string;
+  /** 模型ID */
+  modelId?: string;
+  /** 问题ID */
+  questionId?: string;
+  /** 会话ID */
+  sessionId?: string;
+}
+
+/** 预测趋势数据点 */
+export interface PredictionTrendPoint {
+  label: string;
+  value: number;
+  isForecast: boolean;
+}
+
+/** 核心指标预测 */
+export interface ForecastMetric {
+  name: string;
+  currentValue: number;
+  forecastValue: number;
+  changeRate: number;
+}
+
+/** 数据预测结果（与后端 PredictionResult 对应） */
+export interface PredictionResult {
+  trendPoints: PredictionTrendPoint[];
+  metrics: ForecastMetric[];
+  forecastSummary: string | null;
+  confidenceLevel: string | null;
+  risks: string[];
+  success: boolean;
+}
+
+/** 图表规格（与后端 ChartSpec 对应） */
+export interface ChartSpec {
+  title: string | null;
+  chartType: 'line' | 'bar' | 'pie';
+  xField: string | null;
+  yField: string | null;
+  data: { label: string; value: number }[];
+  explanation: string | null;
+}
+
+/** 报告章节（与后端 ReportSection 对应） */
+export interface ReportSection {
+  title: string;
+  content: string;
+  attributionAngle: string | null;
+}
+
+/** 数据报告（与后端 DataReport 对应） */
+export interface DataReport {
+  reportId: string;
+  originalQuestion: string;
+  title: string;
+  createdAt: number;
+  totalExecutionTimeMs: number;
+  totalTokenUsage: number;
+  executiveSummary: string | null;
+  keyFindings: string[];
+  sections: ReportSection[];
+  prediction: PredictionResult | null;
+  charts: ChartSpec[];
+  recommendations: string[];
+}
+
+/**
+ * 数据报告流式 API
+ * <p>
+ * 调用后端 /chat/report 接口，以 SSE 流式返回数据报告。
+ * 事件类型：
+ *   - report_start：报告生成开始
+ *   - progress：进度消息
+ *   - report_data：完整报告 JSON（触发 onReportData）
+ *   - complete：完成
+ *   - error：异常（抛出 Error）
+ *
+ * @param onProgress 进度回调函数
+ * @param onReportData 报告数据回调函数（report_data 事件时触发）
+ * @param options 配置选项
+ * @param onComplete 流结束回调
+ */
+export async function reportAnalysisStreamApi(
+  onProgress: (progress: string) => void,
+  onReportData: (report: DataReport) => void,
+  options: ReportStreamOptions = {},
+  onComplete?: () => void
+): Promise<void> {
+  const { signal, message = '', datasetId, modelId, questionId: providedQuestionId, sessionId } = options;
+
+  const questionId = providedQuestionId || `qu_${generateUUID()}`;
+  const requestUrl = `/api/chat/report`;
+  const token = localStorage.getItem('access_token');
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const response = await fetch(requestUrl, {
+    method: 'POST',
+    headers,
+    credentials: 'include',
+    body: JSON.stringify({
+      question: message,
+      datasetId,
+      modelId,
+      questionId,
+      sessionId
+    }),
+    signal,
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new Error('No response body');
+  }
+
+  const decoder = new TextDecoder();
+  let done = false;
+  let remainingData = '';
+  let lastEvent = '';
+  let errorMessage = '';
+
+  while (!done) {
+    try {
+      const { value, done: readerDone } = await reader.read();
+      done = readerDone;
+
+      if (value) {
+        const chunk = decoder.decode(value, { stream: !readerDone });
+        const fullData = remainingData + chunk;
+        const lines = fullData.split('\n');
+
+        for (let i = 0; i < lines.length - 1; i++) {
+          const line = lines[i].trim();
+          if (!line) {
+            lastEvent = '';
+            continue;
+          }
+
+          if (line.startsWith('event:')) {
+            lastEvent = line.substring(6).trim();
+          } else if (line.startsWith('data:')) {
+            const dataContent = line.substring(5).trim();
+            if (!dataContent) {continue;}
+
+            if (dataContent.includes('[DONE]') || lastEvent === 'complete') {
+              done = true;
+              reader.cancel();
+              if (onComplete) {onComplete();}
+              break;
+            }
+
+            if (lastEvent === 'error') {
+              done = true;
+              reader.cancel();
+              try {
+                const errObj = JSON.parse(dataContent);
+                errorMessage = errObj.message || dataContent;
+              } catch {
+                errorMessage = dataContent;
+              }
+              break;
+            }
+
+            try {
+              const dataContentObj = JSON.parse(dataContent);
+              if (lastEvent === 'report_start' && dataContentObj.data) {
+                onProgress(dataContentObj.data);
+              } else if (lastEvent === 'progress' && dataContentObj.data) {
+                onProgress(dataContentObj.data);
+              } else if (lastEvent === 'report_data' && dataContentObj.data) {
+                const report: DataReport = JSON.parse(dataContentObj.data);
+                onReportData(report);
+              }
+            } catch {
+              // 非JSON数据，忽略
+            }
+          }
+        }
+
+        remainingData = lines[lines.length - 1];
+      }
+    } catch (readError: any) {
+      if (readError?.name === 'AbortError' || signal?.aborted) {
+        done = true;
+        break;
+      }
+      throw readError;
+    }
+  }
+
+  if (errorMessage) {
+    throw new Error(errorMessage);
+  }
+
+  if (onComplete) {onComplete();}
+}
+
+/**
  * 生成简单的UUID
  */
 function generateUUID(): string {

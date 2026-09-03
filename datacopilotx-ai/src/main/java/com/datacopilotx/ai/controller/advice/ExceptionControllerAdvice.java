@@ -77,7 +77,7 @@ public class ExceptionControllerAdvice {
 
     private boolean isSseEndpoint(HttpServletRequest request) {
         String uri = request.getRequestURI();
-        return "/chat/completions".equals(uri) || "/chat/attribution".equals(uri);
+        return "/chat/completions".equals(uri) || "/chat/attribution".equals(uri) || "/chat/report".equals(uri);
     }
 
 

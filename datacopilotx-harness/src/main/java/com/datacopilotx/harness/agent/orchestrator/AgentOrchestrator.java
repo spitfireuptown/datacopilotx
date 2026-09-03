@@ -2,15 +2,22 @@ package com.datacopilotx.harness.agent.orchestrator;
 
 import com.datacopilotx.harness.agent.context.AgentContext;
 import com.datacopilotx.harness.agent.domain.AttributionReport;
+import com.datacopilotx.harness.agent.domain.DataReport;
+import com.datacopilotx.harness.agent.domain.PredictionResult;
+import com.datacopilotx.harness.agent.domain.ChartSpec;
 import com.datacopilotx.harness.agent.domain.TaskDAG;
+import com.datacopilotx.harness.agent.graph.ChartAnalystAgent;
 import com.datacopilotx.harness.agent.graph.ExecutorAgent;
 import com.datacopilotx.harness.agent.graph.PlannerAgent;
+import com.datacopilotx.harness.agent.graph.PredictorAgent;
 import com.datacopilotx.harness.agent.graph.ScopeAnalyzerAgent;
 import com.datacopilotx.harness.agent.graph.SynthesizerAgent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+import java.util.UUID;
 import java.util.function.Consumer;
 
 /**
@@ -33,6 +40,8 @@ public class AgentOrchestrator {
     private final PlannerAgent plannerAgent;
     private final ExecutorAgent executorAgent;
     private final SynthesizerAgent synthesizerAgent;
+    private final PredictorAgent predictorAgent;
+    private final ChartAnalystAgent chartAnalystAgent;
 
     /**
      * 执行归因分析全流程
@@ -88,6 +97,57 @@ public class AgentOrchestrator {
         return AttributionReport.builder()
                 .title("归因分析报告")
                 .executiveSummary(reason)
+                .build();
+    }
+
+    /**
+     * 执行数据报告全流程 —— 归因分析 + 数据预测 + 图表解释
+     * <p>
+     * 在归因分析全流程（ScopeAnalyzer → Planner → Executor → Synthesizer）的基础上，
+     * 追加 PredictorAgent 趋势预测与 ChartAnalystAgent 图表分析，组装为完整的 {@link DataReport}。
+     *
+     * @param context          分析上下文（携带模型配置）
+     * @param progressCallback 进度回调，用于 SSE 推送中间状态
+     * @return 数据报告（归因 + 预测 + 图表）
+     */
+    public DataReport generateReport(AgentContext context, Consumer<String> progressCallback) {
+        String sessionId = context.getSessionId();
+        long startTime = System.currentTimeMillis();
+        log.info("[AgentOrchestrator] ===== 数据报告生成开始: session={} =====", sessionId);
+
+        // Phase 0-3: 复用归因分析全流程
+        AttributionReport attributionReport = analyze(context, progressCallback);
+
+        // Phase 4: Predictor —— 数据预测
+        progressCallback.accept("Step 5/6: 正在进行数据预测分析...");
+        log.info("[AgentOrchestrator] Phase 4: Predictor 预测");
+        PredictionResult prediction = predictorAgent.predict(context);
+        log.info("[AgentOrchestrator] Predictor 完成，成功: {}", prediction.isSuccess());
+        progressCallback.accept("Step 5/6 完成: 数据预测分析完成");
+
+        // Phase 5: ChartAnalyst —— 图表提取与解释
+        progressCallback.accept("Step 6/6: 正在生成图表与解释...");
+        log.info("[AgentOrchestrator] Phase 5: ChartAnalyst 图表分析");
+        List<ChartSpec> charts = chartAnalystAgent.analyze(context);
+        log.info("[AgentOrchestrator] ChartAnalyst 完成，共 {} 张图表", charts.size());
+        progressCallback.accept("Step 6/6 完成: 图表与解释生成完成");
+
+        long totalTime = System.currentTimeMillis() - startTime;
+        log.info("[AgentOrchestrator] ===== 数据报告生成完成: session={}, 耗时 {}ms =====", sessionId, totalTime);
+
+        return DataReport.builder()
+                .reportId(UUID.randomUUID().toString())
+                .originalQuestion(context.getOriginalQuestion())
+                .title(attributionReport.getTitle() != null ? attributionReport.getTitle() : "数据分析报告")
+                .createdAt(System.currentTimeMillis())
+                .totalExecutionTimeMs(totalTime)
+                .totalTokenUsage(attributionReport.getTotalTokenUsage())
+                .executiveSummary(attributionReport.getExecutiveSummary())
+                .keyFindings(attributionReport.getKeyFindings())
+                .sections(attributionReport.getSections())
+                .prediction(prediction)
+                .charts(charts)
+                .recommendations(attributionReport.getRecommendations())
                 .build();
     }
 }
