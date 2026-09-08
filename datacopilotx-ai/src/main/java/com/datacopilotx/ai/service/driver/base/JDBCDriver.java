@@ -167,7 +167,7 @@ public abstract class JDBCDriver {
                 DataSetDTO.SchemaInfo schemaInfo = new DataSetDTO.SchemaInfo();
                 schemaInfo.setFieldName(columns.getString("COLUMN_NAME"));
                 schemaInfo.setFieldType(columns.getString("TYPE_NAME"));
-                schemaInfo.setDescription(columns.getString("REMARKS"));
+                schemaInfo.setDescription(fetchColumnComment(connection, columns, schema, table));
                 result.add(schemaInfo);
             }
             
@@ -180,6 +180,20 @@ public abstract class JDBCDriver {
             closeResources(rs, columns);
             closeResources(connection);
         }
+    }
+
+    /**
+     * 获取字段描述信息
+     * 默认实现从JDBC元数据的REMARKS列读取(MySQL方式), 不支持的数据库可重写此方法
+     * @param connection 数据库连接
+     * @param columns 列元数据结果集(游标处于当前字段行)
+     * @param database 数据库名
+     * @param table 表名
+     * @return 字段描述
+     * @throws SQLException SQL异常
+     */
+    protected String fetchColumnComment(Connection connection, ResultSet columns, String database, String table) throws SQLException {
+        return columns.getString("REMARKS");
     }
 
     /**

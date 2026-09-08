@@ -315,17 +315,6 @@ const triggerAttribution = async (questionId: string, questionText: string) => {
   }
 };
 
-defineExpose({
-  newChat,
-  setQuestion,
-  setDatasetAndModel,
-  getDatasetId: () => selectedDatasetId.value?.value,
-  getModelId: () => selectedModelId.value?.value,
-  getSessionId: () => sessionId.value,
-  triggerAttribution,
-  triggerReport
-});
-
 /**
  * 触发数据报告
  * <p>
@@ -394,6 +383,17 @@ const triggerReport = async (questionId: string, questionText: string) => {
     }
   }
 };
+
+defineExpose({
+  newChat,
+  setQuestion,
+  setDatasetAndModel,
+  getDatasetId: () => selectedDatasetId.value?.value,
+  getModelId: () => selectedModelId.value?.value,
+  getSessionId: () => sessionId.value,
+  triggerAttribution,
+  triggerReport
+});
 
 /** 发送消息 */
 const question = ref('');

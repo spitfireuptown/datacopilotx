@@ -70,6 +70,7 @@ CREATE TABLE `QUESTION_LOG` (
     `ctime` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `utime` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`) USING BTREE,
+    KEY `session_id_IDX` (`session_id`, `question_id`) USING BTREE,
     KEY `question_key` (`question_id`) USING BTREE
 ) ENGINE=InnoDB AUTO_INCREMENT=343 DEFAULT CHARSET=utf8mb4 COMMENT='查询历史日志';
 
@@ -80,6 +81,7 @@ CREATE TABLE `KNOWLEDGE_LIB` (
      `model_id` char(64) CHARACTER SET utf8 NOT NULL DEFAULT '',
      `creator` VARCHAR(36) NOT NULL COMMENT '用户ID',
      `description` varchar(255) DEFAULT NULL COMMENT '模型平台',
+     `score` decimal(10,0) DEFAULT NULL,
      `is_del` int(11) NOT NULL DEFAULT '0',
      `ctime` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
      `utime` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -122,7 +124,7 @@ CREATE TABLE IF NOT EXISTS SYSTEM_USER (
 -- 插入默认超级管理员账号（用户名：admin，密码：datacopilotx）
 -- 密码是BCrypt加密后的datacopilotx
 INSERT INTO SYSTEM_USER (user_id, username, password, nickname, role, status, is_del)
-VALUES ('admin-001', 'admin', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iAt6Z5EH', '超级管理员', 0, 1, 0)
+VALUES ('admin-001', 'admin', '$2a$10$P8eN/q8.sesKcXfLFice/ebWUA1bN6hC9BESrZ5fnwksgHuVT8Yqq', '超级管理员', 0, 1, 0)
     ON DUPLICATE KEY UPDATE user_id=user_id;
 
 -- 数据权限表 - 定义行权限和列权限规则
@@ -204,12 +206,3 @@ CREATE TABLE `DASHBOARD_SHARE` (
     UNIQUE INDEX uk_token (`token`),
     INDEX idx_share_dashboard (`dashboard_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='仪表盘免密分享链接';
-
--- ==================== 数据库迁移脚本 ====================
--- 用于已存在的数据库添加数据表相关字段
--- 执行方式: mysql -u username -p database_name < db.sql
-
-ALTER TABLE IF EXISTS `DS_PERMISSION` 
-    ADD COLUMN IF NOT EXISTS `table_id` BIGINT COMMENT '数据表ID',
-    ADD COLUMN IF NOT EXISTS `table_name` VARCHAR(255) COMMENT '数据表名称',
-    ADD INDEX IF NOT EXISTS `idx_table_id` (`table_id`);
