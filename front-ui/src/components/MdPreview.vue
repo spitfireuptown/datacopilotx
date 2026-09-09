@@ -5,34 +5,35 @@
       v-html="renderedContent"
     />
     <div v-if="hasTableData" style="text-align: right">
-      <div v-show="tableColumns.length>1" class="type-list">
-        <div
-          v-for="item in typeList" :key="item.name" class="type-item" :class="{active:item.active}"
-          @click="handleTypeChange(item)">
-          <a-tooltip v-if="item.name==='PieChart'" placement="topLeft" title="饼图">
-            <PieChartOutlined
-              :style="{fontSize: '16px', color: item.active?'#34c2a0':''}" />
-          </a-tooltip>
-          <a-tooltip v-if="item.name==='LineChart'" placement="topLeft" title="折线图">
-            <LineChartOutlined
-              :style="{fontSize: '16px', color: item.active?'#34c2a0':''}" />
-          </a-tooltip>
-          <a-tooltip v-if="item.name==='BarChart'" placement="topLeft" title="柱状图">
-            <BarChartOutlined
-              :style="{fontSize: '16px', color: item.active?'#34c2a0':''}" />
-          </a-tooltip>
-          <a-tooltip v-if="item.name==='Table'" placement="topLeft" title="表格">
-            <TableOutlined :style="{fontSize: '16px', color: item.active?'#34c2a0':''}" />
-          </a-tooltip>
-        </div>
-      </div>
-      <div class="dashboard-action-row">
-        <a-divider v-if="tableColumns.length>1" type="vertical" style="height: 20px; margin: 0 4px;" />
+      <div class="chart-toolbar">
+        <!-- 添加到仪表盘按钮：置于左侧 -->
         <a-tooltip placement="topLeft" title="添加到仪表盘">
           <PlusSquareOutlined
             class="add-dashboard-btn"
             @click="handleAddToDashboard" />
         </a-tooltip>
+        <!-- 图表类型切换按钮：置于右侧，与添加按钮同行 -->
+        <div v-show="tableColumns.length>1" class="type-list">
+          <div
+            v-for="item in typeList" :key="item.name" class="type-item" :class="{active:item.active}"
+            @click="handleTypeChange(item)">
+            <a-tooltip v-if="item.name==='PieChart'" placement="topLeft" title="饼图">
+              <PieChartOutlined
+                :style="{fontSize: '16px', color: item.active?'#34c2a0':''}" />
+            </a-tooltip>
+            <a-tooltip v-if="item.name==='LineChart'" placement="topLeft" title="折线图">
+              <LineChartOutlined
+                :style="{fontSize: '16px', color: item.active?'#34c2a0':''}" />
+            </a-tooltip>
+            <a-tooltip v-if="item.name==='BarChart'" placement="topLeft" title="柱状图">
+              <BarChartOutlined
+                :style="{fontSize: '16px', color: item.active?'#34c2a0':''}" />
+            </a-tooltip>
+            <a-tooltip v-if="item.name==='Table'" placement="topLeft" title="表格">
+              <TableOutlined :style="{fontSize: '16px', color: item.active?'#34c2a0':''}" />
+            </a-tooltip>
+          </div>
+        </div>
       </div>
       <a-table
         v-show="chartType=='Table'"
@@ -568,7 +569,6 @@ const handleAddToDashboard = () => {
     questionText: props.questionText || '',
     sqlText: props.sqlText || '',
   });
-  message.success('已添加到仪表盘');
 };
 </script>
 
@@ -665,8 +665,15 @@ const handleAddToDashboard = () => {
   background-color: #fafafa;
 }
 
-.type-list {
+/* 工具栏：左侧添加到仪表盘按钮 + 右侧图表类型切换按钮，同一行 */
+.chart-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   padding: 5px;
+}
+
+.type-list {
   display: flex;
   flex-direction: row-reverse;
 
@@ -686,24 +693,17 @@ const handleAddToDashboard = () => {
   }
 }
 
-.dashboard-action-row {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
+.add-dashboard-btn {
+  cursor: pointer;
+  font-size: 16px;
+  color: #999;
   padding: 2px 5px;
+  border-radius: 5px;
+  transition: all 0.2s;
 
-  .add-dashboard-btn {
-    cursor: pointer;
-    font-size: 16px;
-    color: #999;
-    padding: 2px 5px;
-    border-radius: 5px;
-    transition: all 0.2s;
-
-    &:hover {
-      color: #1890ff;
-      background-color: #e6f7ff;
-    }
+  &:hover {
+    color: #1890ff;
+    background-color: #e6f7ff;
   }
 }
 .chart{

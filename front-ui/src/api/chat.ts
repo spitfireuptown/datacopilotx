@@ -492,16 +492,20 @@ export interface AttributionStreamOptions {
  * 调用后端 /chat/attribution 接口，以 SSE 流式返回归因分析报告。
  * 事件类型：
  *   - attribution_start：分析开始
+ *   - progress：各阶段真实进度（Step 1/4 等，展示给用户）
+ *   - heartbeat：心跳保活（不展示）
  *   - attribution_report：分析报告内容（Markdown）
  *   - complete：完成
  *   - error：异常
  *
- * @param onChunk 块回调函数（传入累积的报告内容）
+ * @param onChunk 块回调函数（传入报告内容，仅报告到达时触发）
+ * @param onProgress 进度回调函数（传入最新一条真实进度文本）
  * @param options 配置选项
  * @param onComplete 流结束回调
  */
 export async function attributionAnalysisStreamApi(
   onChunk: (chunk: string) => void,
+  onProgress: (progress: string) => void,
   options: AttributionStreamOptions = {},
   onComplete?: () => void
 ): Promise<void> {
@@ -547,8 +551,6 @@ export async function attributionAnalysisStreamApi(
   let lastId = '';
   let lastEvent = '';
   let reportContent = '';
-  let progressMsg = '';
-  let isReportReady = false;
 
   while (!done) {
     try {
@@ -596,19 +598,12 @@ export async function attributionAnalysisStreamApi(
               dataContentObj.id = lastId;
               if (lastEvent === 'attribution_report' && dataContentObj.data) {
                 reportContent = dataContentObj.data;
-                isReportReady = true;
                 onChunk(reportContent);
-              } else if (lastEvent === 'attribution_start' && dataContentObj.data) {
-                progressMsg = dataContentObj.data;
-                onChunk(progressMsg);
               } else if (lastEvent === 'progress' && dataContentObj.data) {
-                if (!isReportReady) {
-                  progressMsg = progressMsg
-                    ? progressMsg + '\n' + dataContentObj.data
-                    : dataContentObj.data;
-                  onChunk(progressMsg);
-                }
+                // 各阶段真实进度（Step 1/4 等），展示给用户
+                onProgress(dataContentObj.data);
               }
+              // attribution_start / heartbeat（心跳）事件仅用于保持 SSE 连接，不推送给展示层
             } catch {
               onChunk(dataContent);
             }

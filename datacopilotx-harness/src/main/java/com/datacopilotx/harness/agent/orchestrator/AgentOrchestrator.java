@@ -101,36 +101,39 @@ public class AgentOrchestrator {
     }
 
     /**
-     * 执行数据报告全流程 —— 归因分析 + 数据预测 + 图表解释
+     * 执行数据报告全流程 —— 基于问数结果生成数据报告
      * <p>
-     * 在归因分析全流程（ScopeAnalyzer → Planner → Executor → Synthesizer）的基础上，
-     * 追加 PredictorAgent 趋势预测与 ChartAnalystAgent 图表分析，组装为完整的 {@link DataReport}。
+     * 跳过归因分析全流程（ScopeAnalyzer → Planner → Executor），直接使用调用方注入的问数结果
+     * （单子任务 DAG + ExecutionResult），依次执行 Synthesizer 报告综合、PredictorAgent 趋势预测
+     * 与 ChartAnalystAgent 图表分析，组装为完整的 {@link DataReport}。
      *
-     * @param context          分析上下文（携带模型配置）
+     * @param context          分析上下文（调用方已注入问数结果）
      * @param progressCallback 进度回调，用于 SSE 推送中间状态
-     * @return 数据报告（归因 + 预测 + 图表）
+     * @return 数据报告（报告正文 + 预测 + 图表）
      */
     public DataReport generateReport(AgentContext context, Consumer<String> progressCallback) {
         String sessionId = context.getSessionId();
         long startTime = System.currentTimeMillis();
         log.info("[AgentOrchestrator] ===== 数据报告生成开始: session={} =====", sessionId);
 
-        // Phase 0-3: 复用归因分析全流程
-        AttributionReport attributionReport = analyze(context, progressCallback);
+        // Phase 1: Synthesizer —— 基于问数结果综合生成报告正文
+        progressCallback.accept("Step 1/3: 正在基于问数结果生成报告正文...");
+        log.info("[AgentOrchestrator] Phase 1: Synthesizer 综合");
+        AttributionReport attributionReport = synthesizerAgent.synthesize(context);
 
-        // Phase 4: Predictor —— 数据预测
-        progressCallback.accept("Step 5/6: 正在进行数据预测分析...");
-        log.info("[AgentOrchestrator] Phase 4: Predictor 预测");
+        // Phase 2: Predictor —— 数据预测
+        progressCallback.accept("Step 2/3: 正在进行数据预测分析...");
+        log.info("[AgentOrchestrator] Phase 2: Predictor 预测");
         PredictionResult prediction = predictorAgent.predict(context);
         log.info("[AgentOrchestrator] Predictor 完成，成功: {}", prediction.isSuccess());
-        progressCallback.accept("Step 5/6 完成: 数据预测分析完成");
+        progressCallback.accept("Step 2/3 完成: 数据预测分析完成");
 
-        // Phase 5: ChartAnalyst —— 图表提取与解释
-        progressCallback.accept("Step 6/6: 正在生成图表与解释...");
-        log.info("[AgentOrchestrator] Phase 5: ChartAnalyst 图表分析");
+        // Phase 3: ChartAnalyst —— 图表提取与解释
+        progressCallback.accept("Step 3/3: 正在生成图表与解释...");
+        log.info("[AgentOrchestrator] Phase 3: ChartAnalyst 图表分析");
         List<ChartSpec> charts = chartAnalystAgent.analyze(context);
         log.info("[AgentOrchestrator] ChartAnalyst 完成，共 {} 张图表", charts.size());
-        progressCallback.accept("Step 6/6 完成: 图表与解释生成完成");
+        progressCallback.accept("Step 3/3 完成: 图表与解释生成完成");
 
         long totalTime = System.currentTimeMillis() - startTime;
         log.info("[AgentOrchestrator] ===== 数据报告生成完成: session={}, 耗时 {}ms =====", sessionId, totalTime);

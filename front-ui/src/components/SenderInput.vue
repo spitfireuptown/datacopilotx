@@ -115,7 +115,7 @@ const props = defineProps({
   }
 });
 
-const emit = defineEmits(['messagesChange', 'loadingChange', 'reportLoadingChange', 'reportProgress', 'reportData', 'reportError']);
+const emit = defineEmits(['messagesChange', 'loadingChange', 'attributionProgress', 'reportLoadingChange', 'reportProgress', 'reportData', 'reportError']);
 
 const dialogueStores = useDialogueStore();
 
@@ -245,17 +245,25 @@ const triggerAttribution = async (questionId: string, questionText: string) => {
 
   attributionLoading.value = true;
   attributionController = new AbortController();
+  // 复用问数的 loading 气泡效果（ChatBubble 底部 loading 动画），
+  // 各阶段真实进度（Step 1/4 等）通过 attributionProgress 事件展示在 loading 气泡中
+  emit('loadingChange', true);
+  emit('attributionProgress', '正在进行归因分析，请稍候...');
 
-  // 占位消息：显示加载中（key 以 attr_ 开头，用于前端识别归因分析报告气泡）
+  // 归因报告气泡：报告内容到达时才创建（key 以 attr_ 开头，用于前端识别）
   const attrMsgId = `attr_${questionId}_${Date.now()}`;
-  setMessages((prev: any[]) => [
-    ...prev,
-    {
-      id: attrMsgId,
-      message: '正在进行归因分析，请稍候...',
-      status: 'loading'
-    }
-  ]);
+  let attrMsgAdded = false;
+  const upsertAttrMessage = (content: string, status: string) => {
+    setMessages((prev: any[]) => {
+      if (attrMsgAdded && prev.some((m) => m.id === attrMsgId)) {
+        return prev.map((m: any) =>
+          m.id === attrMsgId ? { ...m, message: content, status } : m
+        );
+      }
+      attrMsgAdded = true;
+      return [...prev, { id: attrMsgId, message: content, status }];
+    });
+  };
 
   let reportContent = '';
 
@@ -263,15 +271,11 @@ const triggerAttribution = async (questionId: string, questionText: string) => {
     await attributionAnalysisStreamApi(
       (chunk: string) => {
         reportContent = chunk;
-        // 实时更新占位消息内容（保留 loading 状态，让 Bubble 组件显示 loading 动画）
-        const status = chunk.length > 100 ? 'loading' : 'loading';
-        setMessages((prev: any[]) =>
-          prev.map((m: any) =>
-            m.id === attrMsgId
-              ? { ...m, message: reportContent, status }
-              : m
-          )
-        );
+        upsertAttrMessage(reportContent, 'loading');
+      },
+      (progress: string) => {
+        // 各阶段真实进度（Step 1/4 等），展示在 loading 气泡中
+        emit('attributionProgress', progress);
       },
       {
         signal: attributionController.signal,
@@ -283,34 +287,24 @@ const triggerAttribution = async (questionId: string, questionText: string) => {
       },
       () => {
         attributionLoading.value = false;
-        setMessages((prev: any[]) =>
-          prev.map((m: any) =>
-            m.id === attrMsgId
-              ? { ...m, message: reportContent || '归因分析完成', status: 'success' }
-              : m
-          )
-        );
+        emit('loadingChange', false);
+        emit('attributionProgress', '');
+        if (reportContent) {
+          upsertAttrMessage(reportContent, 'success');
+        } else {
+          upsertAttrMessage('归因分析完成', 'success');
+        }
       }
     );
   } catch (error: any) {
     attributionLoading.value = false;
+    emit('loadingChange', false);
+    emit('attributionProgress', '');
     if (error?.name === 'AbortError') {
-      setMessages((prev: any[]) =>
-        prev.map((m: any) =>
-          m.id === attrMsgId
-            ? { ...m, message: '归因分析已取消', status: 'error' }
-            : m
-        )
-      );
+      upsertAttrMessage('归因分析已取消', 'error');
     } else {
       Msg.error('归因分析失败: ' + (error?.message || '未知错误'));
-      setMessages((prev: any[]) =>
-        prev.map((m: any) =>
-          m.id === attrMsgId
-            ? { ...m, message: '归因分析失败: ' + (error?.message || '未知错误'), status: 'error' }
-            : m
-        )
-      );
+      upsertAttrMessage('归因分析失败: ' + (error?.message || '未知错误'), 'error');
     }
   }
 };
@@ -384,15 +378,39 @@ const triggerReport = async (questionId: string, questionText: string) => {
   }
 };
 
+/**
+ * 取消后台数据报告生成任务
+ * <p>
+ * 报告在后台生成不阻塞页面，用户可通过浮窗上的取消按钮中止请求。
+ */
+const cancelReport = () => {
+  if (reportController && !reportController.signal.aborted) {
+    reportController.abort();
+  }
+  reportLoading.value = false;
+  emit('reportLoadingChange', false);
+};
+
 defineExpose({
   newChat,
   setQuestion,
   setDatasetAndModel,
+  /**
+   * 同步外部消息列表到内部 useXChat 状态
+   * <p>
+   * 历史对话由父组件（AIChat）直接加载渲染，不会经过 useXChat 的 onRequest 流程，
+   * 若不同步，后续触发归因分析等 setMessages(prev => ...) 操作会基于过期的内部列表，
+   * 导致历史消息丢失（页面看起来像跳进了新对话框）。
+   */
+  syncMessages: (list: any[]) => {
+    setMessages(list);
+  },
   getDatasetId: () => selectedDatasetId.value?.value,
   getModelId: () => selectedModelId.value?.value,
   getSessionId: () => sessionId.value,
   triggerAttribution,
-  triggerReport
+  triggerReport,
+  cancelReport
 });
 
 /** 发送消息 */
@@ -440,13 +458,22 @@ const [agent] = useXAgent({
     generateNewQuestionId();
     
     // 添加超时机制，防止loading状态一直存在
-    const timeoutId = setTimeout(() => {
-      senderLoading.value = false;
-      waitResponse.value = false;
-      if (controller) {
-        controller.abort();
-      }
-    }, 180000); // 180秒超时
+    // 采用“空闲超时”而非固定总时长：流持续有数据到达时不断重置计时，
+    // 仅当连续 STREAM_IDLE_TIMEOUT 内收不到任何数据才判定超时，避免后端长任务被误中止
+    const STREAM_IDLE_TIMEOUT = 180000; // 180秒空闲超时
+    let timeoutId: ReturnType<typeof setTimeout>;
+    const resetIdleTimer = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        senderLoading.value = false;
+        waitResponse.value = false;
+        Msg.warning('等待响应超时（180秒未收到数据），已停止等待后端返回');
+        if (controller) {
+          controller.abort();
+        }
+      }, STREAM_IDLE_TIMEOUT);
+    };
+    resetIdleTimer();
     
     // 流结束时立刻重置loading
     const resetLoading = () => {
@@ -462,6 +489,8 @@ const [agent] = useXAgent({
       // 模拟对话接口，添加数据集ID和模型ID参数
       await mockChatStreamApi(
         (chunk: string) => {
+          // 收到新数据，重置空闲超时计时
+          resetIdleTimer();
           try {
             // 移除所有可能的'data:'前缀
             chunk = chunk.replace(/^data:\s*/, '');

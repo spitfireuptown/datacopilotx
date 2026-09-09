@@ -37,8 +37,9 @@
           </a-button>
         </div>
 
-        <!-- 只有问数结果的AI气泡显示归因分析/数据报告按钮，归因分析报告本身不显示 -->
-        <div v-if="item.role === 'ai' && !String(item.key).startsWith('attr_')" class="attribution-btn-container">
+        <!-- 只有问数结果的AI气泡显示归因分析/数据报告按钮，归因分析报告本身不显示；无有效回答（暂无回答/空内容）时不显示 -->
+        <!-- 归因报告气泡识别两种 key：实时对话 attr_ 前缀 / 历史回显 analysis_ 前缀 -->
+        <div v-if="item.role === 'ai' && !isAttributionBubble(item) && hasValidAnswer(item)" class="attribution-btn-container">
           <a-button
             type="text"
             class="attribution-btn"
@@ -61,7 +62,7 @@
           </a-button>
           <!-- 归因分析报告气泡：显示下载按钮 -->
           <a-button
-            v-if="String(item.key).startsWith('attr_') && item.content"
+            v-if="isAttributionBubble(item) && item.content"
             type="text"
             class="attribution-btn"
             @click="handleDownloadReport(item)"
@@ -79,7 +80,15 @@
         :loading="loading"
         :avatar="roles.ai.avatar"
         :placement="roles.ai.placement"
-      />
+      >
+        <!-- loading 模式下展示进度提示（如归因分析的 Step 1/4），无提示时仅显示默认 loading 动画 -->
+        <template v-if="loadingTip" #loading>
+          <div class="loading-tip">
+            <a-spin size="small" />
+            <span class="loading-tip-text">{{ loadingTip }}</span>
+          </div>
+        </template>
+      </Bubble>
     </div>
   </div>
 </template>
@@ -102,6 +111,11 @@ const props = defineProps({
     type: Boolean,
     default: false
   },
+  // loading 气泡的进度提示文本（归因分析各阶段进度等；空则显示默认 loading 动画）
+  loadingTip: {
+    type: String,
+    default: ''
+  },
   // 添加对话标题prop
   chatTitle: {
     type: String,
@@ -110,6 +124,25 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['newChat', 'regenerate', 'attribution', 'report']);
+
+/**
+ * 是否有有效回答：空内容或占位文本“暂无回答”时不展示归因分析/数据报告入口
+ */
+const hasValidAnswer = (item: any) => {
+  const content = (item?.content || '').trim();
+  return !!content && content !== '暂无回答';
+};
+
+/**
+ * 是否为归因分析报告气泡
+ * <p>
+ * 实时对话中 key 为 attr_ 前缀（前端本地生成）；
+ * 历史回显中 key 为 analysis_ 前缀（question_log 的 question_id）。
+ */
+const isAttributionBubble = (item: any) => {
+  const key = String(item?.key || '');
+  return key.startsWith('attr_') || key.startsWith('analysis_');
+};
 
 // 点击归因分析按钮 —— 在对话框内渲染归因分析报告
 const handleAttribution = (item: any) => {
@@ -483,5 +516,18 @@ function scrollToBottom() {
 /* 占位元素，确保标题完美居中 */
 .header-placeholder {
   width: 90px; /* 与新对话按钮宽度相当 */
+}
+
+/* loading 气泡进度提示（归因分析各阶段进度） */
+.loading-tip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.loading-tip-text {
+  font-size: 14px;
+  color: #666;
 }
 </style>
