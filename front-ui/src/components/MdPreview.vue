@@ -574,34 +574,36 @@ const handleAddToDashboard = () => {
 
 <style lang="scss">
 .markdown-content {
-  font-size: 14px;
-  line-height: 1.6;
-  background: unset;
-  overflow-y: auto;
-  word-break: break-word;
+  height: auto;
   min-height: 25px;
   max-height: 600px;
-  height: auto;
+  overflow-y: auto;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-1);
+  word-break: break-word;
+  background: unset;
 
   pre {
+    padding: 12px;
+    margin: 8px 0;
+    overflow-x: auto;
     color: #fff;
     background-color: #24292e;
-    padding: 12px;
     border-radius: 6px;
-    overflow-x: auto;
-    margin: 8px 0;
   }
 
   code {
-    background-color: rgba(27, 31, 35, 0.05);
     padding: 0.2em 0.4em;
-    border-radius: 3px;
     font-size: 85%;
+    color: var(--text-1);
+    background-color: var(--bg-subtle);
+    border-radius: 3px;
   }
 
   pre code {
-    background-color: transparent;
     padding: 0;
+    background-color: transparent;
   }
 
   h1, h2, h3, h4, h5, h6 {
@@ -609,6 +611,7 @@ const handleAddToDashboard = () => {
     margin-bottom: 8px;
     font-weight: 600;
     line-height: 1.25;
+    color: var(--text-1);
   }
 
   ul, ol {
@@ -617,40 +620,60 @@ const handleAddToDashboard = () => {
   }
 
   a {
-    color: #0366d6;
+    color: var(--brand-primary);
     text-decoration: none;
   }
 
   a:hover {
+    color: var(--brand-primary-hover);
     text-decoration: underline;
+  }
+
+  blockquote {
+    color: var(--text-2);
+    border-left: 3px solid var(--brand-primary);
+  }
+
+  table {
+    border-collapse: collapse;
+
+    th,
+    td {
+      padding: 6px 10px;
+      border: 1px solid var(--border-color);
+    }
+
+    th {
+      background: var(--bg-subtle);
+    }
   }
 }
 
 .md-editor {
+  height: auto;
   min-height: 25px;
   max-height: 600px;
-  height: auto;
 }
 
 :deep(.ant-bubble-content.ant-bubble-content-filled) {
+  height: auto;
   min-height: 32px;
   max-height: 600px;
-  height: auto;
 }
 
 // Ant Design表格样式
 :deep(.ant-table) {
   margin-top: 16px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  border-radius: 6px;
   overflow: hidden;
+  border-radius: 8px;
+  box-shadow: var(--shadow-sm);
 }
 
 :deep(.ant-table-thead > tr > th) {
-  background-color: #f8f9fa;
   font-weight: 600;
-  color: #2c3e50;
-  border-bottom: 1px solid #ddd;
+  color: var(--text-1);
+  background-color: var(--bg-subtle);
+  border-bottom: 1px solid var(--border-color);
 }
 
 :deep(.ant-table-tbody > tr) {
@@ -658,18 +681,18 @@ const handleAddToDashboard = () => {
 }
 
 :deep(.ant-table-tbody > tr:hover > td) {
-  background-color: #f5f5f5;
+  background-color: var(--bg-hover);
 }
 
 :deep(.ant-table-tbody > tr.ant-table-row-even > td) {
-  background-color: #fafafa;
+  background-color: var(--bg-subtle);
 }
 
 /* 工具栏：左侧添加到仪表盘按钮 + 右侧图表类型切换按钮，同一行 */
 .chart-toolbar {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-between;
   padding: 5px;
 }
 
@@ -678,37 +701,38 @@ const handleAddToDashboard = () => {
   flex-direction: row-reverse;
 
   .type-item {
-    cursor: pointer;
     padding: 2px 5px;
     margin: 0 5px;
+    cursor: pointer;
     border-radius: 5px;
 
     &:hover {
-      background-color: #e5f7f3;
+      background-color: var(--bg-hover);
     }
   }
 
   .active {
-    background-color: #e5f7f3;
+    background-color: var(--bg-hover);
   }
 }
 
 .add-dashboard-btn {
-  cursor: pointer;
-  font-size: 16px;
-  color: #999;
   padding: 2px 5px;
+  font-size: 16px;
+  color: var(--text-3);
+  cursor: pointer;
   border-radius: 5px;
   transition: all 0.2s;
 
   &:hover {
-    color: #1890ff;
-    background-color: #e6f7ff;
+    color: var(--brand-primary);
+    background-color: var(--bg-hover);
   }
 }
+
 .chart{
-  max-width: 100%;
   width: 73vw;
+  max-width: 100%;
   height: 350px;
   margin: 0 auto;
 }

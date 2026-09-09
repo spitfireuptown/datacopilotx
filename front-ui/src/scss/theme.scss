@@ -1,0 +1,39 @@
+/**
+ * 全局设计令牌（CSS Variables）
+ * <p>
+ * 聊天主界面所有自定义样式统一消费这里的变量，保证视觉风格一致。
+ */
+
+:root {
+  /* 品牌令牌 */
+  --brand-primary: #6366f1;
+  --brand-primary-hover: #7c7ff7;
+  --brand-gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  --brand-glow: 0 4px 20px rgb(99 102 241 / 35%);
+
+  /* 表面令牌 */
+  --bg-page: #f7f8fa;
+  --bg-sidebar: #fff;
+  --bg-elevated: #fff;
+  --bg-subtle: #f2f3f7;
+  --bg-hover: rgb(99 102 241 / 6%);
+  --bg-glass: rgb(255 255 255 / 78%);
+  --bg-glass-strong: rgb(255 255 255 / 92%);
+
+  /* 文字令牌 */
+  --text-1: #1a1d26;
+  --text-2: #5a5f6e;
+  --text-3: #9298a6;
+
+  /* 边框与阴影 */
+  --border-color: #e8e9ee;
+  --border-color-light: #f0f1f4;
+  --shadow-sm: 0 1px 3px rgb(16 20 35 / 6%);
+  --shadow-md: 0 4px 14px rgb(16 20 35 / 8%);
+  --shadow-lg: 0 12px 32px rgb(16 20 35 / 12%);
+
+  /* 滚动条 */
+  --scrollbar-thumb: rgb(90 95 110 / 28%);
+  --scrollbar-thumb-hover: rgb(90 95 110 / 50%);
+  --scrollbar-track: transparent;
+}

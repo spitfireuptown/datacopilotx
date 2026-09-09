@@ -55,7 +55,7 @@
       </a-space>
     </template>
     <template #header>
-      <Sender.Header title="请选择模型配置" :open="openHeader" class="bg-white">
+      <Sender.Header title="请选择模型配置" :open="openHeader" class="sender-model-header">
         <a-row :gutter="16">
           <a-col :span="8">
             <a-select
@@ -810,7 +810,7 @@ watch(
 /* 数据集警告样式 */
 :deep(.dataset-warning .ant-select-selector) {
   border-color: #ff4d4f !important;
-  box-shadow: 0 0 0 2px rgba(255, 77, 79, 0.2) !important;
+  box-shadow: 0 0 0 2px rgb(255 77 79 / 20%) !important;
 }
 
 /* 模型按钮警告样式 */
@@ -824,31 +824,64 @@ watch(
   border-color: #ff7875 !important;
 }
 
-/* 调整用户发送消息框的样式，减少空白感 */
+/* 输入区悬浮玻璃卡片 */
 .sender-input-comp {
+  max-width: 860px;
   min-height: 40px !important;
   max-height: 165px !important;
+  margin: 0 auto;
+  background: var(--bg-glass) !important;
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--border-color) !important;
+  border-radius: 16px !important;
+  box-shadow: var(--shadow-lg) !important;
+  transition:
+    border-color 0.25s ease,
+    box-shadow 0.25s ease;
+
+  &:hover {
+    border-color: var(--brand-primary) !important;
+  }
+
+  &:focus-within {
+    border-color: var(--brand-primary) !important;
+    box-shadow: var(--brand-glow) !important;
+  }
 }
 
 /* 穿透样式，调整输入区域的内边距和行高 */
 :deep(.antd-x-sender) {
   min-height: 40px !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
 }
 
 :deep(.antd-x-sender-content) {
-  padding: 6px 12px !important; /* 减小内边距 */
   min-height: 40px !important;
+  padding: 6px 12px !important; /* 减小内边距 */
 }
 
 :deep(.antd-x-sender-input) {
-  line-height: 1.5 !important; /* 调整行高 */
   min-height: 40px !important;
   max-height: 120px !important;
   font-size: 14px !important;
+  line-height: 1.5 !important; /* 调整行高 */
+  color: var(--text-1);
+}
+
+:deep(.antd-x-sender-input::placeholder) {
+  color: var(--text-3);
 }
 
 /* 调整发送按钮区域样式 */
 :deep(.antd-x-sender-actions) {
   padding: 6px 12px !important;
+}
+
+/* 模型选择弹出头部：跟随主题，替代固定 bg-white */
+.sender-model-header {
+  background: var(--bg-elevated) !important;
+  border-bottom: 1px solid var(--border-color-light);
 }
 </style>

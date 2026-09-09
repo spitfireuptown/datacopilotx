@@ -2,12 +2,10 @@
   <div class="chat-bubble-container">
     <!-- 使用fixed定位确保始终固定在顶部 -->
     <div class="header-bar">
-      <a-button type="primary" class="new-chat-btn" @click="newChat">
-        <template #icon>
-          <CommentOutlined />
-        </template>
-        新对话
-      </a-button>
+      <button type="button" class="new-chat-btn" @click="newChat">
+        <CommentOutlined class="new-chat-icon" />
+        <span>新对话</span>
+      </button>
       
       <!-- 对话名称居中显示 -->
       <div class="chat-title-container">
@@ -410,13 +408,14 @@ function scrollToBottom() {
   position: relative;
 }
 
+/* 气泡列表：占满内容区，贴近对话框边缘 */
 .bubble-list {
-  padding: 80px 30px 350px 30px;
+  padding: 84px 32px 350px;
   overflow: visible;
 }
 
 .active-template {
-  border-color: #1677ff;
+  border-color: var(--brand-primary);
 }
 
 /* 气泡项包装器 */
@@ -434,13 +433,14 @@ function scrollToBottom() {
 
 /* 重新生成按钮样式 */
 .regenerate-btn {
-  color: #666;
-  font-size: 12px;
   padding: 4px 12px;
+  font-size: 12px;
+  color: var(--text-3);
+  border-radius: 8px;
 
   &:hover {
-    color: #1890ff;
-    background-color: #e6f7ff;
+    color: var(--brand-primary);
+    background-color: var(--bg-hover);
   }
 }
 
@@ -454,13 +454,14 @@ function scrollToBottom() {
 
 /* 归因分析按钮样式 */
 .attribution-btn {
-  color: #666;
-  font-size: 12px;
   padding: 4px 12px;
+  font-size: 12px;
+  color: var(--text-3);
+  border-radius: 8px;
 
   &:hover {
-    color: #1890ff;
-    background-color: #e6f7ff;
+    color: var(--brand-primary);
+    background-color: var(--bg-hover);
   }
 }
 
@@ -472,26 +473,57 @@ function scrollToBottom() {
   overflow-y: auto;
 }
 
-/* 固定在顶部的标题栏 */
+/* 固定在顶部的玻璃拟态标题栏 */
 .header-bar {
   position: fixed;
-  top: 0px; /* 从60px改为40px，使标题栏向上移动 */
-  left: 360px;
+  top: 0; /* 从60px改为40px，使标题栏向上移动 */
   right: 0;
+  left: 360px;
   z-index: 100;
-  background-color: white;
-  padding: 10px 30px;
-  border-bottom: 1px solid #f0f0f0;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: space-between;
   height: 60px;
-  box-sizing: border-box;
+  padding: 10px 30px;
+  background: var(--bg-glass);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--border-color-light);
 }
 
-/* 新对话按钮样式 */
+/* 新对话：品牌渐变按钮 */
 .new-chat-btn {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
   height: 36px;
+  padding: 0 16px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #fff;
+  cursor: pointer;
+  background: var(--brand-gradient);
+  border: none;
+  border-radius: 10px;
+  box-shadow: var(--brand-glow);
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    filter 0.2s ease;
+
+  .new-chat-icon {
+    font-size: 14px;
+  }
+
+  &:hover {
+    filter: brightness(1.08);
+    box-shadow: 0 6px 24px rgb(99 102 241 / 45%);
+    transform: translateY(-1px);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
 }
 
 /* 对话标题容器，实现居中 */
@@ -502,32 +534,31 @@ function scrollToBottom() {
 
 /* 对话标题样式 */
 .chat-title {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 500;
-  color: #333;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   max-width: 400px;
   margin: 0 auto;
+  overflow: hidden;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-1);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* 占位元素，确保标题完美居中 */
 .header-placeholder {
-  width: 90px; /* 与新对话按钮宽度相当 */
+  min-width: 100px; /* 与新对话按钮宽度相当 */
 }
 
 /* loading 气泡进度提示（归因分析各阶段进度） */
 .loading-tip {
   display: flex;
-  align-items: center;
   gap: 8px;
+  align-items: center;
   padding: 4px 0;
 }
 
 .loading-tip-text {
   font-size: 14px;
-  color: #666;
+  color: var(--text-2);
 }
 </style>

@@ -336,85 +336,106 @@ const parseJsonData = (data: string) => {
 <style lang="scss" scoped>
 .chat-comp {
   position: relative;
-  width: 100%;
-  height: 100vh;
-  margin: 0;
-  padding: 0;
+  right: 0;
+  left: 0;
   box-sizing: border-box;
   display: flex;
+  width: 100%;
+  height: 100vh;
+  padding: 0;
+  margin: 0;
   overflow: hidden;
-  left: 0;
-  right: 0;
+  background: var(--bg-page);
+
   .content-wrap {
-    flex: 1;
-    margin-right: 0;
-    overflow-y: auto;
-    overflow-x: hidden;
     box-sizing: border-box;
+    flex: 1;
     min-height: 0;
+    margin-right: 0;
+    overflow: hidden auto;
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+
+    /* 全局细窄滚动条 */
+    scrollbar-width: thin;
+
+    &::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background-color: var(--scrollbar-thumb);
+      border-radius: 4px;
+    }
+
+    &::-webkit-scrollbar-thumb:hover {
+      background-color: var(--scrollbar-thumb-hover);
+    }
+
     .bubble-list-wrap {
-      margin-left: 0 !important;
-      padding-left: 20px;
-    }
-    .welcome-wrap.mb-4 {
-      margin-left: -360px; // 让welcome-wrap靠到左侧
-      padding-left: 360px; // 为内容添加内边距，避免被侧边栏遮挡
       width: 100%;
-      box-sizing: border-box;
-      > * {
-        margin-left: 0 !important; // 确保内部所有元素都顶到左侧
-        width: 100%;
-        box-sizing: border-box;
-      }
     }
-    
-    /* 历史记录加载遮罩 */
+
+    .welcome-wrap.mb-4 {
+      box-sizing: border-box;
+      width: 100%;
+    }
+
+    /* 历史记录加载遮罩：玻璃拟态 */
     .history-loading-overlay {
       position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background-color: rgba(255, 255, 255, 0.8);
+      inset: 0;
+      z-index: 100;
       display: flex;
       align-items: center;
       justify-content: center;
-      z-index: 100;
+      background-color: var(--bg-glass-strong);
+      backdrop-filter: blur(6px);
     }
-    
+
     .history-loading-spinner {
       display: flex;
       flex-direction: column;
-      align-items: center;
       gap: 16px;
+      align-items: center;
     }
   }
 
   .sender-wrap {
     position: absolute;
+    right: 0; // 右侧完全顶边
     bottom: 0;
     left: 360px; // 与两个侧边栏对齐
-    right: 0; // 右侧完全顶边
     z-index: 10;
+    box-sizing: border-box;
     width: calc(100% - 360px); // 减去两个侧边栏的宽度
-    background: white;
+    padding: 24px 28px 20px;
+    pointer-events: none; // 透传滚动，仅输入卡片本身可交互
+
+    /* 从页面底色到透明的渐变遮罩，消除输入区与内容的生硬分界 */
+    background: linear-gradient(to bottom, transparent 0%, var(--bg-page) 30%);
+
+    /* 输入卡片本身可点击 */
+    :deep(.sender-input-comp) {
+      pointer-events: auto;
+    }
   }
 
-  /* 数据报告后台任务浮窗：不遮挡主体内容 */
+  /* 数据报告后台任务浮窗：玻璃卡片，不遮挡主体内容 */
   .report-task-float {
     position: fixed;
     right: 24px;
     bottom: 140px; // 高于输入框，避免遮挡
     z-index: 1000;
     display: flex;
-    align-items: center;
     gap: 10px;
+    align-items: center;
     max-width: 380px;
     padding: 10px 14px;
-    background: #fff;
-    border: 1px solid #e5e6eb;
-    border-radius: 10px;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+    background: var(--bg-glass);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    box-shadow: var(--shadow-lg);
 
     .report-task-info {
       flex: 1;
@@ -423,14 +444,14 @@ const parseJsonData = (data: string) => {
       .report-task-title {
         font-size: 13px;
         font-weight: 600;
-        color: #1f2329;
+        color: var(--text-1);
       }
 
       .report-task-progress {
         margin-top: 2px;
-        font-size: 12px;
-        color: #86909c;
         overflow: hidden;
+        font-size: 12px;
+        color: var(--text-3);
         text-overflow: ellipsis;
         white-space: nowrap;
       }
@@ -438,18 +459,18 @@ const parseJsonData = (data: string) => {
   }
 
   .report-task-entry {
-    cursor: pointer;
     font-size: 13px;
     font-weight: 600;
-    color: #1677ff;
+    color: var(--brand-primary);
+    cursor: pointer;
 
     .report-task-icon {
       font-size: 16px;
     }
 
     &:hover {
-      box-shadow: 0 4px 16px rgba(22, 119, 255, 0.25);
-      border-color: #91caff;
+      border-color: var(--brand-primary);
+      box-shadow: var(--brand-glow);
     }
   }
 }

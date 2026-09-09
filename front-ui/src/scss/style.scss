@@ -1,9 +1,33 @@
+/* 全局基础主题 */
+body {
+  margin: 0;
+  color: var(--text-1);
+  background: var(--bg-page);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* antd-x 气泡内容主题化（antd-x 不跟随 ConfigProvider，需显式覆盖） */
+.ant-bubble-content {
+  max-height: 600px;
+  overflow-y: auto;
+  color: var(--text-1);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-color-light);
+  box-shadow: var(--shadow-sm);
+}
+
+/* 气泡内链接与选中文本 */
+.ant-bubble-content ::selection {
+  background: rgb(99 102 241 / 25%);
+}
+
 #app {
+  box-sizing: border-box;
   width: 100%;
   min-height: 100vh;
-  margin: 0;
   padding: 0;
-  box-sizing: border-box;
+  margin: 0;
 }
 
 .anticon:not(.anticon-delete) {
@@ -11,25 +35,19 @@
 }
 
 .content-wrap {
-  flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
   box-sizing: border-box;
+  flex: 1;
   min-height: 0;
+  overflow: hidden auto;
 }
 
 .bubble-list-wrap {
-  margin: 0 !important;
   padding: 0;
+  margin: 0 !important;
 }
 
 .bubble-list {
-  padding: 80px 30px 20px 30px;
-}
-
-.ant-bubble-content {
-  max-height: 600px;
-  overflow-y: auto;
+  padding: 80px 30px 20px;
 }
 
 .ant-table-body {
