@@ -131,14 +131,10 @@ public class KnowledgeLibService {
         updateWrapper.eq(KnowledgeLibBean::getId, updateForm.getId())
                 .set(KnowledgeLibBean::getName, updateForm.getName())
                 .set(KnowledgeLibBean::getDescription, updateForm.getDescription())
+                .set(KnowledgeLibBean::getScore, updateForm.getScore())
                 .set(KnowledgeLibBean::getDatasetId, updateForm.getDatasetId());
 
-        if (updateForm.getScore() != null) {
-            updateWrapper.set(KnowledgeLibBean::getScore, updateForm.getScore());
-        }
-
-        log.info("Updating knowledge lib id={}, score={}", updateForm.getId(), updateForm.getScore());
-        knowledgeLibMapper.update(null, updateWrapper);
+        knowledgeLibMapper.update(updateWrapper);
         return updateForm.getId();
     }
 

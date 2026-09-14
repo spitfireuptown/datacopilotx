@@ -81,7 +81,7 @@ CREATE TABLE `KNOWLEDGE_LIB` (
      `model_id` char(64) CHARACTER SET utf8 NOT NULL DEFAULT '',
      `creator` VARCHAR(36) NOT NULL COMMENT '用户ID',
      `description` varchar(255) DEFAULT NULL COMMENT '模型平台',
-     `score` decimal(10,0) DEFAULT NULL,
+     `score` decimal(10,2) DEFAULT NULL,
      `is_del` int(11) NOT NULL DEFAULT '0',
      `ctime` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
      `utime` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
