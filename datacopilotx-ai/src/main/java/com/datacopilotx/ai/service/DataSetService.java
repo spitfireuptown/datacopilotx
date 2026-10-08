@@ -122,14 +122,24 @@ public class DataSetService {
 
         dataSetMapper.insert(dataSetBean);
 
+        boolean isExcel = "excel".equalsIgnoreCase(dataSetBean.getType());
         if (createForm.getTables() != null && !createForm.getTables().isEmpty()) {
             for (DataSetForm.Create.TableInfo tableInfo : createForm.getTables()) {
+                String tableName = isExcel ? sanitizeTableName(tableInfo.getTable()) : tableInfo.getTable();
                 DataTableBean dataTableBean = new DataTableBean();
                 dataTableBean.setDatasetId(dataSetBean.getId());
-                dataTableBean.setTable(tableInfo.getTable());
+                dataTableBean.setTable(tableName);
                 dataTableBean.setInjectPrompt(tableInfo.getPrompt());
                 dataTableBean.setFields(JSONUtil.toJsonStr(tableInfo.getFields()));
                 dataTableMapper.insert(dataTableBean);
+
+                if (isExcel) {
+                    List<List<String>> data = dataSetCache.get(tableInfo.getTable());
+                    if (data == null || data.isEmpty()) {
+                        throw new DataCopilotXException("Excel数据已失效，请重新上传文件");
+                    }
+                    syncExcelData(tableName, tableInfo.getFields(), data);
+                }
             }
         }
         return dataSetBean.getId();
@@ -161,11 +171,12 @@ public class DataSetService {
 
         dataTableMapper.delete(new LambdaQueryWrapper<DataTableBean>().eq(DataTableBean::getDatasetId, updateForm.getId()));
 
+        boolean isExcelUpdate = "excel".equalsIgnoreCase(updateForm.getType());
         if (updateForm.getTables() != null && !updateForm.getTables().isEmpty()) {
             for (DataSetForm.Create.TableInfo tableInfo : updateForm.getTables()) {
                 DataTableBean dataTableBean = new DataTableBean();
                 dataTableBean.setDatasetId(updateForm.getId());
-                dataTableBean.setTable(tableInfo.getTable());
+                dataTableBean.setTable(isExcelUpdate ? sanitizeTableName(tableInfo.getTable()) : tableInfo.getTable());
                 dataTableBean.setInjectPrompt(tableInfo.getPrompt());
                 dataTableBean.setFields(JSONUtil.toJsonStr(tableInfo.getFields()));
                 dataTableMapper.insert(dataTableBean);
@@ -301,7 +312,11 @@ public class DataSetService {
 
     public List<DataSetDTO.SchemaInfo> fileUpload(MultipartFile file, String name, String description) {
         DataSetDTO.ExcelDataSetInfo analysis = ExcelAnalysisUtil.analysis(file);
-        dataSetCache.put(name, analysis.getContext());
+        if (analysis.getHeaders() == null || analysis.getHeaders().isEmpty()) {
+            throw new DataCopilotXException("Excel文件解析失败，请检查文件内容");
+        }
+        // 以文件原始文件名作为缓存key，create时前端传回的table名即文件名，保证两侧一致
+        dataSetCache.put(file.getOriginalFilename(), analysis.getContext());
         return analysis.getHeaders().stream().map(row -> DataSetDTO.SchemaInfo.builder()
                 .fieldName(row)
                 .fieldType("VARCHAR")
@@ -310,9 +325,9 @@ public class DataSetService {
     }
 
 
-    private void syncExcelData(String tableName, List<DataSetDTO.SchemaInfo> fields) {
+    private void syncExcelData(String tableName, List<DataSetDTO.SchemaInfo> fields, List<List<String>> data) {
         String createTableSQL = this.createTableSQL(tableName, fields);
-        String insertDataSQL = this.insertDataSQL(tableName, fields);
+        String insertDataSQL = this.insertDataSQL(tableName, fields, data);
         
         DataSetDTO.DriverInfo driverInfo = DataSetDTO.DriverInfo.builder()
                 .type("excel")
@@ -345,8 +360,10 @@ public class DataSetService {
         }
     }
 
-    private String insertDataSQL(String tableName, List<DataSetDTO.SchemaInfo> fields) {
-        List<List<String>> data = dataSetCache.get(tableName);
+    private String insertDataSQL(String tableName, List<DataSetDTO.SchemaInfo> fields, List<List<String>> data) {
+        if (data == null || data.isEmpty()) {
+            return "";
+        }
 
         StringBuilder sqlBuilder = new StringBuilder();
         sqlBuilder.append("INSERT INTO `").append(tableName).append("` (");
@@ -470,14 +487,26 @@ public class DataSetService {
         }
         
         createTableSQL.append(String.join(",\n", columnDefinitions));
-        
-        createTableSQL.append(",\n  PRIMARY KEY (`")
-                .append(fields.get(0).getFieldName())
-                .append("`) USING BTREE");
-        
+
         createTableSQL.append("\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
-        
+
         log.info("Generated SQL for table {}: {}", tableName, createTableSQL.toString());
         return createTableSQL.toString();
+    }
+
+    private String sanitizeTableName(String rawName) {
+        if (rawName == null || rawName.trim().isEmpty()) {
+            throw new DataCopilotXException("表名不能为空");
+        }
+        String name = rawName.trim();
+        int dotIndex = name.lastIndexOf('.');
+        if (dotIndex > 0) {
+            name = name.substring(0, dotIndex);
+        }
+        name = name.replaceAll("[^a-zA-Z0-9_\\u4e00-\\u9fa5]", "_");
+        if (name.isEmpty() || !name.matches("^[a-zA-Z_\\u4e00-\\u9fa5].*")) {
+            name = "t_" + name;
+        }
+        return name;
     }
 }
