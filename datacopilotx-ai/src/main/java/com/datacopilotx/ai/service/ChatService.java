@@ -13,10 +13,15 @@ import com.datacopilotx.ai.service.graph.main.WorkflowGraph;
 import com.datacopilotx.ai.service.graph.main.WorkflowServiceHelper;
 import com.datacopilotx.ai.service.graph.main.WorkflowState;
 import com.datacopilotx.ai.util.SecurityUtil;
+import com.datacopilotx.common.constant.SubTaskType;
 import com.datacopilotx.harness.agent.context.AgentContext;
 import com.datacopilotx.harness.agent.domain.AttributionReport;
 import com.datacopilotx.harness.agent.domain.DataReport;
+import com.datacopilotx.harness.agent.domain.ExecutionResult;
+import com.datacopilotx.harness.agent.domain.SubTask;
+import com.datacopilotx.harness.agent.domain.TaskDAG;
 import com.datacopilotx.harness.agent.orchestrator.AgentOrchestrator;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.util.ObjectUtils;
 import com.datacopilotx.common.constant.PromptConstant;
@@ -33,6 +38,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -239,15 +245,33 @@ public class ChatService {
             return sink.asFlux();
         }
 
-        QuestionLogBean questionLogBean = QuestionLogBean.builder()
-                .questionId(questionForm.getQuestionId())
-                .sessionId(sessionId)
-                .datasetId(questionForm.getDatasetId())
-                .modelId(questionForm.getModelId())
-                .question(questionForm.getQuestion())
-                .creator(SecurityUtil.getCurrentUserId())
-                .build();
-        questionLogMapper.insert(questionLogBean);
+        // 归因分析记录使用独立的 analysis 前缀 questionId（由源问数 questionId 派生，确定性生成），
+        // 与问数记录区分开，避免历史回显时两对气泡 key 重复。
+        // 同一问题重复触发归因分析时命中同一条记录去重更新，不再插入新记录。
+        String analysisQuestionId = ObjectUtils.isEmpty(questionForm.getQuestionId())
+                ? IdUtils.genKey("analysis") : "analysis_" + questionForm.getQuestionId();
+        Long attributionLogId;
+        QuestionLogBean existingAttributionLog = questionLogMapper.selectOne(
+                new LambdaQueryWrapper<QuestionLogBean>()
+                        .eq(QuestionLogBean::getQuestionId, analysisQuestionId)
+                        .eq(QuestionLogBean::getSessionId, sessionId)
+                        .orderByDesc(QuestionLogBean::getId)
+                        .last("LIMIT 1")
+        );
+        if (ObjectUtils.isEmpty(existingAttributionLog)) {
+            QuestionLogBean questionLogBean = QuestionLogBean.builder()
+                    .questionId(analysisQuestionId)
+                    .sessionId(sessionId)
+                    .datasetId(questionForm.getDatasetId())
+                    .modelId(questionForm.getModelId())
+                    .question(questionForm.getQuestion())
+                    .creator(SecurityUtil.getCurrentUserId())
+                    .build();
+            questionLogMapper.insert(questionLogBean);
+            attributionLogId = questionLogBean.getId();
+        } else {
+            attributionLogId = existingAttributionLog.getId();
+        }
 
         Thread.startVirtualThread(() -> {
             try {
@@ -276,13 +300,13 @@ public class ChatService {
                         .data(WebResult.success("开始归因分析，问题: " + questionForm.getQuestion()))
                         .build());
 
-                // 心跳线程：每隔 10 秒发送进度事件，防止 SSE 连接超时断开
+                // 心跳线程：每隔 10 秒发送 heartbeat 事件保活 SSE 连接（与 progress 真实进度事件区分，前端不展示）
                 Thread heartbeatThread = new Thread(() -> {
                     while (!Thread.currentThread().isInterrupted()) {
                         try {
                             Thread.sleep(10000);
                             sink.tryEmitNext(ServerSentEvent.<WebResult<String>>builder()
-                                    .event("progress")
+                                    .event("heartbeat")
                                     .data(WebResult.success("归因分析进行中..."))
                                     .build());
                         } catch (InterruptedException e) {
@@ -295,6 +319,7 @@ public class ChatService {
                 heartbeatThread.start();
 
                 // 执行本地归因分析（Planner → Executor → Synthesizer 直连，无 Redis）
+                // progress 事件为各阶段真实进度（Step 1/4 等），前端展示在 loading 气泡中
                 AttributionReport report = agentOrchestrator.analyze(context, progressMsg -> {
                     sink.tryEmitNext(ServerSentEvent.<WebResult<String>>builder()
                             .event("progress")
@@ -312,18 +337,15 @@ public class ChatService {
                         .data(WebResult.success(markdown))
                         .build());
 
-                // 更新 question_log
+                // 更新归因分析记录（按主键精确更新，避免误改同 questionId 的问数记录）
                 QuestionLogBean updateLogBean = QuestionLogBean.builder()
-                        .questionId(questionForm.getQuestionId())
-                        .sessionId(sessionId)
                         .answer(markdown)
                         .costToken((long) report.getTotalTokenUsage())
                         .costTime(String.valueOf(report.getTotalExecutionTimeMs()))
                         .build();
                 questionLogMapper.update(updateLogBean,
                         new LambdaQueryWrapper<QuestionLogBean>()
-                                .eq(QuestionLogBean::getQuestionId, questionForm.getQuestionId())
-                                .eq(QuestionLogBean::getSessionId, sessionId));
+                                .eq(QuestionLogBean::getId, attributionLogId));
 
                 sink.tryEmitNext(ServerSentEvent.<WebResult<String>>builder()
                         .event("complete")
@@ -345,12 +367,13 @@ public class ChatService {
     }
 
     /**
-     * 数据报告入口 —— 归因分析 + 数据预测 + 图表解释的完整报告
+     * 数据报告入口 —— 基于问数结果生成数据报告（报告正文 + 预测 + 图表）
      * <p>
      * 流程：
      * <ol>
-     *   <li>根据 QuestionForm 构建 AgentContext</li>
-     *   <li>调用编排器执行 ScopeAnalyzer → Planner → Executor → Synthesizer → Predictor → ChartAnalyst 全流程</li>
+     *   <li>查询该问题的问数结果（question_log 的 result 字段）</li>
+     *   <li>将问数结果包装为单子任务 DAG + ExecutionResult 注入 AgentContext</li>
+     *   <li>调用编排器执行 Synthesizer → Predictor → ChartAnalyst（不再执行归因分析全流程）</li>
      *   <li>以 SSE 流式返回结构化报告 JSON（report_data 事件）</li>
      * </ol>
      */
@@ -380,24 +403,38 @@ public class ChatService {
             return sink.asFlux();
         }
 
-        QuestionLogBean questionLogBean = QuestionLogBean.builder()
-                .questionId(questionForm.getQuestionId())
-                .sessionId(sessionId)
-                .datasetId(questionForm.getDatasetId())
-                .modelId(questionForm.getModelId())
-                .question(questionForm.getQuestion())
-                .creator(SecurityUtil.getCurrentUserId())
-                .build();
-        questionLogMapper.insert(questionLogBean);
+        // 查询该问题的问数结果 —— 数据报告直接基于问数数据生成，不再执行归因分析
+        // （result 非空过滤掉归因分析流程插入的无结果记录，取最新一条）
+        QuestionLogBean qaLog = questionLogMapper.selectOne(
+                new LambdaQueryWrapper<QuestionLogBean>()
+                        .eq(QuestionLogBean::getQuestionId, questionForm.getQuestionId())
+                        .isNotNull(QuestionLogBean::getResult)
+                        .orderByDesc(QuestionLogBean::getId)
+                        .last("LIMIT 1")
+        );
+        if (ObjectUtils.isEmpty(qaLog) || ObjectUtils.isEmpty(qaLog.getResult())) {
+            flowServiceHelper.errorHandling(PromptConstant.START_NODE, sink,
+                    "未找到该问题的问数结果，请先完成智能问数再生成数据报告");
+            return sink.asFlux();
+        }
+
+        // 数据报告不写入 question_log，仅基于已有问数记录生成报告
 
         Thread.startVirtualThread(() -> {
             Thread heartbeatThread = null;
             try {
-                // 组装数据集 schema 信息，供归因分析使用
-                String dataSourceInfo = flowServiceHelper.assembleDataSetInfo(
-                        dataSetBean, questionForm.getQuestion());
+                // 解析问数结果，包装为单子任务 DAG + ExecutionResult 注入上下文，
+                // 报告各环节（Synthesizer/Predictor/ChartAnalyst）直接基于问数数据生成
+                Map<String, Object> queryResult = objectMapper.readValue(
+                        qaLog.getResult(), new TypeReference<Map<String, Object>>() {});
+                SubTask qaSubTask = SubTask.builder()
+                        .taskId("qa_result")
+                        .description("智能问数查询结果: " + questionForm.getQuestion())
+                        .type(SubTaskType.NL2SQL)
+                        .attributionCore(true)
+                        .build();
 
-                // 构建 AgentContext（携带模型配置和 schema 信息，供各智能体调用 LLM）
+                // 构建 AgentContext（携带模型配置与问数结果）
                 AgentContext context = AgentContext.builder()
                         .sessionId(sessionId)
                         .originalQuestion(questionForm.getQuestion())
@@ -409,8 +446,19 @@ public class ChatService {
                         .baseUrl(modelConfigBean.getBaseUrl())
                         .platform(modelConfigBean.getPlatform())
                         .userId(SecurityUtil.getCurrentUserId())
-                        .dataSourceInfo(dataSourceInfo)
                         .build();
+                context.setTaskDAG(TaskDAG.builder()
+                        .originalQuestion(questionForm.getQuestion())
+                        .subTasks(List.of(qaSubTask))
+                        .build());
+                context.putExecutionResult(ExecutionResult.builder()
+                        .taskId(qaSubTask.getTaskId())
+                        .success(true)
+                        .data(queryResult)
+                        .generatedSql(qaLog.getSql())
+                        .summary("智能问数查询结果"
+                                + (ObjectUtils.isEmpty(qaLog.getSql()) ? "" : "（SQL: " + qaLog.getSql() + "）"))
+                        .build());
 
                 // 发送开始事件
                 sink.tryEmitNext(ServerSentEvent.<WebResult<String>>builder()
@@ -436,7 +484,7 @@ public class ChatService {
                 heartbeatThread.setDaemon(true);
                 heartbeatThread.start();
 
-                // 执行数据报告全流程（归因 + 预测 + 图表）
+                // 执行数据报告全流程（基于问数结果：报告正文 + 预测 + 图表）
                 DataReport report = agentOrchestrator.generateReport(context, progressMsg -> {
                     sink.tryEmitNext(ServerSentEvent.<WebResult<String>>builder()
                             .event("progress")
@@ -453,19 +501,6 @@ public class ChatService {
                         .event("report_data")
                         .data(WebResult.success(reportJson))
                         .build());
-
-                // 更新 question_log（answer 存报告 JSON，便于历史追溯）
-                QuestionLogBean updateLogBean = QuestionLogBean.builder()
-                        .questionId(questionForm.getQuestionId())
-                        .sessionId(sessionId)
-                        .answer(reportJson)
-                        .costToken((long) report.getTotalTokenUsage())
-                        .costTime(String.valueOf(report.getTotalExecutionTimeMs()))
-                        .build();
-                questionLogMapper.update(updateLogBean,
-                        new LambdaQueryWrapper<QuestionLogBean>()
-                                .eq(QuestionLogBean::getQuestionId, questionForm.getQuestionId())
-                                .eq(QuestionLogBean::getSessionId, sessionId));
 
                 sink.tryEmitNext(ServerSentEvent.<WebResult<String>>builder()
                         .event("complete")

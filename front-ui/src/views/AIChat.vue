@@ -22,6 +22,7 @@
         class="bubble-list-wrap"
         :messages="messages"
         :loading="waitResponse"
+        :loading-tip="loadingTip"
         :chat-title="currentChatTitle"
         @new-chat="resetChat"
         @regenerate="handleRegenerate"
@@ -35,6 +36,7 @@
         :external-session-id="currentSessionId"
         @messages-change="handleMessagesChange"
         @loading-change="handleLoading"
+        @attribution-progress="handleAttributionProgress"
         @report-loading-change="handleReportLoadingChange"
         @report-progress="handleReportProgress"
         @report-data="handleReportData"
@@ -42,7 +44,26 @@
       />
     </div>
 
-    <!-- 数据报告全屏抽屉 -->
+    <!-- 数据报告后台任务浮窗：生成中显示进度（不阻塞页面），完成后作为查看入口 -->
+    <div v-if="reportGenerating" class="report-task-float">
+      <a-spin size="small" />
+      <div class="report-task-info">
+        <div class="report-task-title">数据报告生成中</div>
+        <div class="report-task-progress" :title="reportProgress">{{ reportProgress }}</div>
+      </div>
+      <a-button size="small" type="text" danger @click="cancelReport">取消</a-button>
+    </div>
+    <div
+      v-else-if="reportData"
+      class="report-task-float report-task-entry"
+      title="查看已生成的数据报告"
+      @click="openReportDrawer"
+    >
+      <FileTextOutlined class="report-task-icon" />
+      <span>查看数据报告</span>
+    </div>
+
+    <!-- 数据报告抽屉：仅用户主动查看时打开 -->
     <DataReportDrawer
       :open="reportDrawerOpen"
       :report="reportData"
@@ -64,6 +85,16 @@ const handleMessagesChange = (newMessages: any[]) => {
 const waitResponse = ref<boolean>(false);
 const handleLoading = (loading: boolean) => {
   waitResponse.value = loading;
+  if (!loading) {
+    // loading 结束时清空进度提示，避免下次 loading 气泡残留旧文本
+    loadingTip.value = '';
+  }
+};
+
+// loading 气泡的进度提示文本（归因分析各阶段进度等；空则显示默认 loading 动画）
+const loadingTip = ref<string>('');
+const handleAttributionProgress = (progress: string) => {
+  loadingTip.value = progress;
 };
 
 // 历史记录加载状态
@@ -80,6 +111,11 @@ const resetChat = () => {
   currentChatTitle.value = '';
   currentSessionId.value = undefined;
   dialogueStore.setSessionId('');
+  // 清理后台报告任务状态（newChat 内部已中止请求）
+  notification.close(REPORT_READY_NOTIFY_KEY);
+  reportData.value = null;
+  reportError.value = '';
+  reportProgress.value = '';
 };
 
 const handleRegenerate = (content: string) => {
@@ -91,22 +127,25 @@ const handleAttribution = ({ questionId, question }: { questionId: string; quest
   senderInputRef.value?.triggerAttribution(questionId, question);
 };
 
-// ===== 数据报告 =====
+// ===== 数据报告（后台任务） =====
 // 抽屉开关、报告数据、生成状态、进度与错误
+// 报告在后台生成，不自动打开全屏抽屉；完成后通过通知提示，用户主动点击才查看
 const reportDrawerOpen = ref<boolean>(false);
 const reportData = ref<DataReport | null>(null);
 const reportGenerating = ref<boolean>(false);
 const reportProgress = ref<string>('');
 const reportError = ref<string>('');
 
+const REPORT_READY_NOTIFY_KEY = 'report-ready';
+
 // 数据报告：委托给 SenderInput 执行（复用其 datasetId/modelId/sessionId 状态）
 const handleReport = ({ questionId, question }: { questionId: string; question: string }) => {
-  // 重置状态并打开抽屉展示加载进度
+  // 后台启动生成，仅重置状态，不打开抽屉、不阻塞当前页面
+  notification.close(REPORT_READY_NOTIFY_KEY);
   reportData.value = null;
   reportError.value = '';
   reportProgress.value = '正在准备生成数据报告...';
   reportGenerating.value = true;
-  reportDrawerOpen.value = true;
   senderInputRef.value?.triggerReport(questionId, question);
 };
 
@@ -121,14 +160,49 @@ const handleReportProgress = (progress: string) => {
 const handleReportData = (report: DataReport) => {
   reportData.value = report;
   reportError.value = '';
+  // 后台生成完成：通知提示，用户主动点击才打开报告抽屉
+  notification.open({
+    key: REPORT_READY_NOTIFY_KEY,
+    message: '数据报告已生成',
+    description: '报告已在后台完成，点击按钮即可查看，不影响当前对话。',
+    duration: 0,
+    btn: () =>
+      h(
+        Button,
+        {
+          type: 'primary',
+          size: 'small',
+          onClick: () => {
+            notification.close(REPORT_READY_NOTIFY_KEY);
+            openReportDrawer();
+          }
+        },
+        () => '查看报告'
+      )
+  });
 };
 
 const handleReportError = (errorMsg: string) => {
   reportError.value = errorMsg;
+  if (errorMsg.includes('取消')) {
+    notification.warning({ message: '数据报告', description: errorMsg });
+  } else {
+    notification.error({ message: '数据报告生成失败', description: errorMsg });
+  }
 };
 
 const handleReportDrawerClose = () => {
   reportDrawerOpen.value = false;
+};
+
+const openReportDrawer = () => {
+  if (reportData.value) {
+    reportDrawerOpen.value = true;
+  }
+};
+
+const cancelReport = () => {
+  senderInputRef.value?.cancelReport();
 };
 
 const handleDeleteChat = (sessionId: string) => {
@@ -138,7 +212,9 @@ const handleDeleteChat = (sessionId: string) => {
 };
 
 // Import necessary dependencies
-import { onMounted, onUnmounted, ref } from 'vue';
+import { h, onMounted, onUnmounted, ref } from 'vue';
+import { Button, notification } from 'ant-design-vue';
+import { FileTextOutlined } from '@ant-design/icons-vue';
 import { useDialogueStore } from '@/stores/modules/dialogues';
 import DataReportDrawer from '@/components/DataReportDrawer.vue';
 import type { DataReport } from '@/api/chat.ts';
@@ -204,6 +280,11 @@ const handleChatSelect = (chatDetail: any[]) => {
   // 更新消息列表
   messages.value = convertedMessages;
   
+  // 同步到 SenderInput 内部 useXChat 状态：
+  // 否则后续在历史对话中触发归因分析等 setMessages(prev => ...) 操作时，
+  // 会基于过期的内部列表重建消息，导致历史消息丢失
+  senderInputRef.value?.syncMessages(convertedMessages);
+  
   // 消息更新后，使用 requestAnimationFrame 确保滚动时机正确
   nextTick(() => {
     requestAnimationFrame(() => {
@@ -255,68 +336,142 @@ const parseJsonData = (data: string) => {
 <style lang="scss" scoped>
 .chat-comp {
   position: relative;
-  width: 100%;
-  height: 100vh;
-  margin: 0;
-  padding: 0;
+  right: 0;
+  left: 0;
   box-sizing: border-box;
   display: flex;
+  width: 100%;
+  height: 100vh;
+  padding: 0;
+  margin: 0;
   overflow: hidden;
-  left: 0;
-  right: 0;
+  background: var(--bg-page);
+
   .content-wrap {
-    flex: 1;
-    margin-right: 0;
-    overflow-y: auto;
-    overflow-x: hidden;
     box-sizing: border-box;
+    flex: 1;
     min-height: 0;
+    margin-right: 0;
+    overflow: hidden auto;
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+
+    /* 全局细窄滚动条 */
+    scrollbar-width: thin;
+
+    &::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      background-color: var(--scrollbar-thumb);
+      border-radius: 4px;
+    }
+
+    &::-webkit-scrollbar-thumb:hover {
+      background-color: var(--scrollbar-thumb-hover);
+    }
+
     .bubble-list-wrap {
-      margin-left: 0 !important;
-      padding-left: 20px;
-    }
-    .welcome-wrap.mb-4 {
-      margin-left: -360px; // 让welcome-wrap靠到左侧
-      padding-left: 360px; // 为内容添加内边距，避免被侧边栏遮挡
       width: 100%;
-      box-sizing: border-box;
-      > * {
-        margin-left: 0 !important; // 确保内部所有元素都顶到左侧
-        width: 100%;
-        box-sizing: border-box;
-      }
     }
-    
-    /* 历史记录加载遮罩 */
+
+    .welcome-wrap.mb-4 {
+      box-sizing: border-box;
+      width: 100%;
+    }
+
+    /* 历史记录加载遮罩：玻璃拟态 */
     .history-loading-overlay {
       position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background-color: rgba(255, 255, 255, 0.8);
+      inset: 0;
+      z-index: 100;
       display: flex;
       align-items: center;
       justify-content: center;
-      z-index: 100;
+      background-color: var(--bg-glass-strong);
+      backdrop-filter: blur(6px);
     }
-    
+
     .history-loading-spinner {
       display: flex;
       flex-direction: column;
-      align-items: center;
       gap: 16px;
+      align-items: center;
     }
   }
 
   .sender-wrap {
     position: absolute;
+    right: 0; // 右侧完全顶边
     bottom: 0;
     left: 360px; // 与两个侧边栏对齐
-    right: 0; // 右侧完全顶边
     z-index: 10;
+    box-sizing: border-box;
     width: calc(100% - 360px); // 减去两个侧边栏的宽度
-    background: white;
+    padding: 24px 28px 20px;
+    pointer-events: none; // 透传滚动，仅输入卡片本身可交互
+
+    /* 从页面底色到透明的渐变遮罩，消除输入区与内容的生硬分界 */
+    background: linear-gradient(to bottom, transparent 0%, var(--bg-page) 30%);
+
+    /* 输入卡片本身可点击 */
+    :deep(.sender-input-comp) {
+      pointer-events: auto;
+    }
+  }
+
+  /* 数据报告后台任务浮窗：玻璃卡片，不遮挡主体内容 */
+  .report-task-float {
+    position: fixed;
+    right: 24px;
+    bottom: 140px; // 高于输入框，避免遮挡
+    z-index: 1000;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    max-width: 380px;
+    padding: 10px 14px;
+    background: var(--bg-glass);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    box-shadow: var(--shadow-lg);
+
+    .report-task-info {
+      flex: 1;
+      min-width: 0;
+
+      .report-task-title {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text-1);
+      }
+
+      .report-task-progress {
+        margin-top: 2px;
+        overflow: hidden;
+        font-size: 12px;
+        color: var(--text-3);
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+    }
+  }
+
+  .report-task-entry {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--brand-primary);
+    cursor: pointer;
+
+    .report-task-icon {
+      font-size: 16px;
+    }
+
+    &:hover {
+      border-color: var(--brand-primary);
+      box-shadow: var(--brand-glow);
+    }
   }
 }
 </style>

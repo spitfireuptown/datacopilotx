@@ -58,7 +58,10 @@ public class SecurityConfig {
                 .accessDeniedHandler(jwtAccessDeniedHandler)
                 .and()
                 .authorizeHttpRequests(auth -> auth
-                        .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()
+                        // ASYNC：SSE/异步请求的二次 dispatch；ERROR：出错后渲染错误页（如 /error）的 dispatch。
+                        // 两者都不携带新的 Authorization 上下文（OncePerRequestFilter 不会重跑），必须显式放行，
+                        // 否则 SSE 流出错后错误页渲染会被 anyRequest().authenticated() 拦截，抛 AccessDeniedException
+                        .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR).permitAll()
                         .requestMatchers(
                                 "/auth/login",
                                 "/auth/register",

@@ -61,12 +61,10 @@
     </div>
     
     <div class="action-button">
-      <a-button type="primary" block @click="newChat">
-        <template #icon>
-          <PlusOutlined />
-        </template>
-        新建对话
-      </a-button>
+      <button type="button" class="new-chat-btn" @click="newChat">
+        <PlusOutlined class="new-chat-icon" />
+        <span>新建对话</span>
+      </button>
     </div>
   </div>
 </template>
@@ -213,126 +211,103 @@ const handleChatClick = async (item: ChatHistoryItem) => {
 
 <style lang="scss" scoped>
 .sidebar {
-  width: 280px;
-  height: 100%;
-  background-color: #fff;
-  border-right: 1px solid #f0f0f0;
+  z-index: 15;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
+  width: 280px;
+  height: 100%;
   padding: 16px;
-  box-sizing: border-box;
+  background-color: var(--bg-sidebar);
+  border-right: 1px solid var(--border-color-light);
 }
 
 .search-container {
-  margin-bottom: 24px;
+  margin-bottom: 20px;
+
+  :deep(.ant-input-wrapper) {
+    .ant-input-affix-wrapper,
+    .ant-input {
+      border-radius: 10px;
+    }
+  }
 }
 
 .search-input {
   width: 100%;
 }
 
-.menu-list {
-  margin-bottom: 24px;
-}
-
-.menu-item {
-  display: flex;
-  align-items: center;
-  padding: 10px 16px;
-  border-radius: 6px;
-  cursor: pointer;
-  margin-bottom: 4px;
-  transition: all 0.3s;
-}
-
-.menu-item:hover {
-  background-color: #f0f7ff;
-}
-
-.menu-item.active {
-  background-color: #e6f7ff;
-  color: #1890ff;
-}
-
-.menu-icon {
-  margin-right: 12px;
-  font-size: 18px;
-}
-
-.menu-text {
-  font-size: 14px;
-}
-
 .history-container {
   flex: 1;
-  // 改为scroll，确保始终显示滚动条
-  overflow-y: scroll;
-  // 为Firefox设置滚动条样式
-  scrollbar-width: thin;
-  scrollbar-color: #999 #f0f0f0;
-  // 确保容器高度正确设置
   min-height: 0;
-  // 强制显示滚动条容器，防止内容区域宽度变化
+  padding-right: 4px;
+  overflow-y: scroll;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
   scrollbar-gutter: stable;
+  scrollbar-width: thin;
 }
 
-/* Chrome, Edge, Safari 滚动条样式 */
+/* 细窄半透明滚动条 */
 .history-container::-webkit-scrollbar {
-  width: 10px; /* 增加滚动条宽度，使其更明显 */
+  width: 5px;
 }
 
 .history-container::-webkit-scrollbar-track {
-  background: #f0f0f0; /* 设置滚动条轨道背景色 */
+  background: var(--scrollbar-track);
 }
 
 .history-container::-webkit-scrollbar-thumb {
-  background-color: #999; /* 加深滚动条滑块颜色，使其更明显 */
-  border-radius: 4px; /* 添加圆角 */
-  border: 2px solid #f0f0f0; /* 添加边框，增加对比度 */
+  background-color: var(--scrollbar-thumb);
+  border-radius: 4px;
 }
 
 .history-container::-webkit-scrollbar-thumb:hover {
-  background-color: #666; /* 悬停时颜色更深 */
+  background-color: var(--scrollbar-thumb-hover);
 }
 
 .history-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-between;
   margin-bottom: 12px;
 }
 
 .history-title {
-  font-size: 14px;
-  font-weight: 500;
-  color: #333;
-}
-
-.history-more {
-  color: #999;
-  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+  letter-spacing: 0.02em;
 }
 
 .history-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
+/* 历史项卡片 */
 .history-item {
-  padding: 13px 10px;
-  background-color: #fafafa;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.3s;
   position: relative;
   display: flex;
-  justify-content: space-between;
   align-items: flex-start;
+  justify-content: space-between;
+  padding: 12px;
+  cursor: pointer;
+  background-color: var(--bg-subtle);
+  border: 1px solid transparent;
+  border-radius: 12px;
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
 }
 
 .history-item:hover {
-  background-color: #f0f0f0;
+  background-color: var(--bg-elevated);
+  border-color: var(--brand-primary);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
 }
 
 .history-content {
@@ -341,65 +316,86 @@ const handleChatClick = async (item: ChatHistoryItem) => {
 }
 
 .history-text {
-  font-size: 14px;
-  color: #333;
-  margin-bottom: 4px;
   display: -webkit-box;
+  margin-bottom: 4px;
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-1);
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
-  overflow: hidden;
 }
 
 .history-time {
-  font-size: 12px;
-  color: #999;
+  font-size: 11px;
+  color: var(--text-3);
 }
 
 .action-button {
   margin-top: 16px;
 }
 
-.no-history {
-  text-align: center;
-  color: #999;
-  padding: 20px 0;
+/* 新建对话：品牌渐变按钮 */
+.new-chat-btn {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 40px;
   font-size: 14px;
+  font-weight: 500;
+  color: #fff;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  background: var(--brand-gradient);
+  border: none;
+  border-radius: 12px;
+  box-shadow: var(--brand-glow);
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    filter 0.2s ease;
+
+  .new-chat-icon {
+    font-size: 14px;
+  }
+
+  &:hover {
+    filter: brightness(1.08);
+    box-shadow: 0 6px 24px rgb(99 102 241 / 45%);
+    transform: translateY(-1px);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+}
+
+.no-history {
+  padding: 20px 0;
+  font-size: 13px;
+  color: var(--text-3);
+  text-align: center;
 }
 
 .loading {
-  text-align: center;
-  color: #999;
   padding: 10px 0;
-  font-size: 14px;
-  // 添加加载动画
-  .loading-spinner {
-    display: inline-block;
-    width: 16px;
-    height: 16px;
-    border: 2px solid #f3f3f3;
-    border-top: 2px solid #3498db;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-    margin-right: 8px;
-    vertical-align: middle;
-  }
-  
-  @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-  }
+  font-size: 13px;
+  color: var(--text-3);
+  text-align: center;
 }
 
 .no-more {
-  text-align: center;
-  color: #999;
   padding: 10px 0;
-  font-size: 14px;
+  font-size: 12px;
+  color: var(--text-3);
+  text-align: center;
 }
 
 .delete-dropdown {
   opacity: 0;
-  transition: opacity 0.3s;
+  transition: opacity 0.2s;
 }
 
 .history-item:hover .delete-dropdown {
@@ -407,15 +403,17 @@ const handleChatClick = async (item: ChatHistoryItem) => {
 }
 
 .delete-icon {
-  color: #999;
-  padding: 4px;
   display: inline-block;
-  border-radius: 4px;
+  padding: 4px;
+  color: var(--text-3);
+  border-radius: 6px;
+  transition:
+    color 0.2s ease,
+    background-color 0.2s ease;
 }
 
 .delete-icon:hover {
-  background-color: rgba(0, 0, 0, 0.05);
-  color: #333;
+  color: var(--text-1);
+  background-color: var(--bg-hover);
 }
-
 </style>

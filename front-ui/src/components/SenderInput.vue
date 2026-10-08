@@ -55,7 +55,7 @@
       </a-space>
     </template>
     <template #header>
-      <Sender.Header title="请选择模型配置" :open="openHeader" class="bg-white">
+      <Sender.Header title="请选择模型配置" :open="openHeader" class="sender-model-header">
         <a-row :gutter="16">
           <a-col :span="8">
             <a-select
@@ -115,7 +115,7 @@ const props = defineProps({
   }
 });
 
-const emit = defineEmits(['messagesChange', 'loadingChange', 'reportLoadingChange', 'reportProgress', 'reportData', 'reportError']);
+const emit = defineEmits(['messagesChange', 'loadingChange', 'attributionProgress', 'reportLoadingChange', 'reportProgress', 'reportData', 'reportError']);
 
 const dialogueStores = useDialogueStore();
 
@@ -245,17 +245,25 @@ const triggerAttribution = async (questionId: string, questionText: string) => {
 
   attributionLoading.value = true;
   attributionController = new AbortController();
+  // 复用问数的 loading 气泡效果（ChatBubble 底部 loading 动画），
+  // 各阶段真实进度（Step 1/4 等）通过 attributionProgress 事件展示在 loading 气泡中
+  emit('loadingChange', true);
+  emit('attributionProgress', '正在进行归因分析，请稍候...');
 
-  // 占位消息：显示加载中（key 以 attr_ 开头，用于前端识别归因分析报告气泡）
+  // 归因报告气泡：报告内容到达时才创建（key 以 attr_ 开头，用于前端识别）
   const attrMsgId = `attr_${questionId}_${Date.now()}`;
-  setMessages((prev: any[]) => [
-    ...prev,
-    {
-      id: attrMsgId,
-      message: '正在进行归因分析，请稍候...',
-      status: 'loading'
-    }
-  ]);
+  let attrMsgAdded = false;
+  const upsertAttrMessage = (content: string, status: string) => {
+    setMessages((prev: any[]) => {
+      if (attrMsgAdded && prev.some((m) => m.id === attrMsgId)) {
+        return prev.map((m: any) =>
+          m.id === attrMsgId ? { ...m, message: content, status } : m
+        );
+      }
+      attrMsgAdded = true;
+      return [...prev, { id: attrMsgId, message: content, status }];
+    });
+  };
 
   let reportContent = '';
 
@@ -263,15 +271,11 @@ const triggerAttribution = async (questionId: string, questionText: string) => {
     await attributionAnalysisStreamApi(
       (chunk: string) => {
         reportContent = chunk;
-        // 实时更新占位消息内容（保留 loading 状态，让 Bubble 组件显示 loading 动画）
-        const status = chunk.length > 100 ? 'loading' : 'loading';
-        setMessages((prev: any[]) =>
-          prev.map((m: any) =>
-            m.id === attrMsgId
-              ? { ...m, message: reportContent, status }
-              : m
-          )
-        );
+        upsertAttrMessage(reportContent, 'loading');
+      },
+      (progress: string) => {
+        // 各阶段真实进度（Step 1/4 等），展示在 loading 气泡中
+        emit('attributionProgress', progress);
       },
       {
         signal: attributionController.signal,
@@ -283,34 +287,24 @@ const triggerAttribution = async (questionId: string, questionText: string) => {
       },
       () => {
         attributionLoading.value = false;
-        setMessages((prev: any[]) =>
-          prev.map((m: any) =>
-            m.id === attrMsgId
-              ? { ...m, message: reportContent || '归因分析完成', status: 'success' }
-              : m
-          )
-        );
+        emit('loadingChange', false);
+        emit('attributionProgress', '');
+        if (reportContent) {
+          upsertAttrMessage(reportContent, 'success');
+        } else {
+          upsertAttrMessage('归因分析完成', 'success');
+        }
       }
     );
   } catch (error: any) {
     attributionLoading.value = false;
+    emit('loadingChange', false);
+    emit('attributionProgress', '');
     if (error?.name === 'AbortError') {
-      setMessages((prev: any[]) =>
-        prev.map((m: any) =>
-          m.id === attrMsgId
-            ? { ...m, message: '归因分析已取消', status: 'error' }
-            : m
-        )
-      );
+      upsertAttrMessage('归因分析已取消', 'error');
     } else {
       Msg.error('归因分析失败: ' + (error?.message || '未知错误'));
-      setMessages((prev: any[]) =>
-        prev.map((m: any) =>
-          m.id === attrMsgId
-            ? { ...m, message: '归因分析失败: ' + (error?.message || '未知错误'), status: 'error' }
-            : m
-        )
-      );
+      upsertAttrMessage('归因分析失败: ' + (error?.message || '未知错误'), 'error');
     }
   }
 };
@@ -384,15 +378,39 @@ const triggerReport = async (questionId: string, questionText: string) => {
   }
 };
 
+/**
+ * 取消后台数据报告生成任务
+ * <p>
+ * 报告在后台生成不阻塞页面，用户可通过浮窗上的取消按钮中止请求。
+ */
+const cancelReport = () => {
+  if (reportController && !reportController.signal.aborted) {
+    reportController.abort();
+  }
+  reportLoading.value = false;
+  emit('reportLoadingChange', false);
+};
+
 defineExpose({
   newChat,
   setQuestion,
   setDatasetAndModel,
+  /**
+   * 同步外部消息列表到内部 useXChat 状态
+   * <p>
+   * 历史对话由父组件（AIChat）直接加载渲染，不会经过 useXChat 的 onRequest 流程，
+   * 若不同步，后续触发归因分析等 setMessages(prev => ...) 操作会基于过期的内部列表，
+   * 导致历史消息丢失（页面看起来像跳进了新对话框）。
+   */
+  syncMessages: (list: any[]) => {
+    setMessages(list);
+  },
   getDatasetId: () => selectedDatasetId.value?.value,
   getModelId: () => selectedModelId.value?.value,
   getSessionId: () => sessionId.value,
   triggerAttribution,
-  triggerReport
+  triggerReport,
+  cancelReport
 });
 
 /** 发送消息 */
@@ -440,13 +458,22 @@ const [agent] = useXAgent({
     generateNewQuestionId();
     
     // 添加超时机制，防止loading状态一直存在
-    const timeoutId = setTimeout(() => {
-      senderLoading.value = false;
-      waitResponse.value = false;
-      if (controller) {
-        controller.abort();
-      }
-    }, 180000); // 180秒超时
+    // 采用“空闲超时”而非固定总时长：流持续有数据到达时不断重置计时，
+    // 仅当连续 STREAM_IDLE_TIMEOUT 内收不到任何数据才判定超时，避免后端长任务被误中止
+    const STREAM_IDLE_TIMEOUT = 180000; // 180秒空闲超时
+    let timeoutId: ReturnType<typeof setTimeout>;
+    const resetIdleTimer = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        senderLoading.value = false;
+        waitResponse.value = false;
+        Msg.warning('等待响应超时（180秒未收到数据），已停止等待后端返回');
+        if (controller) {
+          controller.abort();
+        }
+      }, STREAM_IDLE_TIMEOUT);
+    };
+    resetIdleTimer();
     
     // 流结束时立刻重置loading
     const resetLoading = () => {
@@ -462,6 +489,8 @@ const [agent] = useXAgent({
       // 模拟对话接口，添加数据集ID和模型ID参数
       await mockChatStreamApi(
         (chunk: string) => {
+          // 收到新数据，重置空闲超时计时
+          resetIdleTimer();
           try {
             // 移除所有可能的'data:'前缀
             chunk = chunk.replace(/^data:\s*/, '');
@@ -781,7 +810,7 @@ watch(
 /* 数据集警告样式 */
 :deep(.dataset-warning .ant-select-selector) {
   border-color: #ff4d4f !important;
-  box-shadow: 0 0 0 2px rgba(255, 77, 79, 0.2) !important;
+  box-shadow: 0 0 0 2px rgb(255 77 79 / 20%) !important;
 }
 
 /* 模型按钮警告样式 */
@@ -795,31 +824,64 @@ watch(
   border-color: #ff7875 !important;
 }
 
-/* 调整用户发送消息框的样式，减少空白感 */
+/* 输入区悬浮玻璃卡片 */
 .sender-input-comp {
+  max-width: 860px;
   min-height: 40px !important;
   max-height: 165px !important;
+  margin: 0 auto;
+  background: var(--bg-glass) !important;
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--border-color) !important;
+  border-radius: 16px !important;
+  box-shadow: var(--shadow-lg) !important;
+  transition:
+    border-color 0.25s ease,
+    box-shadow 0.25s ease;
+
+  &:hover {
+    border-color: var(--brand-primary) !important;
+  }
+
+  &:focus-within {
+    border-color: var(--brand-primary) !important;
+    box-shadow: var(--brand-glow) !important;
+  }
 }
 
 /* 穿透样式，调整输入区域的内边距和行高 */
 :deep(.antd-x-sender) {
   min-height: 40px !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
 }
 
 :deep(.antd-x-sender-content) {
-  padding: 6px 12px !important; /* 减小内边距 */
   min-height: 40px !important;
+  padding: 6px 12px !important; /* 减小内边距 */
 }
 
 :deep(.antd-x-sender-input) {
-  line-height: 1.5 !important; /* 调整行高 */
   min-height: 40px !important;
   max-height: 120px !important;
   font-size: 14px !important;
+  line-height: 1.5 !important; /* 调整行高 */
+  color: var(--text-1);
+}
+
+:deep(.antd-x-sender-input::placeholder) {
+  color: var(--text-3);
 }
 
 /* 调整发送按钮区域样式 */
 :deep(.antd-x-sender-actions) {
   padding: 6px 12px !important;
+}
+
+/* 模型选择弹出头部：跟随主题，替代固定 bg-white */
+.sender-model-header {
+  background: var(--bg-elevated) !important;
+  border-bottom: 1px solid var(--border-color-light);
 }
 </style>

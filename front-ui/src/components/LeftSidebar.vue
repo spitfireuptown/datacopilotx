@@ -53,9 +53,11 @@
           </div>
         </template>
         <div class="user-info">
-          <a-avatar :size="36" :style="{ backgroundColor: '#1890ff' }">
-            {{ (authStore.userInfo?.nickname || authStore.userInfo?.username || 'U').charAt(0).toUpperCase() }}
-          </a-avatar>
+          <div class="user-avatar-ring">
+            <a-avatar :size="36" :style="{ backgroundColor: '#6366f1', fontWeight: 600 }">
+              {{ (authStore.userInfo?.nickname || authStore.userInfo?.username || 'U').charAt(0).toUpperCase() }}
+            </a-avatar>
+          </div>
           <span class="user-name">{{ authStore.userInfo?.nickname || authStore.userInfo?.username }}</span>
         </div>
       </a-popover>
@@ -230,59 +232,96 @@ const handleLogout = () => {
 </script>
 
 <style lang="scss" scoped>
-/* 样式部分保持不变 */
 .sidebar2 {
-  width: 80px;
-  height: 100%;
-  background-color: #fff;
-  border-right: 1px solid #f0f0f0;
+  position: relative;
+  z-index: 20;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  padding: 16px 0;
-  box-sizing: border-box;
   align-items: center;
-  position: relative;
+  width: 80px;
+  height: 100%;
+  padding: 16px 0;
+  background-color: var(--bg-sidebar);
+  border-right: 1px solid var(--border-color-light);
 }
 
 .menu-list {
-  flex: 1;
+  box-sizing: border-box;
   display: flex;
+  flex: 1;
   flex-direction: column;
   width: 100%;
+  padding: 0 8px;
 }
 
 .sidebar-bottom {
-  width: 100%;
   position: absolute;
   bottom: 0;
   left: 0;
-  padding-bottom: 16px;
   box-sizing: border-box;
-}
-
-.menu-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 12px 0;
-  cursor: pointer;
-  transition: all 0.3s;
   width: 100%;
-  color: #666;
-}
-
-.menu-item:hover {
-  background-color: #f5f5f5;
-}
-
-.menu-item.active {
-  color: #1890ff;
-  background-color: #e6f7ff;
+  padding-bottom: 16px;
 }
 
 .menu-icon {
-  font-size: 18px;
   margin-bottom: 4px;
+  font-size: 18px;
+}
+
+.menu-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  padding: 12px 4px;
+  margin-bottom: 4px;
+  color: var(--text-2);
+  cursor: pointer;
+  border-radius: 12px;
+  transition:
+    background-color 0.25s ease,
+    color 0.25s ease,
+    transform 0.25s ease;
+
+  .menu-icon {
+    transition: transform 0.25s ease;
+  }
+
+  &:hover {
+    color: var(--text-1);
+    background-color: var(--bg-hover);
+
+    .menu-icon {
+      transform: translateY(-1px) scale(1.08);
+    }
+  }
+
+  &.active {
+    font-weight: 500;
+    color: var(--brand-primary);
+    background-color: var(--bg-hover);
+
+    /* 左侧品牌渐变指示条 */
+    &::before {
+      position: absolute;
+      top: 50%;
+      left: -8px;
+      width: 3px;
+      height: 24px;
+      content: '';
+      background: var(--brand-gradient);
+      border-radius: 2px;
+      box-shadow: var(--brand-glow);
+      transform: translateY(-50%);
+    }
+
+    /* 图标为 SVG（fill: currentColor），不能用 background-clip 渐变，直接用品牌色 */
+    .menu-icon {
+      color: var(--brand-primary);
+    }
+  }
 }
 
 .menu-text {
@@ -291,8 +330,8 @@ const handleLogout = () => {
 
 .admin-menu-list {
   width: 100%;
-  border-top: 1px solid #f0f0f0;
   padding-top: 8px;
+  border-top: 1px solid var(--border-color-light);
 }
 
 /* 用户信息区域 */
@@ -302,23 +341,36 @@ const handleLogout = () => {
   align-items: center;
   padding: 12px 4px;
   cursor: pointer;
-  transition: all 0.3s;
-  border-top: 1px solid #f0f0f0;
+  border-top: 1px solid var(--border-color-light);
+  transition: background-color 0.25s ease;
 }
 
 .user-info:hover {
-  background-color: #f5f5f5;
+  background-color: var(--bg-hover);
+}
+
+/* 头像品牌渐变描边 */
+.user-avatar-ring {
+  padding: 2px;
+  background: var(--brand-gradient);
+  border-radius: 50%;
+  box-shadow: var(--brand-glow);
+
+  :deep(.ant-avatar) {
+    box-sizing: content-box;
+    border: 2px solid var(--bg-sidebar);
+  }
 }
 
 .user-name {
-  font-size: 11px;
-  color: #333;
-  margin-top: 6px;
   max-width: 72px;
+  margin-top: 6px;
   overflow: hidden;
+  font-size: 11px;
+  color: var(--text-2);
+  text-align: center;
   text-overflow: ellipsis;
   white-space: nowrap;
-  text-align: center;
 }
 
 .user-popover {
@@ -328,12 +380,12 @@ const handleLogout = () => {
 .user-popover-name {
   font-size: 14px;
   font-weight: 500;
-  color: #333;
+  color: var(--text-1);
 }
 
 .user-popover-role {
-  font-size: 12px;
-  color: #999;
   margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-3);
 }
 </style>

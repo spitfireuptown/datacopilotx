@@ -5,34 +5,35 @@
       v-html="renderedContent"
     />
     <div v-if="hasTableData" style="text-align: right">
-      <div v-show="tableColumns.length>1" class="type-list">
-        <div
-          v-for="item in typeList" :key="item.name" class="type-item" :class="{active:item.active}"
-          @click="handleTypeChange(item)">
-          <a-tooltip v-if="item.name==='PieChart'" placement="topLeft" title="饼图">
-            <PieChartOutlined
-              :style="{fontSize: '16px', color: item.active?'#34c2a0':''}" />
-          </a-tooltip>
-          <a-tooltip v-if="item.name==='LineChart'" placement="topLeft" title="折线图">
-            <LineChartOutlined
-              :style="{fontSize: '16px', color: item.active?'#34c2a0':''}" />
-          </a-tooltip>
-          <a-tooltip v-if="item.name==='BarChart'" placement="topLeft" title="柱状图">
-            <BarChartOutlined
-              :style="{fontSize: '16px', color: item.active?'#34c2a0':''}" />
-          </a-tooltip>
-          <a-tooltip v-if="item.name==='Table'" placement="topLeft" title="表格">
-            <TableOutlined :style="{fontSize: '16px', color: item.active?'#34c2a0':''}" />
-          </a-tooltip>
-        </div>
-      </div>
-      <div class="dashboard-action-row">
-        <a-divider v-if="tableColumns.length>1" type="vertical" style="height: 20px; margin: 0 4px;" />
+      <div class="chart-toolbar">
+        <!-- 添加到仪表盘按钮：置于左侧 -->
         <a-tooltip placement="topLeft" title="添加到仪表盘">
           <PlusSquareOutlined
             class="add-dashboard-btn"
             @click="handleAddToDashboard" />
         </a-tooltip>
+        <!-- 图表类型切换按钮：置于右侧，与添加按钮同行 -->
+        <div v-show="tableColumns.length>1" class="type-list">
+          <div
+            v-for="item in typeList" :key="item.name" class="type-item" :class="{active:item.active}"
+            @click="handleTypeChange(item)">
+            <a-tooltip v-if="item.name==='PieChart'" placement="topLeft" title="饼图">
+              <PieChartOutlined
+                :style="{fontSize: '16px', color: item.active?'#34c2a0':''}" />
+            </a-tooltip>
+            <a-tooltip v-if="item.name==='LineChart'" placement="topLeft" title="折线图">
+              <LineChartOutlined
+                :style="{fontSize: '16px', color: item.active?'#34c2a0':''}" />
+            </a-tooltip>
+            <a-tooltip v-if="item.name==='BarChart'" placement="topLeft" title="柱状图">
+              <BarChartOutlined
+                :style="{fontSize: '16px', color: item.active?'#34c2a0':''}" />
+            </a-tooltip>
+            <a-tooltip v-if="item.name==='Table'" placement="topLeft" title="表格">
+              <TableOutlined :style="{fontSize: '16px', color: item.active?'#34c2a0':''}" />
+            </a-tooltip>
+          </div>
+        </div>
       </div>
       <a-table
         v-show="chartType=='Table'"
@@ -568,40 +569,41 @@ const handleAddToDashboard = () => {
     questionText: props.questionText || '',
     sqlText: props.sqlText || '',
   });
-  message.success('已添加到仪表盘');
 };
 </script>
 
 <style lang="scss">
 .markdown-content {
-  font-size: 14px;
-  line-height: 1.6;
-  background: unset;
-  overflow-y: auto;
-  word-break: break-word;
+  height: auto;
   min-height: 25px;
   max-height: 600px;
-  height: auto;
+  overflow-y: auto;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-1);
+  word-break: break-word;
+  background: unset;
 
   pre {
+    padding: 12px;
+    margin: 8px 0;
+    overflow-x: auto;
     color: #fff;
     background-color: #24292e;
-    padding: 12px;
     border-radius: 6px;
-    overflow-x: auto;
-    margin: 8px 0;
   }
 
   code {
-    background-color: rgba(27, 31, 35, 0.05);
     padding: 0.2em 0.4em;
-    border-radius: 3px;
     font-size: 85%;
+    color: var(--text-1);
+    background-color: var(--bg-subtle);
+    border-radius: 3px;
   }
 
   pre code {
-    background-color: transparent;
     padding: 0;
+    background-color: transparent;
   }
 
   h1, h2, h3, h4, h5, h6 {
@@ -609,6 +611,7 @@ const handleAddToDashboard = () => {
     margin-bottom: 8px;
     font-weight: 600;
     line-height: 1.25;
+    color: var(--text-1);
   }
 
   ul, ol {
@@ -617,40 +620,60 @@ const handleAddToDashboard = () => {
   }
 
   a {
-    color: #0366d6;
+    color: var(--brand-primary);
     text-decoration: none;
   }
 
   a:hover {
+    color: var(--brand-primary-hover);
     text-decoration: underline;
+  }
+
+  blockquote {
+    color: var(--text-2);
+    border-left: 3px solid var(--brand-primary);
+  }
+
+  table {
+    border-collapse: collapse;
+
+    th,
+    td {
+      padding: 6px 10px;
+      border: 1px solid var(--border-color);
+    }
+
+    th {
+      background: var(--bg-subtle);
+    }
   }
 }
 
 .md-editor {
+  height: auto;
   min-height: 25px;
   max-height: 600px;
-  height: auto;
 }
 
 :deep(.ant-bubble-content.ant-bubble-content-filled) {
+  height: auto;
   min-height: 32px;
   max-height: 600px;
-  height: auto;
 }
 
 // Ant Design表格样式
 :deep(.ant-table) {
   margin-top: 16px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  border-radius: 6px;
   overflow: hidden;
+  border-radius: 8px;
+  box-shadow: var(--shadow-sm);
 }
 
 :deep(.ant-table-thead > tr > th) {
-  background-color: #f8f9fa;
   font-weight: 600;
-  color: #2c3e50;
-  border-bottom: 1px solid #ddd;
+  color: var(--text-1);
+  background-color: var(--bg-subtle);
+  border-bottom: 1px solid var(--border-color);
 }
 
 :deep(.ant-table-tbody > tr) {
@@ -658,57 +681,58 @@ const handleAddToDashboard = () => {
 }
 
 :deep(.ant-table-tbody > tr:hover > td) {
-  background-color: #f5f5f5;
+  background-color: var(--bg-hover);
 }
 
 :deep(.ant-table-tbody > tr.ant-table-row-even > td) {
-  background-color: #fafafa;
+  background-color: var(--bg-subtle);
+}
+
+/* 工具栏：左侧添加到仪表盘按钮 + 右侧图表类型切换按钮，同一行 */
+.chart-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px;
 }
 
 .type-list {
-  padding: 5px;
   display: flex;
   flex-direction: row-reverse;
 
   .type-item {
-    cursor: pointer;
     padding: 2px 5px;
     margin: 0 5px;
+    cursor: pointer;
     border-radius: 5px;
 
     &:hover {
-      background-color: #e5f7f3;
+      background-color: var(--bg-hover);
     }
   }
 
   .active {
-    background-color: #e5f7f3;
+    background-color: var(--bg-hover);
   }
 }
 
-.dashboard-action-row {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
+.add-dashboard-btn {
   padding: 2px 5px;
+  font-size: 16px;
+  color: var(--text-3);
+  cursor: pointer;
+  border-radius: 5px;
+  transition: all 0.2s;
 
-  .add-dashboard-btn {
-    cursor: pointer;
-    font-size: 16px;
-    color: #999;
-    padding: 2px 5px;
-    border-radius: 5px;
-    transition: all 0.2s;
-
-    &:hover {
-      color: #1890ff;
-      background-color: #e6f7ff;
-    }
+  &:hover {
+    color: var(--brand-primary);
+    background-color: var(--bg-hover);
   }
 }
+
 .chart{
-  max-width: 100%;
   width: 73vw;
+  max-width: 100%;
   height: 350px;
   margin: 0 auto;
 }

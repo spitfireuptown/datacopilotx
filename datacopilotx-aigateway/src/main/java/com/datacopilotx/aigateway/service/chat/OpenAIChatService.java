@@ -39,10 +39,11 @@ public class OpenAIChatService implements AIChatService {
     private static final Map<String, OpenAiEmbeddingModel> embeddingModelCache = new ConcurrentHashMap<>();
 
     /**
-     * OpenAI HTTP 请求超时时间（秒），默认 120s，覆盖 langchain4j 默认的 60s 读超时。
-     * NL2SQL 等长文本生成任务可能超过 60s，需通过 ai.gateway.openai.timeout-seconds 调整。
+     * OpenAI HTTP 请求超时时间（秒），默认 300s，覆盖 langchain4j 默认的 60s 读超时。
+     * 数据报告 Synthesizer 等长文本生成任务单次调用可能超过 120s，
+     * 需通过 ai.gateway.openai.timeout-seconds 调整。
      */
-    @Value("${ai.gateway.openai.timeout-seconds:120}")
+    @Value("${ai.gateway.openai.timeout-seconds:300}")
     private long timeoutSeconds;
 
     private String buildModelKey(String apiKey, String model, String baseUrl) {
