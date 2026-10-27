@@ -67,6 +67,8 @@ public class ScopeAnalyzerAgent {
                 .build();
 
         String rawResponse = aiGatewayChatService.chatCompletions(chatRequest);
+        // 记账本次 LLM 调用的 Token 消耗
+        context.addTokenUsage(chatRequest.getTokenUsage() != null ? chatRequest.getTokenUsage() : 0);
         log.debug("[ScopeAnalyzer] LLM 原始响应: {}", rawResponse);
 
         String narrowedScope = parseScopeResponse(rawResponse, dataSourceInfo);

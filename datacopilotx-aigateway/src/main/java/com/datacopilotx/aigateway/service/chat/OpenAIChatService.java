@@ -24,6 +24,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
 import static dev.langchain4j.data.message.SystemMessage.systemMessage;
@@ -105,7 +106,14 @@ public class OpenAIChatService implements AIChatService {
         } else {
             messages = List.of(userMessage(userMessageContent));
         }
-        return chatModel.chat(messages).aiMessage().text();
+        long startTime = System.currentTimeMillis();
+        ChatResponse response = chatModel.chat(messages);
+        // 记录 Token 用量与耗时，供调用方统计
+        if (response.tokenUsage() != null) {
+            chatRequest.setTokenUsage(response.tokenUsage().totalTokenCount());
+        }
+        chatRequest.setTimeCost(System.currentTimeMillis() - startTime);
+        return response.aiMessage().text();
     }
 
     @Override

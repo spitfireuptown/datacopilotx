@@ -37,41 +37,8 @@
         @messages-change="handleMessagesChange"
         @loading-change="handleLoading"
         @attribution-progress="handleAttributionProgress"
-        @report-loading-change="handleReportLoadingChange"
-        @report-progress="handleReportProgress"
-        @report-data="handleReportData"
-        @report-error="handleReportError"
       />
     </div>
-
-    <!-- 数据报告后台任务浮窗：生成中显示进度（不阻塞页面），完成后作为查看入口 -->
-    <div v-if="reportGenerating" class="report-task-float">
-      <a-spin size="small" />
-      <div class="report-task-info">
-        <div class="report-task-title">数据报告生成中</div>
-        <div class="report-task-progress" :title="reportProgress">{{ reportProgress }}</div>
-      </div>
-      <a-button size="small" type="text" danger @click="cancelReport">取消</a-button>
-    </div>
-    <div
-      v-else-if="reportData"
-      class="report-task-float report-task-entry"
-      title="查看已生成的数据报告"
-      @click="openReportDrawer"
-    >
-      <FileTextOutlined class="report-task-icon" />
-      <span>查看数据报告</span>
-    </div>
-
-    <!-- 数据报告抽屉：仅用户主动查看时打开 -->
-    <DataReportDrawer
-      :open="reportDrawerOpen"
-      :report="reportData"
-      :loading="reportGenerating"
-      :progress="reportProgress"
-      :error="reportError"
-      @close="handleReportDrawerClose"
-    />
   </div>
 </template>
 
@@ -111,11 +78,8 @@ const resetChat = () => {
   currentChatTitle.value = '';
   currentSessionId.value = undefined;
   dialogueStore.setSessionId('');
-  // 清理后台报告任务状态（newChat 内部已中止请求）
-  notification.close(REPORT_READY_NOTIFY_KEY);
-  reportData.value = null;
-  reportError.value = '';
-  reportProgress.value = '';
+  // 清理全局后台报告任务状态（内部会中止进行中的请求）
+  reportTaskStore.reset();
 };
 
 const handleRegenerate = (content: string) => {
@@ -128,81 +92,11 @@ const handleAttribution = ({ questionId, question }: { questionId: string; quest
 };
 
 // ===== 数据报告（后台任务） =====
-// 抽屉开关、报告数据、生成状态、进度与错误
-// 报告在后台生成，不自动打开全屏抽屉；完成后通过通知提示，用户主动点击才查看
-const reportDrawerOpen = ref<boolean>(false);
-const reportData = ref<DataReport | null>(null);
-const reportGenerating = ref<boolean>(false);
-const reportProgress = ref<string>('');
-const reportError = ref<string>('');
-
-const REPORT_READY_NOTIFY_KEY = 'report-ready';
-
-// 数据报告：委托给 SenderInput 执行（复用其 datasetId/modelId/sessionId 状态）
+// 状态与浮窗/抽屉已提升为全局（reportTask store + ReportTaskGlobal 组件），
+// 切换页面后生成进度与查看入口依然可见；此处仅负责触发
 const handleReport = ({ questionId, question }: { questionId: string; question: string }) => {
-  // 后台启动生成，仅重置状态，不打开抽屉、不阻塞当前页面
-  notification.close(REPORT_READY_NOTIFY_KEY);
-  reportData.value = null;
-  reportError.value = '';
-  reportProgress.value = '正在准备生成数据报告...';
-  reportGenerating.value = true;
+  // 校验数据集/模型并启动后台生成任务（状态写入全局 store）
   senderInputRef.value?.triggerReport(questionId, question);
-};
-
-const handleReportLoadingChange = (loading: boolean) => {
-  reportGenerating.value = loading;
-};
-
-const handleReportProgress = (progress: string) => {
-  reportProgress.value = progress;
-};
-
-const handleReportData = (report: DataReport) => {
-  reportData.value = report;
-  reportError.value = '';
-  // 后台生成完成：通知提示，用户主动点击才打开报告抽屉
-  notification.open({
-    key: REPORT_READY_NOTIFY_KEY,
-    message: '数据报告已生成',
-    description: '报告已在后台完成，点击按钮即可查看，不影响当前对话。',
-    duration: 0,
-    btn: () =>
-      h(
-        Button,
-        {
-          type: 'primary',
-          size: 'small',
-          onClick: () => {
-            notification.close(REPORT_READY_NOTIFY_KEY);
-            openReportDrawer();
-          }
-        },
-        () => '查看报告'
-      )
-  });
-};
-
-const handleReportError = (errorMsg: string) => {
-  reportError.value = errorMsg;
-  if (errorMsg.includes('取消')) {
-    notification.warning({ message: '数据报告', description: errorMsg });
-  } else {
-    notification.error({ message: '数据报告生成失败', description: errorMsg });
-  }
-};
-
-const handleReportDrawerClose = () => {
-  reportDrawerOpen.value = false;
-};
-
-const openReportDrawer = () => {
-  if (reportData.value) {
-    reportDrawerOpen.value = true;
-  }
-};
-
-const cancelReport = () => {
-  senderInputRef.value?.cancelReport();
 };
 
 const handleDeleteChat = (sessionId: string) => {
@@ -212,15 +106,14 @@ const handleDeleteChat = (sessionId: string) => {
 };
 
 // Import necessary dependencies
-import { h, onMounted, onUnmounted, ref } from 'vue';
-import { Button, notification } from 'ant-design-vue';
-import { FileTextOutlined } from '@ant-design/icons-vue';
+import { onMounted, onUnmounted, ref } from 'vue';
 import { useDialogueStore } from '@/stores/modules/dialogues';
-import DataReportDrawer from '@/components/DataReportDrawer.vue';
-import type { DataReport } from '@/api/chat.ts';
+import { useReportTaskStore } from '@/stores/modules/reportTask';
 
 // Create store instance
 const dialogueStore = useDialogueStore();
+// 数据报告后台任务全局状态
+const reportTaskStore = useReportTaskStore();
 // Define currentSessionId
 const currentSessionId = ref<string | undefined>(undefined);
 // 添加当前对话标题
@@ -417,60 +310,6 @@ const parseJsonData = (data: string) => {
     /* 输入卡片本身可点击 */
     :deep(.sender-input-comp) {
       pointer-events: auto;
-    }
-  }
-
-  /* 数据报告后台任务浮窗：玻璃卡片，不遮挡主体内容 */
-  .report-task-float {
-    position: fixed;
-    right: 24px;
-    bottom: 140px; // 高于输入框，避免遮挡
-    z-index: 1000;
-    display: flex;
-    gap: 10px;
-    align-items: center;
-    max-width: 380px;
-    padding: 10px 14px;
-    background: var(--bg-glass);
-    backdrop-filter: blur(12px);
-    border: 1px solid var(--border-color);
-    border-radius: 12px;
-    box-shadow: var(--shadow-lg);
-
-    .report-task-info {
-      flex: 1;
-      min-width: 0;
-
-      .report-task-title {
-        font-size: 13px;
-        font-weight: 600;
-        color: var(--text-1);
-      }
-
-      .report-task-progress {
-        margin-top: 2px;
-        overflow: hidden;
-        font-size: 12px;
-        color: var(--text-3);
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-    }
-  }
-
-  .report-task-entry {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--brand-primary);
-    cursor: pointer;
-
-    .report-task-icon {
-      font-size: 16px;
-    }
-
-    &:hover {
-      border-color: var(--brand-primary);
-      box-shadow: var(--brand-glow);
     }
   }
 }

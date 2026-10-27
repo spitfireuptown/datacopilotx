@@ -476,7 +476,7 @@ public class TextToSqlAccuracyTest {
                 {
                     "isEquivalent": true/false,
                     "reason": "Brief explanation of why the SQLs are equivalent or not"
-                }
+                }   
                 """;
 
         String userPrompt = String.format("""

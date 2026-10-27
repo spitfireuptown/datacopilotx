@@ -144,7 +144,9 @@ public class AgentOrchestrator {
                 .title(attributionReport.getTitle() != null ? attributionReport.getTitle() : "数据分析报告")
                 .createdAt(System.currentTimeMillis())
                 .totalExecutionTimeMs(totalTime)
-                .totalTokenUsage(attributionReport.getTotalTokenUsage())
+                // 报告所有阶段（Synthesizer/Predictor/ChartAnalyst）结束后统一取上下文累计值，
+                // 包含 Synthesizer 自身与后续 Predictor/ChartAnalyst 的调用
+                .totalTokenUsage(context.getTotalTokenUsage())
                 .executiveSummary(attributionReport.getExecutiveSummary())
                 .keyFindings(attributionReport.getKeyFindings())
                 .sections(attributionReport.getSections())

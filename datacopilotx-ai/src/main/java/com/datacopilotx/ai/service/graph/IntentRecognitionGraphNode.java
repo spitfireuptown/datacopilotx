@@ -83,6 +83,8 @@ public class IntentRecognitionGraphNode implements NodeAction<WorkflowState> {
             Map<String, Object> relationAnalysisResultMap = JSONUtil.toBean(relationAnalysisResult, Map.class);
             Integer score = (Integer) relationAnalysisResultMap.get("score");
             String analysis = (String) relationAnalysisResultMap.get("analysis");
+            Object dsl = relationAnalysisResultMap.get("dsl");
+            String dslJson = dsl != null ? JSONUtil.toJsonStr(dsl) : "";
 
             if (score == null) {
                 throw new RuntimeException("意图识别结果中缺少score字段");
@@ -102,6 +104,7 @@ public class IntentRecognitionGraphNode implements NodeAction<WorkflowState> {
             Map<String, Object> result = new HashMap<>();
             result.put("intent_score", score);
             result.put("intent_analysis", analysis != null ? analysis : "");
+            result.put("intent_dsl", dslJson);
             result.put("answer", analysis != null ? analysis : "");
             result.put("token", chatRequest.getTokenUsage() != null ? chatRequest.getTokenUsage() : 0);
             result.put("time_cost", chatRequest.getTimeCost() != null ? chatRequest.getTimeCost() : 0);
@@ -121,6 +124,7 @@ public class IntentRecognitionGraphNode implements NodeAction<WorkflowState> {
 
             return Map.of(
                     "intent_analysis", newIntentError,
+                    "intent_dsl", "",
                     "retry_count", retryCount,
                     "intent_score", -1,
                     "answer", ""

@@ -65,6 +65,7 @@ declare module 'vue' {
     MdPreview: typeof import('./../src/components/MdPreview.vue')['default']
     PieChartOutlined: typeof import('@ant-design/icons-vue')['PieChartOutlined']
     PlusSquareOutlined: typeof import('@ant-design/icons-vue')['PlusSquareOutlined']
+    ReportTaskGlobal: typeof import('./../src/components/ReportTaskGlobal.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     SecondLeftSidebar: typeof import('./../src/components/SecondLeftSidebar.vue')['default']

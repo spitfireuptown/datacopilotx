@@ -45,6 +45,7 @@ public class GenerateSqlGraphNode implements NodeAction<WorkflowState> {
         List<String> recall = state.recall();
         String sqlError = state.sqlError().orElse("");
         String intentAnalysis = state.intentAnalysis().orElse("");
+        String intentDsl = state.intentDsl().orElse("");
         int currentRetryCount = state.retryCount().orElse(0);
 
         String currentUserId = state.userId().orElse(null);
@@ -72,6 +73,7 @@ public class GenerateSqlGraphNode implements NodeAction<WorkflowState> {
         promptParams.put("${recall}", ObjectUtils.isEmpty(recall) ? "" : JSONUtil.toJsonStr(recall));
         promptParams.put("${meta}", workflowServiceHelper.assembleDataSetInfo(dataSetBean, beautifulQuestion, state));
         promptParams.put("${analysis}", intentAnalysis);
+        promptParams.put("${dsl}", intentDsl);
         promptParams.put("${sql_error}", sqlError);
         promptParams.put("${permission_rules}", permissionRules);
 

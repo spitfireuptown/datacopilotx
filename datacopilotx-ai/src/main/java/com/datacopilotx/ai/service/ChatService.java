@@ -458,6 +458,8 @@ public class ChatService {
                         .generatedSql(qaLog.getSql())
                         .summary("智能问数查询结果"
                                 + (ObjectUtils.isEmpty(qaLog.getSql()) ? "" : "（SQL: " + qaLog.getSql() + "）"))
+                        // 带上原始问数的 Token 消耗，避免报告统计遗漏
+                        .tokenUsage(qaLog.getCostToken() != null ? qaLog.getCostToken().intValue() : 0)
                         .build());
 
                 // 发送开始事件

@@ -20,6 +20,11 @@ import java.util.*;
 public abstract class JDBCDriver {
 
     /**
+     * 查询结果集兜底上限，防止无 LIMIT 的SQL返回大结果集导致OOM
+     */
+    private static final int MAX_QUERY_ROWS = 1000;
+
+    /**
      * 获取JDBC URL
      * @return JDBC连接URL
      */
@@ -58,6 +63,8 @@ public abstract class JDBCDriver {
         try {
             connection = this.getConnection(driverInfo);
             statement = connection.createStatement();
+            // 兜底限制返回行数，防止无 LIMIT 的全表扫描导致大结果集 OOM
+            statement.setMaxRows(MAX_QUERY_ROWS);
             log.debug("执行SQL语句: {}", sql);
             ResultSet resultSet = statement.executeQuery(sql);
             ResultSetMetaData metaData = resultSet.getMetaData();
@@ -80,6 +87,9 @@ public abstract class JDBCDriver {
                 array.add(json);
             }
             queryDTO.setData(array);
+            if (array.size() >= MAX_QUERY_ROWS) {
+                log.warn("查询结果达到上限 {} 行，已截断，SQL: {}", MAX_QUERY_ROWS, sql);
+            }
         } catch (Exception e) {
             String errorMsg = "SQL执行失败: " + e.getMessage();
             log.error(errorMsg, e);

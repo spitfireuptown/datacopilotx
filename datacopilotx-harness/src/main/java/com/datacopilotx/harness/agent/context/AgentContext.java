@@ -8,6 +8,7 @@ import lombok.Data;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * 共享上下文 —— 贯穿 Planner → Executor → Synthesizer 全流程
@@ -76,6 +77,15 @@ public class AgentContext {
     private long startTimeMs = System.currentTimeMillis();
 
     /**
+     * 各智能体自身 LLM 调用的 Token 累计（Executor 之外的记忆账本，线程安全）
+     * <p>
+     * Executor 的调用已通过 ExecutionResult.tokenUsage 记账，
+     * ScopeAnalyzer/Planner/Synthesizer/Predictor/ChartAnalyst 的调用在此累计。
+     */
+    @Builder.Default
+    private final AtomicInteger llmTokenUsage = new AtomicInteger(0);
+
+    /**
      * 获取指定子任务 ID 的执行结果
      */
     public ExecutionResult getExecutionResult(String taskId) {
@@ -111,10 +121,19 @@ public class AgentContext {
     }
 
     /**
-     * 计算总 Token 消耗
+     * 累计一次 LLM 调用的 Token 消耗
+     */
+    public void addTokenUsage(int tokenUsage) {
+        if (tokenUsage > 0) {
+            llmTokenUsage.addAndGet(tokenUsage);
+        }
+    }
+
+    /**
+     * 计算总 Token 消耗（LLM 调用累计 + 子任务执行结果记账）
      */
     public int getTotalTokenUsage() {
-        return executionResults.values().stream()
+        return llmTokenUsage.get() + executionResults.values().stream()
                 .mapToInt(ExecutionResult::getTokenUsage)
                 .sum();
     }

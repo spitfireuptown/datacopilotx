@@ -68,6 +68,8 @@ public class SynthesizerAgent {
                 .build();
 
         String rawResponse = aiGatewayChatService.chatCompletions(chatRequest);
+        // 记账本次 LLM 调用的 Token 消耗
+        context.addTokenUsage(chatRequest.getTokenUsage() != null ? chatRequest.getTokenUsage() : 0);
         log.debug("[Synthesizer] LLM 原始响应: {}", rawResponse);
 
         AttributionReport report = parseReportResponse(rawResponse, context);

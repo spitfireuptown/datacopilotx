@@ -82,9 +82,9 @@
 // 导入路由和图标
 import { Sender, useXAgent, useXChat } from 'ant-design-x-vue';
 import { message as Msg } from 'ant-design-vue';
-import { mockChatStreamApi, attributionAnalysisStreamApi, reportAnalysisStreamApi } from '@/api/chat.ts';
-import type { DataReport } from '@/api/chat.ts';
+import { mockChatStreamApi, attributionAnalysisStreamApi } from '@/api/chat.ts';
 import { useDialogueStore } from '@/stores/modules/dialogues';
+import { useReportTaskStore } from '@/stores/modules/reportTask';
 import { ref, watch, onMounted, onUnmounted } from 'vue';
 
 // 导入模型相关API
@@ -115,9 +115,11 @@ const props = defineProps({
   }
 });
 
-const emit = defineEmits(['messagesChange', 'loadingChange', 'attributionProgress', 'reportLoadingChange', 'reportProgress', 'reportData', 'reportError']);
+const emit = defineEmits(['messagesChange', 'loadingChange', 'attributionProgress']);
 
 const dialogueStores = useDialogueStore();
+// 数据报告后台任务全局状态（状态提升后切换页面不丢失）
+const reportTaskStore = useReportTaskStore();
 
 /** 重置所有数据，开启了新对话 */
 // 修改newChat函数，确保仅在明确需要新建对话时才清空历史记录
@@ -129,11 +131,8 @@ const newChat = () => {
   if (attributionController && !attributionController.signal.aborted) {
     attributionController.abort();
   }
-  if (reportController && !reportController.signal.aborted) {
-    reportController.abort();
-  }
-  reportLoading.value = false;
-  emit('reportLoadingChange', false);
+  // 清理全局数据报告任务状态（内部会中止进行中的请求）
+  reportTaskStore.reset();
   selectedModel.value = null;
   selectedModelId.value = undefined;
   conversation_uuid.value = undefined;
@@ -312,17 +311,14 @@ const triggerAttribution = async (questionId: string, questionText: string) => {
 /**
  * 触发数据报告
  * <p>
- * 调用后端 /chat/report 接口，以 SSE 流式返回完整数据报告，
- * 报告通过 reportData 事件传给父组件（AIChat），在全屏抽屉中展示。
+ * 负责数据集/模型校验，实际生成任务由全局 reportTask store 启动，
+ * 进度与结果写入全局状态，切换页面后浮窗/抽屉依然可见。
  *
  * @param questionId 问题ID（来自被分析的问数消息）
  * @param questionText 问题文本
  */
-const reportLoading = ref<boolean>(false);
-let reportController: AbortController;
-
-const triggerReport = async (questionId: string, questionText: string) => {
-  if (reportLoading.value) {
+const triggerReport = (questionId: string, questionText: string) => {
+  if (reportTaskStore.generating) {
     Msg.warning('数据报告生成中，请稍候');
     return;
   }
@@ -341,54 +337,14 @@ const triggerReport = async (questionId: string, questionText: string) => {
     return;
   }
 
-  reportLoading.value = true;
-  reportController = new AbortController();
-  emit('reportLoadingChange', true);
-  emit('reportProgress', '正在准备生成数据报告...');
-
-  try {
-    await reportAnalysisStreamApi(
-      (progress: string) => {
-        emit('reportProgress', progress);
-      },
-      (report: DataReport) => {
-        emit('reportData', report);
-      },
-      {
-        signal: reportController.signal,
-        message: questionText,
-        datasetId: selectedDatasetId.value?.value,
-        modelId: selectedModelId.value?.value,
-        questionId: questionId,
-        sessionId: sessionId.value
-      },
-      () => {
-        reportLoading.value = false;
-        emit('reportLoadingChange', false);
-      }
-    );
-  } catch (error: any) {
-    reportLoading.value = false;
-    emit('reportLoadingChange', false);
-    if (error?.name === 'AbortError') {
-      emit('reportError', '数据报告生成已取消');
-    } else {
-      emit('reportError', '数据报告生成失败: ' + (error?.message || '未知错误'));
-    }
-  }
-};
-
-/**
- * 取消后台数据报告生成任务
- * <p>
- * 报告在后台生成不阻塞页面，用户可通过浮窗上的取消按钮中止请求。
- */
-const cancelReport = () => {
-  if (reportController && !reportController.signal.aborted) {
-    reportController.abort();
-  }
-  reportLoading.value = false;
-  emit('reportLoadingChange', false);
+  // 启动全局后台生成任务（复用当前数据集/模型/会话状态）
+  reportTaskStore.startTask({
+    message: questionText,
+    datasetId: selectedDatasetId.value?.value,
+    modelId: selectedModelId.value?.value,
+    questionId: questionId,
+    sessionId: sessionId.value
+  });
 };
 
 defineExpose({
@@ -409,8 +365,7 @@ defineExpose({
   getModelId: () => selectedModelId.value?.value,
   getSessionId: () => sessionId.value,
   triggerAttribution,
-  triggerReport,
-  cancelReport
+  triggerReport
 });
 
 /** 发送消息 */
@@ -757,15 +712,13 @@ onMounted(() => {
 });
 
 // 组件卸载时中止正在进行的流式请求
+// 注：数据报告为全局后台任务，状态在 reportTask store 中，组件卸载不应中止
 onUnmounted(() => {
   if (controller && !controller.signal.aborted) {
     controller.abort();
   }
   if (attributionController && !attributionController.signal.aborted) {
     attributionController.abort();
-  }
-  if (reportController && !reportController.signal.aborted) {
-    reportController.abort();
   }
 });
 

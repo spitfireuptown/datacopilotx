@@ -33,7 +33,7 @@ public interface PromptConstant {
 
             """
             ## 任务
-            分析用户问题中的意图，判断用户的问题:"${query}"是否想要查询数据集:"${meta}"中的数据。
+            分析用户问题中的意图，判断用户的问题:"${query}"是否想要查询下方【数据集Schema】中的数据。
             如果是，则解析出完整的查询DSL结构。
             
             **重要：如果问题涉及多个表的字段（如订单表+明细表、用户表+订单表），你必须使用joins进行联表查询！**
@@ -75,7 +75,7 @@ public interface PromptConstant {
             - order_by: 排序字段列表
                 - field: 字段名
                 - direction: 排序方向 (ASC, DESC)
-            - limit: 限制返回条数，默认300，最多300条
+            - limit: 防止全表扫描的返回条数上限保护，默认300，最多300条（不是必须返回300条，仅当用户明确要求"前N条/TopN"时才设置具体N）
             - aggregations: 聚合函数列表 (COUNT, SUM, AVG, MAX, MIN)
 
             ## 输出格式
@@ -164,8 +164,30 @@ public interface PromptConstant {
             ## 当前时间
             ${time}
             
+            ## 数据集Schema
+            ${meta}
+            
             ## 任务
-            你是一个自然语言分析高手，根据用户的问题"${query}"、数据集元数据："${meta}"、意图分析结果："${analysis}"，生成SQL。
+            你是一个自然语言分析高手，根据用户的问题"${query}"、【意图分析结果】与【意图解析DSL】，结合【数据集Schema】生成SQL。
+            
+            ## 意图分析结果
+            ${analysis}
+            
+            ## 意图解析DSL
+            ${dsl}
+            
+            ## 意图解析DSL说明
+            【意图解析DSL】是意图识别阶段输出的结构化DSL（JSON），字段含义：
+            - tables/fields: 涉及的表与字段（显示名，必须通过【数据集Schema】映射为物理表名和列名，禁止直接把显示名写进SQL）
+            - conditions: 过滤条件列表，logical 表示与前一个条件的连接关系，默认 AND
+            - joins: 联表信息，ON 条件必须使用 from_table.from_field = to_table.to_field
+            - group_by / order_by: 分组与排序（direction: ASC/DESC）
+            - aggregations: 需要应用的聚合函数（COUNT/SUM/AVG/MAX/MIN），需结合 fields 判断作用字段
+            生成SQL时应尽量遵循DSL的结构，但字段名以【数据集Schema】为准；当DSL为空时忽略本节。
+            
+            ## LIMIT 输出规则
+            - 不要输出 LIMIT，除非用户问题明确要求"前 N 条 / Top N / 最多 N 条 / 最新 N 条"
+            - 即使【意图解析DSL】的 limit 为 300，也不要把它当作"必须截断"的指令；它只是防止全表扫描的上限保护，系统会在执行层通过 JDBC maxRows 兜底限制返回行数
             
             ## 查询策略判断
             - **单表查询场景**：当问题仅涉及维度信息（如门店名称、商品信息、员工信息等）时，直接查询对应的维度表，无需关联事实表
@@ -174,13 +196,13 @@ public interface PromptConstant {
             
             ## 规则
             - 生成的SQL为"${engine}" 语法SQL!!!
-            - 生成SQL的所有字段、表名、过滤条件中的字段必须来自于数据集元数据，不能随意创造!!!
+            - 生成SQL的所有字段、表名、过滤条件中的字段必须来自于【数据集Schema】，不能随意创造!!!
             - 生成的SQL中select第一个字段为问题中的维度字段!!!
             - 如果知识库结果:"${recall}"中包含意图分析中的字段，则进行检索并替换。
-            - 如果意图分析中包含joins联表信息，必须生成带JOIN的SQL，严格按照联表关系中指定的关联字段来写ON条件!!!
+            - 当【意图解析DSL】中包含joins联表信息时，必须生成带JOIN的SQL，严格按照联表关系中指定的关联字段来写ON条件!!!
             
             ## 联表SQL生成规则
-            - 当意图分析结果中包含joins时，必须生成联表SQL
+            - 当【意图解析DSL】中包含joins时，必须生成联表SQL
             - JOIN的ON条件必须使用数据集元数据中"联表关系"指定的字段
             - 多表查询时，所有字段前面加表名前缀（如 table.column）
             - 联表SQL示例：SELECT a.字段1, b.字段2 FROM 主表 a INNER JOIN 关联表 b ON a.关联字段 = b.关联字段 WHERE ...
@@ -193,7 +215,7 @@ public interface PromptConstant {
             ${innerPrompt}
             
             ## sql生成标准
-            - 严格按照意图解析结果"${analysis}"与数据集"${meta}"写出数据查询sql。
+            - 严格按照【意图分析结果】、【意图解析DSL】与【数据集Schema】写出数据查询sql。
             - 常量用单引号''包裹，中文别名用反撇号``包裹！！！
             - 输出的sql是可执行sql
             - 联表查询时，表名使用别名以简化SQL（如 主表名 a, 关联表名 b）
@@ -210,7 +232,7 @@ public interface PromptConstant {
             ```
             
             ## 错误修复指引（仅在重试时生效）
-            如果"${sql_error}"不为空，说明之前的SQL生成或执行失败，你需要：
+            如果上一轮的 sql_error 不为空，说明之前的SQL生成或执行失败，你需要：
             - 仔细阅读错误信息，分析失败原因
             - 根据错误类型修复SQL：
               - 如果是SQL语法错误，修正语法问题

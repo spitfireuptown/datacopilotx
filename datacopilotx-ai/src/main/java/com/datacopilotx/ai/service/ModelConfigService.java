@@ -11,7 +11,9 @@ import com.datacopilotx.common.constant.GlobalConstant;
 import com.datacopilotx.common.exception.DataCopilotXException;
 import com.datacopilotx.common.result.ResponseCode;
 import com.datacopilotx.ai.domian.bean.ModelConfigBean;
+import com.datacopilotx.ai.domian.bean.KnowledgeLibBean;
 import com.datacopilotx.ai.mapper.ModelConfigMapper;
+import com.datacopilotx.ai.mapper.KnowledgeLibMapper;
 import com.datacopilotx.ai.domian.dto.ModelConfigDTO;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -36,6 +38,8 @@ public class ModelConfigService {
     AIGatewayChatService aiGatewayChatService;
     @Autowired
     AuthService authService;
+    @Autowired
+    KnowledgeLibMapper knowledgeLibMapper;
 
 
     public List<ModelConfigVO.List> list(String name, String type) {
@@ -167,6 +171,18 @@ public class ModelConfigService {
     }
 
     public void del(int id) {
+        ModelConfigBean modelConfigBean = mapper.selectById(id);
+        if (ObjectUtils.isEmpty(modelConfigBean)) {
+            throw new DataCopilotXException(ResponseCode.MODEL_NOT_FOUND);
+        }
+        // embedding模型被知识库绑定时不允许删除
+        if (GlobalConstant.EMBEDDING_FUNCTION_TYPE.equals(modelConfigBean.getFunctionType())) {
+            Long boundCount = knowledgeLibMapper.selectCount(
+                    new LambdaQueryWrapper<KnowledgeLibBean>().eq(KnowledgeLibBean::getModelId, (long) id));
+            if (boundCount != null && boundCount > 0) {
+                throw new DataCopilotXException(ResponseCode.MODEL_BINDED_KNOWLEDGE_LIB);
+            }
+        }
         mapper.deleteById(id);
     }
 

@@ -2,6 +2,7 @@
 import { onMounted, onUnmounted } from 'vue';
 import { theme as antdTheme } from 'ant-design-vue';
 import { useAuthStore } from '@/stores/modules/auth';
+import ReportTaskGlobal from '@/components/ReportTaskGlobal.vue';
 
 const authStore = useAuthStore();
 
@@ -33,5 +34,7 @@ onUnmounted(() => {
 <template>
   <a-config-provider :theme="themeConfig">
     <router-view></router-view>
+    <!-- 数据报告后台任务浮窗与抽屉：全局挂载，切换页面不丢失 -->
+    <ReportTaskGlobal />
   </a-config-provider>
 </template>

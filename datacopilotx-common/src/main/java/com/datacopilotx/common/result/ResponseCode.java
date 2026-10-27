@@ -14,6 +14,7 @@ public enum ResponseCode {
     MODEL_CONNECTION_FAILED(6001, "模型连接失败"),
     MODEL_NOT_FOUND(6002, "模型不存在"),
     MODEL_REPETITION(6000, "模型重复"),
+    MODEL_BINDED_KNOWLEDGE_LIB(6003, "该模型已被知识库绑定，无法删除"),
     DATASET_NOT_FOUND(6100, "数据集不存在"),
     DATASET_REPEAT(6101, "数据集名称重复"),
     VECTOR_EMBEDDING_FAILED(7000, "获取向量化数据失败"),

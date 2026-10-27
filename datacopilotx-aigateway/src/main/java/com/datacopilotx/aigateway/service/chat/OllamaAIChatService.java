@@ -33,16 +33,22 @@ public class OllamaAIChatService implements AIChatService {
                 "stream", false
         );
 
-        return getWebClient()
+        long startTime = System.currentTimeMillis();
+        OllamaResultDTO result = getWebClient()
                 .post()
                 .uri(chatRequest.getBaseUrl())
                 .body(BodyInserters.fromValue(bodyJson))
                 .retrieve()
                 .bodyToMono(OllamaResultDTO.class)
-                .block()
-                .getMessage()
-                .getContent()
-                .toString();
+                .block();
+        // 记录 Token 用量与耗时，供调用方统计
+        if (result != null && (result.getPromptEvalCount() != null || result.getEvalCount() != null)) {
+            int tokenUsage = (result.getPromptEvalCount() != null ? result.getPromptEvalCount() : 0)
+                    + (result.getEvalCount() != null ? result.getEvalCount() : 0);
+            chatRequest.setTokenUsage(tokenUsage);
+        }
+        chatRequest.setTimeCost(System.currentTimeMillis() - startTime);
+        return result.getMessage().getContent().toString();
     }
 
     @Override
@@ -71,6 +77,12 @@ public class OllamaAIChatService implements AIChatService {
                 .bodyToFlux(String.class)
                 .flatMap(data -> {
                     OllamaResultDTO ollamaResultDTO = JSONUtil.toBean(data, OllamaResultDTO.class);
+                    // 最后一个分片会携带 Token 统计，覆盖默认值
+                    if (ollamaResultDTO.getPromptEvalCount() != null || ollamaResultDTO.getEvalCount() != null) {
+                        int tokenUsage = (ollamaResultDTO.getPromptEvalCount() != null ? ollamaResultDTO.getPromptEvalCount() : 0)
+                                + (ollamaResultDTO.getEvalCount() != null ? ollamaResultDTO.getEvalCount() : 0);
+                        chatRequest.setTokenUsage(tokenUsage);
+                    }
                     return Flux.just(ollamaResultDTO.getMessage().getContent());
                 })
                 .doOnError(error -> log.error(error.getMessage(), error))

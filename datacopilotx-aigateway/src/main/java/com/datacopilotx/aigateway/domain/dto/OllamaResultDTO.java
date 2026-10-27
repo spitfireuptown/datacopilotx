@@ -14,6 +14,10 @@ public class OllamaResultDTO {
     private String model;
     private String createAt;
     private MessageDTO message;
+    // 提示词 Token 数（Ollama 响应字段 prompt_eval_count）
+    private Integer promptEvalCount;
+    // 生成 Token 数（Ollama 响应字段 eval_count）
+    private Integer evalCount;
 
     @Data
     @AllArgsConstructor

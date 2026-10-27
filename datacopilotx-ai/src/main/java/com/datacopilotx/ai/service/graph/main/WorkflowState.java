@@ -31,6 +31,7 @@ public class WorkflowState extends AgentState {
             Map.entry("result", Channels.base(null, null)),
             Map.entry("intent_score", Channels.base(null, null)),
             Map.entry("intent_analysis", Channels.base(null, null)),
+            Map.entry("intent_dsl", Channels.base(null, null)),
             Map.entry("recall", Channels.appender(List::of)),
             Map.entry("collected_data", Channels.appender(List::of)),
             Map.entry("sql_error", Channels.base(null, null)),
@@ -98,6 +99,10 @@ public class WorkflowState extends AgentState {
 
     public Optional<String> intentAnalysis() {
         return this.value("intent_analysis");
+    }
+
+    public Optional<String> intentDsl() {
+        return this.value("intent_dsl");
     }
 
     @SuppressWarnings("unchecked")
